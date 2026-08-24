@@ -206,7 +206,7 @@ function noise3(x,y,z){
 /* ============================ TEXTURAS PROCEDURAIS ========================= */
 const TILE=16, ACOLS=16;
 const atlasCanvas=document.createElement('canvas');
-atlasCanvas.width=ACOLS*TILE; atlasCanvas.height=12*TILE;
+atlasCanvas.width=ACOLS*TILE; atlasCanvas.height=13*TILE;
 const actx=atlasCanvas.getContext('2d');
 const avgColor=[];
 const tr=(x,y,s)=>hash2(x+s*7919,y+s*104729);
@@ -228,7 +228,7 @@ const noisy=(x,y,b,a,s)=>{const v=(tr(x,y,s)-.5)*2*a;return[b[0]+v,b[1]+v,b[2]+v
 const dim=(c,f)=>[c[0]*f,c[1]*f,c[2]*f];
 const GRASS_TOP_TILES=[], DIRT_TILES=[], STONE_TILES=[], COBBLE_TILES=[];
 const LAVA_TILES=[], SAND_TILES=[], WATER_TILES=[], LEAVES_TILES=[];
-const IPE_YELLOW_TILES=[], IPE_PINK_TILES=[], IPE_RED_TILES=[];
+const IPE_YELLOW_TILES=[], IPE_PINK_TILES=[], IPE_RED_TILES=[], IPE_PURPLE_TILES=[];
 for(let v=0;v<16;v++){
   const idx=v; GRASS_TOP_TILES.push(idx);
   paintTile(idx,(x,y)=>{
@@ -363,6 +363,16 @@ for(let v=0;v<16;v++){
     return c;
   });
 }
+/* Folhas de Ipê Roxo */
+for(let v=0;v<16;v++){
+  const idx=192+v; IPE_PURPLE_TILES.push(idx);
+  paintTile(idx,(x,y)=>{
+    let c=noisy(x,y,[142,55,190],12+(v%5),16+v*13);
+    if(tr(x,y,17+v*7)<.18)c=[180,95,225];
+    else if(tr(x,y,18+v*11)<.10)c=[100,25,150];
+    return c;
+  });
+}
 paintTile(112,(x,y)=>{
   const drip=[3,4,3,5,4,3,3,4,5,4,3,4,3,5,4,3]; const d=drip[x];
   if(y<d){const n=(tr(x,y,101)-.5)*22; return [clamp(108+n,0,255),clamp(168+n,0,255),clamp(58+n*.6,0,255)];}
@@ -480,7 +490,7 @@ paintTile(127,(x,y)=>{const d=Math.max(Math.abs(x-7.5),Math.abs(y-7.5));
 const B={air:0,grass:1,dirt:2,stone:3,cobble:4,planks:5,log:6,leaves:7,sand:8,
          water:9,bedrock:10,coal:11,iron:12,diamond:13,glass:14,brick:15,
          snowgrass:16,sandstone:17,cactus:18,lava:19,ipe_yellow_leaves:20,
-         ipe_pink_leaves:21,ipe_red_leaves:22};
+         ipe_pink_leaves:21,ipe_red_leaves:22,ipe_purple_leaves:23};
 const BLOCKS=[null,
  {name:'Grama',top:GRASS_TOP_TILES,side:112,bottom:DIRT_TILES},{name:'Terra',side:DIRT_TILES},{name:'Pedra',side:STONE_TILES},
  {name:'Pedregulho',side:COBBLE_TILES},{name:'Tábuas',side:114},{name:'Tronco',top:116,side:115,bottom:116},
@@ -491,9 +501,10 @@ const BLOCKS=[null,
  {name:'Cacto',top:127,side:126,bottom:127},{name:'Lava',side:LAVA_TILES},
  {name:'Ipê Amarelo',side:IPE_YELLOW_TILES},
  {name:'Ipê Rosa',side:IPE_PINK_TILES},
- {name:'Ipê Vermelho',side:IPE_RED_TILES}];
+ {name:'Ipê Vermelho',side:IPE_RED_TILES},
+  {name:'Ipê Roxo',side:IPE_PURPLE_TILES}];
 for(const b of BLOCKS){if(!b)continue;b.top=b.top??b.side;b.bottom=b.bottom??b.side;}
-const HARDNESS=[0,.45,.4,.8,.85,.7,.7,.2,.35,Infinity,Infinity,.95,1.1,1.4,.2,.85,.45,.7,.25,Infinity,.2,.2,.2];
+const HARDNESS=[0,.45,.4,.8,.85,.7,.7,.2,.35,Infinity,Infinity,.95,1.1,1.4,.2,.85,.45,.7,.25,Infinity,.2,.2,.2,.2];
 const OPAQUE=[],SOLID=[];
 BLOCKS.forEach((b,i)=>{
   OPAQUE[i]=!!b&&i!==B.water&&i!==B.lava&&i!==B.glass;
@@ -727,12 +738,14 @@ function plantTree(put,x,z,ground,r,bio){
   /* Árvores de Carvalho / Ipê para os demais biomas */
   const ipeChance = hash2(x*17+99, z*19+88);
   let leafType = B.leaves;
-  if (ipeChance < 0.04) {
+  if (ipeChance < 0.03) {
     leafType = B.ipe_pink_leaves;
-  } else if (ipeChance < 0.08) {
+  } else if (ipeChance < 0.06) {
     leafType = B.ipe_yellow_leaves;
-  } else if (ipeChance < 0.12) {
+  } else if (ipeChance < 0.09) {
     leafType = B.ipe_red_leaves;
+  } else if (ipeChance < 0.12) {
+    leafType = B.ipe_purple_leaves;
   }
   const trunk=4+Math.floor(r*3);
   const top=ground+trunk;
