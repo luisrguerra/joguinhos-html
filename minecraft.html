@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
@@ -48,6 +49,9 @@ canvas{display:block;image-rendering:auto}
 .btn:hover{background:#7688b6}.btn:active{transform:translateY(1px)}
 .controls{display:grid;grid-template-columns:auto auto;gap:6px 34px;font-size:20px;color:#e4e4e4;text-shadow:1px 1px 0 #000;text-align:left;margin-top:2px}
 .controls div{display:flex;align-items:center;gap:9px}
+.controls .mdi{font-size:20px;line-height:1;color:#ffe58a}
+.tbtn .mdi{line-height:1;display:block}
+#rotatehint .icon .mdi{display:block}
 kbd{font-family:'VT323';font-size:18px;line-height:1;background:#1d1d1d;border:1px solid #6e6e6e;border-bottom:3px solid #6e6e6e;border-radius:3px;padding:2px 7px;color:#ffe}
 .foot{margin:0;font-size:17px;color:#a8a8a8;text-shadow:1px 1px 0 #000;max-width:720px}
 
@@ -128,14 +132,14 @@ body.mobile #itemname{bottom:calc(64px + env(safe-area-inset-bottom))}
      própria área de mira responde a toque-e-segure (minerar) / toque rápido (colocar). -->
 <div id="touchcontrols">
   <div id="joystick"><div id="joystick-knob"></div></div>
-  <button id="tb-inv" class="tbtn small" title="Inventário">🎒</button>
-  <button id="tb-pause" class="tbtn small" title="Pausar">⏸</button>
-  <button id="tb-sprint" class="tbtn small" title="Correr">»»</button>
-  <button id="tb-sneak" class="tbtn small" title="Agachar">⇩</button>
-  <button id="tb-jump" class="tbtn" title="Pular (2× voar)">⤒</button>
+  <button id="tb-inv" class="tbtn small" title="Inventário"><i class="mdi mdi-bag-personal"></i></button>
+  <button id="tb-pause" class="tbtn small" title="Pausar"><i class="mdi mdi-pause"></i></button>
+  <button id="tb-sprint" class="tbtn small" title="Correr"><i class="mdi mdi-run-fast"></i></button>
+  <button id="tb-sneak" class="tbtn small" title="Agachar"><i class="mdi mdi-arrow-down-bold"></i></button>
+  <button id="tb-jump" class="tbtn" title="Pular (2× voar)"><i class="mdi mdi-arrow-up-bold"></i></button>
 </div>
 
-<div id="rotatehint"><div class="icon">📱</div><p>Gire seu dispositivo para o modo paisagem para uma experiência melhor</p></div>
+<div id="rotatehint"><div class="icon"><i class="mdi mdi-phone-rotate-landscape"></i></div><p>Gire seu dispositivo para o modo paisagem para uma experiência melhor</p></div>
 
 <!-- Menu de Seleção de Blocos (Inventário) -->
 <div id="blockselector">
@@ -158,10 +162,10 @@ body.mobile #itemname{bottom:calc(64px + env(safe-area-inset-bottom))}
       <div><kbd>1–9</kbd> / <kbd>LB/RB</kbd> escolher bloco</div><div><kbd>F3</kbd> debug · <kbd>Esc</kbd> / <kbd>Start</kbd> pausar</div>
     </div>
     <div class="controls" id="mobilecontrols" style="display:none">
-      <div>🕹️ joystick move</div><div>👉 arraste p/ olhar</div>
-      <div>✊ segure a mira p/ minerar</div><div>👆 toque rápido p/ colocar</div>
-      <div>⤒ pular · 2× toques voa</div><div>⇩ segurar agacha · »» correr</div>
-      <div>🎒 inventário · ⏸ pausar</div><div>🏃 2× joystick p/ frente = correr</div>
+      <div><i class="mdi mdi-gamepad-variant"></i> joystick move</div><div><i class="mdi mdi-gesture-swipe-horizontal"></i> arraste p/ olhar</div>
+      <div><i class="mdi mdi-gesture-tap-hold"></i> segure a mira p/ minerar</div><div><i class="mdi mdi-gesture-tap"></i> toque rápido p/ colocar</div>
+      <div><i class="mdi mdi-arrow-up-bold"></i> pular · 2× toques voa</div><div><i class="mdi mdi-arrow-down-bold"></i> segurar agacha · <i class="mdi mdi-run-fast"></i> correr</div>
+      <div><i class="mdi mdi-bag-personal"></i> inventário · <i class="mdi mdi-pause"></i> pausar</div><div><i class="mdi mdi-run"></i> 2× joystick p/ frente = correr</div>
     </div>
     <p class="foot" id="footnote">Three.js r128 · texturas procedurais · controles touch no estilo Minecraft Pocket Edition (clássico) + suporte a Controle de Xbox</p>
   </div>
@@ -359,25 +363,42 @@ paintTile(112,(x,y)=>{
   let c=noisy(x,y,[134,96,66],14,3);if(tr(x,y,4)<.12)c=dim(c,.78);return c;
 });
 
-/* Padrão do Pedregulho */
+/* Padrão do Pedregulho — pedras arredondadas com sombreado 3D e argamassa escura */
 const cobPts=[[3,2],[11,3],[15,8],[6,7],[1,11],[9,12],[13,15],[4,15],[7,0],[0,4]];
 for(let v=0;v<16;v++){
   const idx=128+v; COBBLE_TILES.push(idx);
   paintTile(idx,(x,y)=>{
-    let d1=99,d2=99,ci=0;
+    // Voronoi: acha a pedra mais próxima (d1/ci) e a segunda (d2) p/ detectar juntas
+    let d1=99,d2=99,ci=0,pcx=0,pcy=0;
     for(let k=0;k<cobPts.length;k++){
       const dx=x-cobPts[k][0],dy=y-cobPts[k][1],dd=Math.sqrt(dx*dx+dy*dy);
-      if(dd<d1){d2=d1;d1=dd;ci=k;}else if(dd<d2)d2=dd;
+      if(dd<d1){d2=d1;d1=dd;ci=k;pcx=cobPts[k][0];pcy=cobPts[k][1];}
+      else if(dd<d2)d2=dd;
     }
-    const borderNoise=(tr(x,y,200+v*5)-.5)*0.6;
-    if((d2-d1)+borderNoise<1.5){
-      const mortNoise=(tr(x,y,300+v*7)-.5)*12;
-      return [clamp(60+mortNoise,35,90),clamp(60+mortNoise,35,90),clamp(60+mortNoise,35,90)];
+    const borderNoise=(tr(x,y,200+v*5)-.5)*0.75;
+    const edge=(d2-d1)+borderNoise;
+    /* ARGAMASSA (juntas entre as pedras) — bem escura, com uma leve sombra
+       nas bordas p/ dar a sensação de que as pedras estão "acima" da junta */
+    if(edge<1.4){
+      const mortNoise=(tr(x,y,300+v*7)-.5)*9;
+      const mg=clamp(46+mortNoise-(1.4-edge)*11,26,68);
+      return [mg,mg,mg*1.06];
     }
-    const baseG=105+tr(ci,0,41)*40;
-    const varLight=(tr(x,y,400+v*13)-.5)*(6+(v%4)*2);
-    const g=clamp(baseG+varLight,65,160);
-    return [g,g,g];
+    /* PEDRA — cinza base variando por célula */
+    const baseG=104+tr(ci,7,41)*48;
+    // Sombreado em "domo": centro da pedra mais claro, bordas escurecem
+    const distC=Math.hypot(x-pcx,y-pcy);
+    const dome=clamp(1-distC*0.10,0.60,1);
+    // Luz direcional vinda do canto superior-esquerdo (relevo 3D)
+    const lightDir=(-(x-pcx)-(y-pcy))/9;
+    const shade=1+clamp(lightDir,-1,1)*0.17;
+    // Granulado fino + manchas escuras esparsas
+    const grain=(tr(x,y,400+v*13)-.5)*(7+(v%4)*2);
+    let g=baseG*dome*shade+grain;
+    if(tr(x,y,500+v*9)<0.06)g*=0.80;      // pontinhos escuros
+    else if(tr(x,y,560+v*11)<0.05)g*=1.12; // brilhos claros
+    g=clamp(g,50,188);
+    return [g,g,g*1.02];
   });
 }
 
