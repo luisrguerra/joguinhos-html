@@ -843,7 +843,7 @@ function generateChunkData(cx,cz){
     const[t,m]=climateAt(wx,wz);
     const bio=biomeFrom(h,t,m);
     if(bio!==BIO.PLAINS&&bio!==BIO.FOREST&&bio!==BIO.TAIGA)continue; // desert/praia/montanha/neve
-    if(hash2(wx*13+217,wz*17-613)>=0.035)continue;                    // densidade
+    if(hash2(wx*13+217,wz*17-613)>=0.00035)continue;                  // densidade (reduzida a 1/100)
     const surf=(h*16+lz)*16+lx;
     if(!(data[surf]===B.grass||data[surf]===B.snowgrass||data[surf]===B.dirt))continue;
     const aIdx=((h+1)*16+lz)*16+lx;
