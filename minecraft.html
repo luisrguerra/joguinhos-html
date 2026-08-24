@@ -1046,7 +1046,9 @@ const gamepadState = {
   prevFlyToggle: false,
   prevLB: false,
   prevRB: false,
-  lastJumpTap: 0
+  lastJumpTap: 0,
+  dig: false,      // quebrar (botão/trigger direito do controle)
+  place: false     // colocar (botão/trigger esquerdo do controle)
 };
 let selectorFocusIndex = 0;
 let menuNavCd = 0;
@@ -1061,6 +1063,7 @@ function updateGamepad(dt) {
   if (!gp) {
     gamepadState.moveX = 0; gamepadState.moveY = 0;
     gamepadState.lookX = 0; gamepadState.lookY = 0;
+    gamepadState.dig = false; gamepadState.place = false;
     return;
   }
   if (!started && gp.buttons.some(b => b.pressed)) {
@@ -1133,8 +1136,8 @@ function updateGamepad(dt) {
     cam.yaw -= gamepadState.lookX * lookSensitivity * dt;
     cam.pitch = clamp(cam.pitch - gamepadState.lookY * lookSensitivity * dt, -1.55, 1.55);
   }
-  mouseL = btnRT;
-  mouseR = btnLT;
+  gamepadState.dig = btnRT;
+  gamepadState.place = btnLT;
   gamepadState.sneak = btnB;
   if (btnL3) gamepadState.sprint = !gamepadState.sprint;
   if (btnX && !gamepadState.prevMenu && started) {
@@ -1316,7 +1319,7 @@ function updateHighlight(){
 let mineKey='',mineT=0,hitCd=0,placeCd=0;
 function handleMouse(dt){
   hitCd-=dt;placeCd-=dt;
-  if(mouseL&&curHit){
+  if(digPressed()&&curHit){
     const key=curHit.x+'|'+curHit.y+'|'+curHit.z;
     if(key!==mineKey){mineKey=key;mineT=0;renewCrackPattern(curHit.x,curHit.y,curHit.z);}
     if(swingT>=1)swingT=0;
@@ -1328,12 +1331,12 @@ function handleMouse(dt){
       mineKey='';mineT=0;hitCd=.18;
     }
   }else{mineKey='';mineT=0;}
-  if(mouseR&&placeCd<=0){placeBlock();placeCd=.22;}
+  if(placePressed()&&placeCd<=0){placeBlock();placeCd=.22;}
 }
 const miningRingEl=document.getElementById('minering');
 function updateCrackFx(){
   let show=false,ringP=0;
-  if(curHit&&mouseL&&mineKey){
+  if(curHit&&digPressed()&&mineKey){
     const key=curHit.x+'|'+curHit.y+'|'+curHit.z;
     if(key===mineKey){
       const need=HARDNESS[curHit.b];
@@ -1446,6 +1449,12 @@ function pickBlock(){
   else{hotbarItems[sel]=curHit.b;drawIcon(slotCanvases[sel],curHit.b);updateHandItem();showItemName();}
 }
 let mouseL=false,mouseR=false;
+/* Estado efetivo de quebrar/colocar: combina o ponteiro (mouse/toque) com o
+   controle (gamepadState.dig/.place). O controle NUNCA sobrescreve o estado do
+   mouse — ele apenas soma —, evitando que segurar o botão do mouse para
+   quebrar/colocar bloquear quando um gamepad está conectado. */
+function digPressed(){return mouseL || gamepadState.dig;}
+function placePressed(){return mouseR || gamepadState.place;}
 const MAXP=240;
 const pMesh=new THREE.InstancedMesh(new THREE.BoxGeometry(.13,.13,.13),new THREE.MeshBasicMaterial(),MAXP);
 pMesh.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(MAXP*3),3);
