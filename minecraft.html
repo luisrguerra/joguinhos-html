@@ -206,7 +206,7 @@ function noise3(x,y,z){
 /* ============================ TEXTURAS PROCEDURAIS ========================= */
 const TILE=16, ACOLS=16;
 const atlasCanvas=document.createElement('canvas');
-atlasCanvas.width=ACOLS*TILE; atlasCanvas.height=14*TILE;
+atlasCanvas.width=ACOLS*TILE; atlasCanvas.height=15*TILE;
 const actx=atlasCanvas.getContext('2d');
 const avgColor=[];
 const tr=(x,y,s)=>hash2(x+s*7919,y+s*104729);
@@ -227,7 +227,7 @@ function paintTile(idx,fn){
 const noisy=(x,y,b,a,s)=>{const v=(tr(x,y,s)-.5)*2*a;return[b[0]+v,b[1]+v,b[2]+v];};
 const dim=(c,f)=>[c[0]*f,c[1]*f,c[2]*f];
 const GRASS_TOP_TILES=[], DIRT_TILES=[], STONE_TILES=[], COBBLE_TILES=[];
-const LAVA_TILES=[], SAND_TILES=[], WATER_TILES=[], LEAVES_TILES=[];
+const LAVA_TILES=[], SAND_TILES=[], WATER_TILES=[], LEAVES_TILES=[], SHRUB_TILES=[];
 const IPE_YELLOW_TILES=[], IPE_PINK_TILES=[], IPE_RED_TILES=[], IPE_PURPLE_TILES=[], IPE_WHITE_TILES=[];
 for(let v=0;v<16;v++){
   const idx=v; GRASS_TOP_TILES.push(idx);
@@ -330,6 +330,17 @@ for(let v=0;v<16;v++){
     let c=noisy(x,y,[56,136,42],12+(v%6),16+v*13);
     if(tr(x,y,17+v*7)<.15)c=[28,76,26];
     else if(tr(x,y,18+v*11)<.09)c=[86,172,64];
+    return c;
+  });
+}
+/* Folhas de Arbusto — mesma textura das folhas, porém mais escura:
+   base verde mais profunda e manchas (clara/escura) igualmente escurecidas. */
+for(let v=0;v<16;v++){
+  const idx=224+v; SHRUB_TILES.push(idx);
+  paintTile(idx,(x,y)=>{
+    let c=noisy(x,y,[42,102,32],12+(v%6),16+v*13);
+    if(tr(x,y,17+v*7)<.15)c=[20,56,19];
+    else if(tr(x,y,18+v*11)<.09)c=[64,128,48];
     return c;
   });
 }
@@ -500,7 +511,7 @@ paintTile(127,(x,y)=>{const d=Math.max(Math.abs(x-7.5),Math.abs(y-7.5));
 const B={air:0,grass:1,dirt:2,stone:3,cobble:4,planks:5,log:6,leaves:7,sand:8,
          water:9,bedrock:10,coal:11,iron:12,diamond:13,glass:14,brick:15,
          snowgrass:16,sandstone:17,cactus:18,lava:19,ipe_yellow_leaves:20,
-         ipe_pink_leaves:21,ipe_red_leaves:22,ipe_purple_leaves:23,ipe_white_leaves:24};
+         ipe_pink_leaves:21,ipe_red_leaves:22,ipe_purple_leaves:23,ipe_white_leaves:24,shrub:25};
 const BLOCKS=[null,
  {name:'Grama',top:GRASS_TOP_TILES,side:112,bottom:DIRT_TILES},{name:'Terra',side:DIRT_TILES},{name:'Pedra',side:STONE_TILES},
  {name:'Pedregulho',side:COBBLE_TILES},{name:'Tábuas',side:114},{name:'Tronco',top:116,side:115,bottom:116},
@@ -513,9 +524,10 @@ const BLOCKS=[null,
  {name:'Ipê Rosa',side:IPE_PINK_TILES},
  {name:'Ipê Vermelho',side:IPE_RED_TILES},
   {name:'Ipê Roxo',side:IPE_PURPLE_TILES},
-  {name:'Ipê Branco',side:IPE_WHITE_TILES}];
+  {name:'Ipê Branco',side:IPE_WHITE_TILES},
+  {name:'Arbusto',side:SHRUB_TILES}];
 for(const b of BLOCKS){if(!b)continue;b.top=b.top??b.side;b.bottom=b.bottom??b.side;}
-const HARDNESS=[0,.45,.4,.8,.85,.7,.7,.2,.35,Infinity,Infinity,.95,1.1,1.4,.2,.85,.45,.7,.25,Infinity,.2,.2,.2,.2,.2];
+const HARDNESS=[0,.45,.4,.8,.85,.7,.7,.2,.35,Infinity,Infinity,.95,1.1,1.4,.2,.85,.45,.7,.25,Infinity,.2,.2,.2,.2,.2,.2];
 const OPAQUE=[],SOLID=[];
 BLOCKS.forEach((b,i)=>{
   OPAQUE[i]=!!b&&i!==B.water&&i!==B.lava&&i!==B.glass;
@@ -820,6 +832,23 @@ function generateChunkData(cx,cz){
     if(!d)continue;
     if(d.kind==='tree')plantTree(put,d.x,d.z,d.ground,d.r,d.bio);
     else for(let k=1;k<=d.n;k++)put(d.x,d.ground+k,d.z,B.cactus,true);
+  }
+  /* ARBUSTOS — bloco único e opaco no solo. Aparecem apenas em biomas onde faz
+     sentido (planície, floresta e taiga), ficando de fora do deserto, da praia
+     com areia, do oceano, da montanha e do pico nevado. */
+  for(let lz=0;lz<16;lz++)for(let lx=0;lx<16;lx++){
+    const wx=bx0+lx,wz=bz0+lz;
+    const h=terrainHeight(wx,wz);
+    if(h<=SEA+1)continue;                 // fora da água (praia/oceano)
+    const[t,m]=climateAt(wx,wz);
+    const bio=biomeFrom(h,t,m);
+    if(bio!==BIO.PLAINS&&bio!==BIO.FOREST&&bio!==BIO.TAIGA)continue; // desert/praia/montanha/neve
+    if(hash2(wx*13+217,wz*17-613)>=0.035)continue;                    // densidade
+    const surf=(h*16+lz)*16+lx;
+    if(!(data[surf]===B.grass||data[surf]===B.snowgrass||data[surf]===B.dirt))continue;
+    const aIdx=((h+1)*16+lz)*16+lx;
+    if(aIdx>=data.length||data[aIdx]!==0)continue; // acima precisa estar livre (sem árvore)
+    data[aIdx]=B.shrub;
   }
   const em=editsByChunk.get(cKey(cx,cz));
   if(em)for(const[idx,b]of em)data[idx]=b;
