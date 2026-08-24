@@ -749,15 +749,15 @@ function plantTree(put,x,z,ground,r,bio){
   /* Árvores de Carvalho / Ipê para os demais biomas */
   const ipeChance = hash2(x*17+99, z*19+88);
   let leafType = B.leaves;
-  if (ipeChance < 0.03) {
+  if (ipeChance < 0.003) {
     leafType = B.ipe_pink_leaves;
-  } else if (ipeChance < 0.06) {
+  } else if (ipeChance < 0.006) {
     leafType = B.ipe_yellow_leaves;
-  } else if (ipeChance < 0.09) {
+  } else if (ipeChance < 0.009) {
     leafType = B.ipe_red_leaves;
-  } else if (ipeChance < 0.12) {
+  } else if (ipeChance < 0.012) {
     leafType = B.ipe_purple_leaves;
-  } else if (ipeChance < 0.15) {
+  } else if (ipeChance < 0.015) {
     leafType = B.ipe_white_leaves;
   }
   const trunk=4+Math.floor(r*3);
