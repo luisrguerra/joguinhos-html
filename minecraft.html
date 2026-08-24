@@ -272,17 +272,58 @@ for(let v=0;v<16;v++){
     return c;
   });
 }
-for(let v=0;v<16;v++){
-  const idx=80+v; WATER_TILES.push(idx);
-  paintTile(idx,(x,y)=>{
-    const diag=(x+y*2+v)%16, diag2=(x*3+y+v*2)%16;
-    let r=42, g=86, b=212;
-    if(diag<4||diag2<2){r+=22;g+=34;b+=38;}
-    else if(diag>11){r-=16;g-=22;b-=28;}
-    const n=(tr(x,y,201+v*17)-.5)*(14+(v%5)*2);
-    return [clamp(r+n,20,100),clamp(g+n,50,160),clamp(b+n,140,255),210];
-  });
+/* ======================= ÁGUA ANIMADA E CONTÍNUA ==========================
+   A água agora usa UM ÚNICO tile no atlas (WATER_TILE = 80). Todos os blocos
+   de água apontam para esse mesmo tile, garantindo COESÃO: dois blocos lado a
+   lado exibem exatamente o mesmo desenho, sem "manchas" aleatórias.
+   A textura é gerada por interferência de ondas senoidais com:
+     • frequências ESPACIAIS inteiras  -> a borda direita casa com a esquerda e
+       o topo casa com a base, então tiles vizinhos ficam CONTÍNUOS (seamless);
+     • multiplicadores TEMPORAIS inteiros -> a animação fecha o loop sem "salto".
+   Os quadros são pré-renderizados e trocados a poucos FPS (estilo Minecraft). */
+const WATER_TILE = 80;            // slot único da água no atlas
+WATER_TILES.push(WATER_TILE);     // meshing sempre usa esse tile -> coesão
+const WATER_FRAMES = 32;          // nº de quadros (loop perfeito)
+const WATER_FPS    = 8;           // poucos quadros por segundo
+const waterFrameData = [];        // ImageData de cada quadro (16×16, lado a lado contínuo)
+function waterColorAt(x, y, f){
+  const t = (f / WATER_FRAMES) * Math.PI * 2;   // fase da animação (fecha em 2π)
+  const u = x / TILE, v = y / TILE;             // coords normalizadas 0..1
+  // Ondas: (freqX·u + freqY·v) inteiros -> costura perfeita; ±k·t inteiros -> loop
+  let w = 0;
+  w += Math.sin(2*Math.PI*(1*u)       + 1*t);
+  w += Math.sin(2*Math.PI*(1*v)       - 1*t) * 0.9;
+  w += Math.sin(2*Math.PI*(2*u + 1*v) + 2*t) * 0.6;
+  w += Math.sin(2*Math.PI*(1*u - 2*v) - 1*t) * 0.5;
+  w += Math.sin(2*Math.PI*(3*u + 2*v) + 3*t) * 0.3;
+  w /= 3.3;                                      // ~ -1 .. 1
+  const shade = (w + 1) * 0.5;                   // 0 .. 1
+  // gradiente: azul profundo -> azul claro (cristas das ondas)
+  let r = lerp(24, 92, shade);
+  let g = lerp(80, 172, shade);
+  let b = lerp(198, 248, shade);
+  // brilho especular esparso no topo das cristas (cintilação da água)
+  const glint = shade > 0.90 ? (shade - 0.90) / 0.10 : 0;
+  r += glint * 95; g += glint * 70; b += glint * 8;
+  return [clamp(r,0,255), clamp(g,0,255), clamp(b,0,255), 205];
 }
+function buildWaterFrames(){
+  for(let f=0; f<WATER_FRAMES; f++){
+    const img = actx.createImageData(TILE, TILE);
+    for(let y=0; y<TILE; y++) for(let x=0; x<TILE; x++){
+      const c = waterColorAt(x, y, f), i = (y*TILE + x) * 4;
+      img.data[i]=c[0]; img.data[i+1]=c[1]; img.data[i+2]=c[2]; img.data[i+3]=c[3];
+    }
+    waterFrameData.push(img);
+  }
+  // cor média (usada p/ partículas) + desenha o quadro 0 no atlas
+  let ar=0, ag=0, ab=0; const d0 = waterFrameData[0].data;
+  for(let p=0; p<d0.length; p+=4){ ar+=d0[p]; ag+=d0[p+1]; ab+=d0[p+2]; }
+  const n = TILE*TILE;
+  avgColor[WATER_TILE] = [ar/n, ag/n, ab/n];
+  actx.putImageData(waterFrameData[0], (WATER_TILE%ACOLS)*TILE, ((WATER_TILE/ACOLS)|0)*TILE);
+}
+buildWaterFrames();
 for(let v=0;v<16;v++){
   const idx=96+v; LEAVES_TILES.push(idx);
   paintTile(idx,(x,y)=>{
@@ -473,6 +514,19 @@ const atlasTex=new THREE.CanvasTexture(atlasCanvas);
 atlasTex.magFilter=THREE.NearestFilter; atlasTex.minFilter=THREE.NearestFilter; atlasTex.generateMipmaps=false;
 const matOpaque=new THREE.MeshBasicMaterial({map:atlasTex,vertexColors:true,alphaTest:.5});
 const matWater=new THREE.MeshBasicMaterial({map:atlasTex,vertexColors:true,transparent:true,opacity:.72,side:THREE.DoubleSide,depthWrite:false});
+/* Animação da água: troca o quadro no atlas a poucos FPS e reenvia a textura.
+   Como todos os blocos de água compartilham o tile 80, todos animam em conjunto
+   e de forma contínua entre si (a mão em 1ª pessoa também acompanha). */
+let waterAnimAcc=0, waterFrame=0;
+function updateWaterAnim(dt){
+  waterAnimAcc += dt;
+  const step = 1 / WATER_FPS;
+  if(waterAnimAcc < step) return;
+  waterAnimAcc %= step;
+  waterFrame = (waterFrame + 1) % WATER_FRAMES;
+  actx.putImageData(waterFrameData[waterFrame], (WATER_TILE%ACOLS)*TILE, ((WATER_TILE/ACOLS)|0)*TILE);
+  atlasTex.needsUpdate = true;
+}
 const hl=new THREE.LineSegments(
   new THREE.EdgesGeometry(new THREE.BoxGeometry(1.002,1.002,1.002)),
   new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:.55}));
@@ -1107,7 +1161,14 @@ function stepPlayer(dt){
                 getBlock(Math.floor(p.pos.x),Math.floor(p.pos.y+1.1),Math.floor(p.pos.z))===B.water;
   const inLava=getBlock(Math.floor(p.pos.x),Math.floor(p.pos.y+.35),Math.floor(p.pos.z))===B.lava||
                getBlock(Math.floor(p.pos.x),Math.floor(p.pos.y+1.1),Math.floor(p.pos.z))===B.lava;  
-  if((inWater||inLava)&&!p.wasInWater&&p.vel.y<-4)sfx('splash');
+  /* Impacto ao entrar no líquido: preserva a velocidade vertical antes de a
+     física de natação amortecê-la. A intensidade controla volume, brilho,
+     grave e quantidade de gotículas do novo splash procedural. */
+  if(!p.wasInWater&&p.vel.y<-2.2){
+    const impact=clamp((-p.vel.y-2.2)/15,0.12,1);
+    if(inWater)sfx('splash',impact);
+    else if(inLava)sfx('splash',impact*.55);
+  }
   p.wasInWater=inWater||inLava;
   const speed=p.fly?(sprint?SPEED_FLY_FAST:SPEED_FLY):
                inLava?(SPEED_SWIM*.5):inWater?SPEED_SWIM:sneak?SPEED_SNEAK:sprint?SPEED_SPRINT:SPEED_WALK;
@@ -1389,13 +1450,39 @@ function initAudio(){
     const stepFilter=new Tone.Filter({type:'lowpass',frequency:420,Q:0.7});
     stepNoise.chain(stepFilter,new Tone.Gain(0.35),comp);
 
-    /* SPLASH — respingo de água/lava, ruído branco mais brilhante */
+    /* SPLASH DE IMPACTO — quatro camadas procedurais:
+       1) ataque branco e brilhante (água rompendo);
+       2) corpo rosa e filtrado (massa de água deslocada);
+       3) grave senoidal descendente (peso do impacto);
+       4) gotículas curtas e agudas, com pequenas variações aleatórias. */
     const splashNoise=new Tone.NoiseSynth({
       noise:{type:'white'},
-      envelope:{attack:0.004,decay:0.22,sustain:0,release:0.03}
+      envelope:{attack:0.001,decay:0.19,sustain:0,release:0.035}
     });
-    const splashFilter=new Tone.Filter({type:'lowpass',frequency:700,Q:1});
-    splashNoise.chain(splashFilter,new Tone.Gain(0.7),comp);
+    const splashFilter=new Tone.Filter({type:'bandpass',frequency:1850,Q:0.75});
+    const splashNoiseGain=new Tone.Gain(0.62);
+    splashNoise.chain(splashFilter,splashNoiseGain,comp);
+
+    const splashBody=new Tone.NoiseSynth({
+      noise:{type:'pink'},
+      envelope:{attack:0.003,decay:0.34,sustain:0,release:0.06}
+    });
+    const splashBodyFilter=new Tone.Filter({type:'lowpass',frequency:760,Q:0.65});
+    const splashBodyGain=new Tone.Gain(0.58);
+    splashBody.chain(splashBodyFilter,splashBodyGain,comp);
+
+    const splashThump=new Tone.Synth({
+      oscillator:{type:'sine'},
+      envelope:{attack:0.001,decay:0.16,sustain:0,release:0.035}
+    });
+    const splashThumpGain=new Tone.Gain(0.42);
+    splashThump.chain(splashThumpGain,comp);
+
+    const splashDrops=new Tone.PolySynth(Tone.Synth,{
+      oscillator:{type:'sine'},
+      envelope:{attack:0.001,decay:0.045,sustain:0,release:0.025},
+      volume:-10
+    }).connect(comp);
 
     /* HIT — "tique" rápido ao minerar */
     const hitNoise=new Tone.NoiseSynth({
@@ -1413,11 +1500,13 @@ function initAudio(){
     placeSynth.connect(new Tone.Gain(0.5).connect(comp));
 
     toneNodes={master,comp,breakNoise,breakFilter,stepNoise,stepFilter,
-               splashNoise,splashFilter,hitNoise,hitFilter,placeSynth};
+               splashNoise,splashFilter,splashNoiseGain,splashBody,splashBodyFilter,
+               splashBodyGain,splashThump,splashThumpGain,splashDrops,
+               hitNoise,hitFilter,placeSynth};
     audioReady=true;
   }catch(e){console.warn('Falha ao iniciar o Tone.js:',e);}
 }
-function sfx(kind){
+function sfx(kind,intensity=1){
   if(!audioReady||!toneNodes)return;
   if(Tone.context.state!=='running')Tone.context.resume();
   const now=Tone.now();
@@ -1436,11 +1525,36 @@ function sfx(kind){
       f.exponentialRampToValueAtTime(90,now+0.11);
       toneNodes.stepNoise.triggerAttackRelease(0.11,now);
     }else if(kind==='splash'){
-      const f=toneNodes.splashFilter.frequency;
-      f.cancelScheduledValues(now);
-      f.setValueAtTime(700,now);
-      f.exponentialRampToValueAtTime(120,now+0.22);
-      toneNodes.splashNoise.triggerAttackRelease(0.22,now);
+      const force=clamp(intensity,0.08,1);
+      const bright=toneNodes.splashFilter.frequency;
+      bright.cancelScheduledValues(now);
+      bright.setValueAtTime(rnd(1750,2350)*(0.72+force*.45),now);
+      bright.exponentialRampToValueAtTime(280+force*160,now+0.19);
+
+      const body=toneNodes.splashBodyFilter.frequency;
+      body.cancelScheduledValues(now);
+      body.setValueAtTime(620+force*520,now);
+      body.exponentialRampToValueAtTime(105+force*55,now+0.34);
+
+      toneNodes.splashNoise.triggerAttackRelease(0.19,now,0.32+force*.68);
+      toneNodes.splashBody.triggerAttackRelease(0.34,now+0.006,0.28+force*.72);
+
+      const thump=toneNodes.splashThump;
+      const startHz=95+force*70;
+      thump.frequency.cancelScheduledValues(now);
+      thump.frequency.setValueAtTime(startHz,now);
+      thump.frequency.exponentialRampToValueAtTime(38+force*14,now+0.15);
+      thump.triggerAttackRelease(0.17,now,0.22+force*.63);
+
+      /* Quedas fortes soltam mais gotículas. Os disparos são espaçados para
+         formar um pequeno arco sonoro, em vez de um único chiado plano. */
+      const dropCount=2+Math.round(force*4);
+      const scale=[880,1047,1175,1319,1568,1760,2093];
+      for(let i=0;i<dropCount;i++){
+        const hz=scale[(Math.random()*scale.length)|0]*rnd(.94,1.06);
+        const delay=.025+i*rnd(.014,.026)+Math.random()*.012;
+        toneNodes.splashDrops.triggerAttackRelease(hz,rnd(.025,.055),now+delay,0.16+force*.34);
+      }
     }else if(kind==='hit'){
       const f=toneNodes.hitFilter.frequency;
       f.cancelScheduledValues(now);
@@ -1980,6 +2094,7 @@ function loop(){
     handleMouse(dt);
     updateCrackFx();
     updateParticles(dt);
+    updateWaterAnim(dt);
   }
   camera.position.set(player.pos.x,player.pos.y+EYE_H,player.pos.z);
   camera.rotation.set(cam.pitch,cam.yaw,0);
