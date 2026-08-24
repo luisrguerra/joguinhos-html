@@ -234,17 +234,15 @@ for(let v=0;v<16;v++){
     return[c[0]+b,c[1]+b,c[2]+b];
   });
 }
-for(let v=0;v<16;v++){
-  const idx=48+v; LAVA_TILES.push(idx);
-  paintTile(idx,(x,y)=>{
-    const diag=(x*2+y+v)%16, diag2=(x+y*3+v*2)%16;
-    let r=235, g=85, b=12;
-    if(diag<4||diag2<3){r+=20;g+=45;b+=12;}
-    else if(diag>12){r-=45;g-=35;b=0;}
-    const n=(tr(x,y,301+v*19)-.5)*(20+(v%5)*3);
-    return [clamp(r+n,180,255),clamp(g+n,20,150),clamp(b+n,0,40),240];
-  });
-}
+/* ================= LAVA — MESMA TEXTURA DA ÁGUA, PORÉM VERMELHA ============
+   A lava agora usa UM ÚNICO tile no atlas (LAVA_TILE = 81), exatamente como a
+   água (WATER_TILE = 80). Sua textura é gerada pelas MESMAS ondas senoidais da
+   água — com as mesmas frequências espaciais (bordas casam, ficando seamless) e
+   os mesmos multiplicadores temporais (loop perfeito) —, apenas com paleta
+   VERMELHA e SEM TRANSPARÊNCIA (alpha = 255). Assim a lava fica visualmente
+   idêntica em forma à água, mudando somente a cor. */
+const LAVA_TILE = 81;                     // slot único da lava no atlas
+LAVA_TILES.push(LAVA_TILE);               // meshing sempre usa esse tile -> coesão
 for(let v=0;v<16;v++){
   const idx=64+v; SAND_TILES.push(idx);
   paintTile(idx,(x,y)=>{
@@ -305,6 +303,48 @@ function buildWaterFrames(){
   actx.putImageData(waterFrameData[0], (WATER_TILE%ACOLS)*TILE, ((WATER_TILE/ACOLS)|0)*TILE);
 }
 buildWaterFrames();
+const LAVA_FRAMES = 32;          // mesmo nº de quadros da água (loop perfeito)
+const LAVA_FPS    = 8;           // mesma taxa de quadros da água
+const lavaFrameData = [];        // ImageData de cada quadro (16×16, contínuo)
+function lavaColorAt(x, y, f){
+  const t = (f / LAVA_FRAMES) * Math.PI * 2;   // fase (fecha em 2π, igual à água)
+  const u = x / TILE, v = y / TILE;            // coords normalizadas 0..1
+  // Mesmas ondas da água (freq espaciais inteiras -> seamless; ±k·t inteiros -> loop)
+  let w = 0;
+  w += Math.sin(2*Math.PI*(1*u)       + 1*t);
+  w += Math.sin(2*Math.PI*(1*v)       - 1*t) * 0.9;
+  w += Math.sin(2*Math.PI*(2*u + 1*v) + 2*t) * 0.6;
+  w += Math.sin(2*Math.PI*(1*u - 2*v) - 1*t) * 0.5;
+  w += Math.sin(2*Math.PI*(3*u + 2*v) + 3*t) * 0.3;
+  w /= 3.3;                                      // ~ -1 .. 1
+  const shade = (w + 1) * 0.5;                   // 0 .. 1
+  // Paleta VERMELHA: vermelho profundo -> laranja nas cristas das ondas
+  let r = lerp(150, 250, shade);
+  let g = lerp(52, 140, shade);
+  let b = lerp(12, 34, shade);
+  // Brilho especular esparso no topo das cristas (cintilação, como a água)
+  const glint = shade > 0.90 ? (shade - 0.90) / 0.10 : 0;
+  r += glint * 5; g += glint * 90; b += glint * 70;
+  // SEM TRANSPARÊNCIA: alpha fixo em 255
+  return [clamp(r,0,255), clamp(g,0,255), clamp(b,0,255), 255];
+}
+function buildLavaFrames(){
+  for(let f=0; f<LAVA_FRAMES; f++){
+    const img = actx.createImageData(TILE, TILE);
+    for(let y=0; y<TILE; y++) for(let x=0; x<TILE; x++){
+      const c = lavaColorAt(x, y, f), i = (y*TILE + x) * 4;
+      img.data[i]=c[0]; img.data[i+1]=c[1]; img.data[i+2]=c[2]; img.data[i+3]=c[3];
+    }
+    lavaFrameData.push(img);
+  }
+  // cor média (usada p/ partículas) + desenha o quadro 0 no atlas
+  let ar=0, ag=0, ab=0; const d0 = lavaFrameData[0].data;
+  for(let p=0; p<d0.length; p+=4){ ar+=d0[p]; ag+=d0[p+1]; ab+=d0[p+2]; }
+  const n = TILE*TILE;
+  avgColor[LAVA_TILE] = [ar/n, ag/n, ab/n];
+  actx.putImageData(lavaFrameData[0], (LAVA_TILE%ACOLS)*TILE, ((LAVA_TILE/ACOLS)|0)*TILE);
+}
+buildLavaFrames();
 for(let v=0;v<16;v++){
   const idx=96+v; LEAVES_TILES.push(idx);
   paintTile(idx,(x,y)=>{
@@ -530,14 +570,16 @@ const matWater=new THREE.MeshBasicMaterial({map:atlasTex,vertexColors:true,trans
 /* Animação da água: troca o quadro no atlas a poucos FPS e reenvia a textura.
    Como todos os blocos de água compartilham o tile 80, todos animam em conjunto
    e de forma contínua entre si (a mão em 1ª pessoa também acompanha). */
-let waterAnimAcc=0, waterFrame=0;
+let waterAnimAcc=0, waterFrame=0, lavaFrame=0;
 function updateWaterAnim(dt){
   waterAnimAcc += dt;
   const step = 1 / WATER_FPS;
   if(waterAnimAcc < step) return;
   waterAnimAcc %= step;
   waterFrame = (waterFrame + 1) % WATER_FRAMES;
+  lavaFrame = (lavaFrame + 1) % LAVA_FRAMES;
   actx.putImageData(waterFrameData[waterFrame], (WATER_TILE%ACOLS)*TILE, ((WATER_TILE/ACOLS)|0)*TILE);
+  actx.putImageData(lavaFrameData[lavaFrame], (LAVA_TILE%ACOLS)*TILE, ((LAVA_TILE/ACOLS)|0)*TILE);
   atlasTex.needsUpdate = true;
 }
 const hl=new THREE.LineSegments(
@@ -878,7 +920,7 @@ function buildChunkMesh(ch){
   };
   for(let y=0;y<CH;y++)for(let z=0;z<16;z++)for(let x=0;x<16;x++){
     const b=data[(y*16+z)*16+x]; if(!b)continue;
-    const info=BLOCKS[b],isW=(b===B.water||b===B.lava);
+    const info=BLOCKS[b],isW=(b===B.water||b===B.lava),isWater=(b===B.water);
     for(let f=0;f<6;f++){
       const F=FACES[f];
       const nb=gb(x+F.dir[0],y+F.dir[1],z+F.dir[2]);
@@ -891,7 +933,7 @@ function buildChunkMesh(ch){
         tile=tile[vIdx];
       }
       const tu=(tile%ACOLS)*TILE,tv=((tile/ACOLS)|0)*TILE;
-      const pos=isW?WP:P,uvs=isW?WU:U,cols=isW?WC:C,inds=isW?WI:I;
+      const pos=isWater?WP:P,uvs=isWater?WU:U,cols=isWater?WC:C,inds=isWater?WI:I;
       const base=pos.length/3;
       const sink=isW&&gb(x,y+1,z)!==b;
       const ao=[1,1,1,1];
