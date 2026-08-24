@@ -1793,9 +1793,12 @@ function updateHand(dt){
 let started=false,locked=false,lastTap=0,lastW=0,sprintTap=false,bobPhase=0,showDebug=false;
 addEventListener('keydown',e=>{
   if(e.code==='Space')e.preventDefault();
-  if(e.code==='KeyE' && started && locked){
+  if(e.code==='KeyE' && started){
     e.preventDefault();
-    toggleBlockSelector();
+    // Permite ABRIR (bloqueado) e FECHAR (desbloqueado) o menu de blocos.
+    // Exigir `locked` aqui impedia o "E" de fechar, pois abrir o menu solta a
+    // trava da mira.
+    if(isSelectorOpen || locked) toggleBlockSelector();
     return;
   }
   if(!e.repeat){
