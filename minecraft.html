@@ -588,7 +588,7 @@ BLOCKS.forEach((b,i)=>{
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.08,2500);
 camera.rotation.order='YXZ';
-const renderer=new THREE.WebGLRenderer({antialias:true});
+const renderer=new THREE.WebGLRenderer({antialias:true,logarithmicDepthBuffer:true});
 renderer.setSize(innerWidth,innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio,isMobile?1.5:2));
 document.body.appendChild(renderer.domElement);
