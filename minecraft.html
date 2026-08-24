@@ -547,7 +547,7 @@ function decorAt(wx,wz){
   const dens=TREE_DENSITY[bio];
   if(dens>0&&hash2(gx*3+1011,gz*3-709)<dens)
     return{kind:'tree',x:wx,z:wz,ground:h,r:hash2(gx+551,gz+937),bio:bio};
-  if(bio===B.DESERT&&hash2(gx*7+13,gz*7-31)<.14)
+  if(bio===BIO.DESERT&&hash2(gx*7+13,gz*7-31)<.14)
     return{kind:'cactus',x:wx,z:wz,ground:h,n:1+Math.floor(hash2(gx-81,gz+45)*3)};
   return null;
 }
@@ -630,11 +630,11 @@ function generateChunkData(cx,cz){
         if(y===0||(y<4&&hash3(wx,y,wz)<(3.6-y)/3))b=B.bedrock;
         else{
           const d=h-y;
-          if(bio===B.DESERT)b=d<4?B.sand:d<8?B.sandstone:B.stone;
-          else if(bio===B.BEACH||bio===B.OCEAN)b=d<3?B.sand:B.stone;
-          else if(d===0)b=bio===B.MOUNTAIN?B.stone:
-                        (bio===B.TAIGA||bio===B.SNOWPEAK)?B.snowgrass:B.grass;
-          else if(d<4)b=(bio===B.MOUNTAIN||bio===B.SNOWPEAK)?B.stone:B.dirt;
+          if(bio===BIO.DESERT)b=d<4?B.sand:d<8?B.sandstone:B.stone;
+          else if(bio===BIO.BEACH||bio===BIO.OCEAN)b=d<3?B.sand:B.stone;
+          else if(d===0)b=bio===BIO.MOUNTAIN?B.stone:
+                        (bio===BIO.TAIGA||bio===BIO.SNOWPEAK)?B.snowgrass:B.grass;
+          else if(d<4)b=(bio===BIO.MOUNTAIN||bio===BIO.SNOWPEAK)?B.stone:B.dirt;
           else b=B.stone;
           if(b===B.stone)b=oreAt(wx,y,wz)||B.stone;
           if(carved(wx,y,wz,h)){
