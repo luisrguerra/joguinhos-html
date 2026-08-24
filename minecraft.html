@@ -1224,27 +1224,61 @@ function updateCrackFx(){
     if(show)miningRingEl.style.setProperty('--p',(ringP*100)+'%');
   }
 }
+/* ======================= ESCOAMENTO DE LÍQUIDOS ===========================
+   Modelo físico simplificado (estilo Minecraft), com três regras invioláveis:
+     1) GRAVIDADE  — o líquido SEMPRE tenta descer primeiro; ao cair, o alcance
+                     horizontal é totalmente renovado.
+     2) ESPALHAMENTO LATERAL — só ocorre quando há SUPORTE embaixo (bloco sólido
+                     ou outro líquido) e enquanto restar "alcance" (flow budget).
+     3) NUNCA SOBE — uma célula jamais é preenchida por haver líquido ABAIXO dela.
+   Isso elimina de vez a dispersão para cima que existia antes (o líquido subia
+   porque a checagem antiga aceitava qualquer vizinho, inclusive o de baixo). */
+const FLUID_RANGE_WATER = 7;   // água escoa mais longe (menos viscosa)
+const FLUID_RANGE_LAVA  = 3;   // lava escoa pouco (mais viscosa), como no MC
 function checkFluidSpread(startX, startY, startZ, fluidType) {
-  const queue = [[startX, startY, startZ]];
-  const dirs = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
-  while (queue.length > 0) {
-    const [x, y, z] = queue.shift();
-    if (y < 1 || y >= CH) continue;
-    if (getBlock(x, y, z) !== B.air) continue;
-    let hasFluid = false;
-    for (const [dx, dy, dz] of dirs) {
-      if (getBlock(x + dx, y + dy, z + dz) === fluidType) {
-        hasFluid = true;
-        break;
-      }
+  const RANGE = (fluidType === B.lava) ? FLUID_RANGE_LAVA : FLUID_RANGE_WATER;
+  /* somente direções HORIZONTAIS para o espalhamento — a vertical é tratada
+     exclusivamente pela gravidade (para baixo), nunca para cima. */
+  const HDIRS = [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]];
+  const key = (a, b, c) => a + ',' + b + ',' + c;
+  const best = new Map();          // maior "alcance" já processado por célula
+  const queue = [];
+  const push = (a, b, c, flow) => {
+    if (b < 1 || b >= CH) return;
+    const k = key(a, b, c), prev = best.get(k);
+    if (prev !== undefined && prev >= flow) return; // evita reprocessar em pior/igual estado
+    best.set(k, flow);
+    queue.push([a, b, c, flow]);
+  };
+  /* Semeia a partir de todas as fontes de líquido em volta do ponto alterado
+     (incluindo o próprio ponto, se já for líquido — ex.: bloco recém-colocado,
+     ou o vizinho de um bloco recém-quebrado). O de cima também semeia, pois um
+     líquido acima deve poder cair para dentro do buraco aberto. */
+  const seeds = [[0, 0, 0], [0, 1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]];
+  for (const [dx, dy, dz] of seeds) {
+    const sx = startX + dx, sy = startY + dy, sz = startZ + dz;
+    if (getBlock(sx, sy, sz) === fluidType) push(sx, sy, sz, RANGE);
+  }
+  let guard = 0;
+  while (queue.length && guard++ < 40000) {
+    const [x, y, z, flow] = queue.shift();
+    /* 1) GRAVIDADE — se há ar logo abaixo, o líquido desce e NÃO se espalha
+          lateralmente nesta célula (a coluna de queda tem prioridade). */
+    if (y - 1 >= 1 && getBlock(x, y - 1, z) === B.air) {
+      setBlock(x, y - 1, z, fluidType);
+      push(x, y - 1, z, RANGE);   // ao cair, o alcance horizontal é renovado
+      continue;
     }
-    if (hasFluid) {
-      setBlock(x, y, z, fluidType);
-      for (const [dx, dy, dz] of dirs) {
-        const nx = x + dx, ny = y + dy, nz = z + dz;
-        if (ny >= 1 && ny < CH && getBlock(nx, ny, nz) === B.air) {
-          if (dy === -1 || (fluidType === B.water && ny <= SEA) || fluidType === B.lava) {
-            queue.push([nx, ny, nz]);
+    /* 2) ESPALHAMENTO LATERAL — apenas se houver suporte embaixo (chão sólido ou
+          líquido) e ainda restar alcance. Cada passo lateral gasta 1 de alcance. */
+    if (flow > 0) {
+      const belowSolid = (y - 1 < 1) || getBlock(x, y - 1, z) !== B.air;
+      if (belowSolid) {
+        for (const [dx, , dz] of HDIRS) {
+          const nx = x + dx, nz = z + dz;
+          if (getBlock(nx, y, nz) === B.air) {
+            setBlock(nx, y, nz, fluidType);
+            push(nx, y, nz, flow - 1);
           }
         }
       }
