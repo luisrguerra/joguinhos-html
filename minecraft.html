@@ -1688,7 +1688,10 @@ let moveTouchId=null,moveOriginX=0,moveOriginY=0;
 let lookTouchId=null,lookLastX=0,lookLastY=0;
 let lookStartX=0,lookStartY=0,lookMoved=false,lookMining=false,lookHoldTimer=null;
 const JOY_MAX=45,TOUCH_LOOK_SENS=.0032;
-const TAP_MOVE_LIMIT=14,HOLD_DELAY=130;
+const TAP_MOVE_LIMIT=14,HOLD_DELAY=260;
+/* limiar (px) de arrasto que cancela a mineração: se o dedo se mover mais que isso
+   enquanto olha ao redor, tratamos como gesto de câmera e NÃO quebramos o bloco */
+const MINE_CANCEL_MOVE=10;
 let touchLastJumpTap=0,touchLastFwdTap=0;
 
 function isTouchOnUI(t){
@@ -1719,7 +1722,9 @@ function onTouchStartDoc(e){
       stopLookHold();
       lookHoldTimer=setTimeout(()=>{
         lookHoldTimer=null;
-        if(lookTouchId!==null && started && locked && !isSelectorOpen){
+        /* só começa a minerar se o dedo continuou PARADO durante toda a espera —
+           se o jogador arrastou para olhar ao redor, não quebra o bloco sem querer */
+        if(lookTouchId!==null && !lookMoved && started && locked && !isSelectorOpen){
           lookMining=true;mouseL=true;swingT=0;
         }
       },HOLD_DELAY);
@@ -1747,7 +1752,15 @@ function onTouchMoveDoc(e){
     }else if(t.identifier===lookTouchId){
       const dx=t.clientX-lookLastX,dy=t.clientY-lookLastY;
       lookLastX=t.clientX;lookLastY=t.clientY;
-      if(!lookMoved && Math.hypot(t.clientX-lookStartX,t.clientY-lookStartY)>TAP_MOVE_LIMIT){
+      const dragDist=Math.hypot(t.clientX-lookStartX,t.clientY-lookStartY);
+      /* Enquanto a mineração AINDA não começou: se o dedo passar do limiar de
+         arrasto, cancelamos o timer de mineração — o toque vira apenas "olhar",
+         evitando que o bloco seja quebrado sem querer ao girar a câmera. */
+      if(!lookMining && dragDist>MINE_CANCEL_MOVE){
+        lookMoved=true;
+        stopLookHold();
+      }
+      if(!lookMoved && dragDist>TAP_MOVE_LIMIT){
         lookMoved=true;
       }
       if(locked&&!isSelectorOpen){
