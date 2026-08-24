@@ -1533,6 +1533,9 @@ const handScene=new THREE.Scene();
 const handGroup=new THREE.Group();
 handScene.add(handGroup);
 let handMesh=null,swingT=1;
+const handOffset=new THREE.Vector3();
+const handSwingEuler=new THREE.Euler();
+const handSwingQuat=new THREE.Quaternion();
 
 function buildBlockGeom(id){
   const info=BLOCKS[id],P=[],U=[],C=[],I=[];
@@ -1571,11 +1574,19 @@ function updateHand(dt){
   swingT=Math.min(1,swingT+dt*3.4);
   const sw=Math.sin(swingT*Math.PI);
   const bobA=player.onGround?Math.min(player.hSpeed/SPEED_WALK,1):0;
-  handGroup.position.set(
+  // Offset is expressed in camera-local space (right/up/forward from the eye),
+  // then rotated + translated by the camera's current world transform so the
+  // hand stays glued to the view no matter where the player is in the world.
+  handOffset.set(
     .46-sw*.20+Math.sin(bobPhase)*bobA*.028,
     -.44-sw*.26-Math.abs(Math.cos(bobPhase))*bobA*.028,
-    -.78-sw*.10);
-  handGroup.rotation.set(-sw*1.05,sw*.30,-sw*.35);
+    -.78-sw*.10
+  );
+  handOffset.applyQuaternion(camera.quaternion);
+  handGroup.position.copy(camera.position).add(handOffset);
+  handSwingEuler.set(-sw*1.05,sw*.30,-sw*.35);
+  handSwingQuat.setFromEuler(handSwingEuler);
+  handGroup.quaternion.copy(camera.quaternion).multiply(handSwingQuat);
 }
 
 /* ============================ ENTRADA ====================================== */
