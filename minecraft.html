@@ -13,7 +13,6 @@
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
 body{font-family:'VT323',monospace;color:#fff;-webkit-user-select:none;user-select:none}
 canvas{display:block;image-rendering:auto}
-/* HUD */
 #waterfx{position:fixed;inset:0;background:rgba(13,58,142,.34);opacity:0;transition:opacity .25s;pointer-events:none;z-index:5}
 #crosshair{position:fixed;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;pointer-events:none;mix-blend-mode:difference;z-index:6;filter:drop-shadow(0 1px 1px rgba(0,0,0,.8))}
 #crosshair::before,#crosshair::after{content:"";position:absolute;background:#fff}
@@ -26,7 +25,6 @@ canvas{display:block;image-rendering:auto}
 .slot canvas{width:42px;height:42px;image-rendering:pixelated}
 .slot .num{position:absolute;top:0;left:3px;font-size:15px;color:#d6d6d6;text-shadow:1px 1px 0 #000}
 .slot.sel{border-color:#fff;box-shadow:0 0 0 1px #000,inset 0 0 0 1px rgba(255,255,255,.8)}
-/* Menu de seleção de blocos (Inventário) */
 #blockselector{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:8;display:none;align-items:center;justify-content:center}
 .selector-box{background:#c6c6c6;border:4px solid #373737;padding:20px;width:440px;box-shadow:inset -4px -4px 0 #555, inset 4px 4px 0 #fff;text-align:center}
 .selector-title{font-family:'Press Start 2P';font-size:14px;color:#373737;margin-bottom:15px;text-shadow:1px 1px 0 #fff}
@@ -57,7 +55,6 @@ kbd{font-family:'VT323';font-size:18px;line-height:1;background:#1d1d1d;border:1
   .btn{min-width:240px}
   .slot{width:42px;height:48px}.slot canvas{width:36px;height:36px}
 }
-/* ============================ CONTROLES TOUCH (MOBILE) ============================ */
 body.mobile #hotbar{bottom:calc(8px + env(safe-area-inset-bottom));padding:4px}
 body.mobile .slot{width:46px;height:46px}
 body.mobile .slot canvas{width:38px;height:38px}
@@ -81,16 +78,11 @@ body.mobile #itemname{bottom:calc(64px + env(safe-area-inset-bottom))}
 .tbtn:active{background:rgba(255,255,255,.3)}
 .tbtn.on{background:rgba(255,196,0,.55);border-color:#ffe58a}
 .tbtn.small{width:46px;height:46px;font-size:19px}
-/* estilo "Clássico" do Pocket Edition: sem botões dedicados de quebrar/colocar —
-   a área de mira (metade direita da tela) já responde a toque-e-segure (minerar) e
-   toque rápido (colocar), então só sobram os botões de pulo/agachar/correr/menu,
-   empilhados no canto inferior direito ao alcance do polegar. */
 #tb-inv{top:calc(10px + env(safe-area-inset-top));right:64px}
 #tb-pause{top:calc(10px + env(safe-area-inset-top));right:10px}
 #tb-sprint{width:50px;height:50px;font-size:16px;right:20px;bottom:calc(196px + env(safe-area-inset-bottom))}
 #tb-sneak{width:50px;height:50px;font-size:22px;right:20px;bottom:calc(132px + env(safe-area-inset-bottom))}
 #tb-jump{width:74px;height:74px;font-size:28px;right:14px;bottom:calc(24px + env(safe-area-inset-bottom))}
-/* anel de progresso de mineração (estilo Bedrock Touch), some quando não está minerando */
 #minering{position:fixed;left:50%;top:50%;width:42px;height:42px;margin:-21px 0 0 -21px;
   border-radius:50%;pointer-events:none;z-index:6;opacity:0;transition:opacity .1s;
   background:conic-gradient(#fff var(--p,0%),rgba(255,255,255,.28) 0);
@@ -113,9 +105,6 @@ body.mobile #itemname{bottom:calc(64px + env(safe-area-inset-bottom))}
 <div id="debug"></div>
 <div id="itemname"></div>
 <div id="hotbar"></div>
-<!-- Controles Touch (exibidos automaticamente em dispositivos móveis)
-     Esquema "Clássico" do Pocket Edition: não há botões de quebrar/colocar — a
-     própria área de mira responde a toque-e-segure (minerar) / toque rápido (colocar). -->
 <div id="touchcontrols">
   <div id="joystick"><div id="joystick-knob"></div></div>
   <button id="tb-inv" class="tbtn small" title="Inventário"><i class="mdi mdi-bag-personal"></i></button>
@@ -125,7 +114,6 @@ body.mobile #itemname{bottom:calc(64px + env(safe-area-inset-bottom))}
   <button id="tb-jump" class="tbtn" title="Pular (2× voar)"><i class="mdi mdi-arrow-up-bold"></i></button>
 </div>
 <div id="rotatehint"><div class="icon"><i class="mdi mdi-phone-rotate-landscape"></i></div><p>Gire seu dispositivo para o modo paisagem para uma experiência melhor</p></div>
-<!-- Menu de Seleção de Blocos (Inventário) -->
 <div id="blockselector">
   <div class="selector-box">
     <div class="selector-title">Selecionar Bloco (Slot Ativo)</div>
@@ -157,14 +145,12 @@ body.mobile #itemname{bottom:calc(64px + env(safe-area-inset-bottom))}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 <script>
 'use strict';
-/* -------------------------- detecção de dispositivo ------------------------ */
 const isMobile = (('ontouchstart' in window) || navigator.maxTouchPoints > 0) && (
   /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(navigator.userAgent) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) || // iPad moderno
   Math.min(window.innerWidth, window.innerHeight) < 820
 );
 if(isMobile) document.body.classList.add('mobile');
-/* ------------------------------ configuração ------------------------------ */
 const CH=80;                     // altura do mundo
 const SEA=30;                    // nível do mar
 const R=isMobile?9:15;           // raio de chunks carregados (reduzido no celular p/ desempenho)
@@ -175,12 +161,9 @@ const SPEED_FLY=11,SPEED_FLY_FAST=22;
 const GEN_PER_FRAME=4,MESH_PER_FRAME=4,UNLOAD_PAD=3,CLEAN_EVERY=90;
 const DAY_LEN=600;               // segundos por ciclo dia+noite
 const EYE_H=1.62;                // altura dos olhos
-/* --------------------------- utilidades matemáticas ----------------------- */
-const clamp=(v,a,b)=>v<a?a:v>b?b:v;
-const lerp=(a,b,t)=>a+(b-a)*t;
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;const lerp=(a,b,t)=>a+(b-a)*t;
 const smoothstep=(a,b,v)=>{const t=clamp((v-a)/(b-a),0,1);return t*t*(3-2*t);};
 const lerp3=(A,B,t)=>[lerp(A[0],B[0],t),lerp(A[1],B[1],t),lerp(A[2],B[2],t)];
-/* ---------------------- ruído pseudoaleatório com seed -------------------- */
 const SEED = Math.floor(Math.random() * 0xFFFFFF);
 function hash2(x,z){let h=Math.imul(x^SEED,374761393)+Math.imul(z^SEED,668265263);
   h=Math.imul(h^(h>>>13),1274126177);h^=h>>>16;return (h>>>0)/4294967296;}
@@ -203,9 +186,7 @@ function noise3(x,y,z){
   const e=a+(b-a)*v,f=c+(d-c)*v;
   return e+(f-e)*w;
 }
-/* ============================ TEXTURAS PROCEDURAIS ========================= */
-const TILE=16, ACOLS=16;
-const atlasCanvas=document.createElement('canvas');
+const TILE=16, ACOLS=16;const atlasCanvas=document.createElement('canvas');
 atlasCanvas.width=ACOLS*TILE; atlasCanvas.height=15*TILE;
 const actx=atlasCanvas.getContext('2d');
 const avgColor=[];
@@ -507,7 +488,6 @@ paintTile(127,(x,y)=>{const d=Math.max(Math.abs(x-7.5),Math.abs(y-7.5));
   let c=noisy(x,y,[104,150,62],8,73);
   if(d<5)c=[c[0]+14,c[1]+16,c[2]+6];
   if(d>6.5)c=dim(c,.72);return c;});
-/* ============================== BLOCOS ===================================== */
 const B={air:0,grass:1,dirt:2,stone:3,cobble:4,planks:5,log:6,leaves:7,sand:8,
          water:9,bedrock:10,coal:11,iron:12,diamond:13,glass:14,brick:15,
          snowgrass:16,sandstone:17,cactus:18,lava:19,ipe_yellow_leaves:20,
@@ -533,7 +513,6 @@ BLOCKS.forEach((b,i)=>{
   OPAQUE[i]=!!b&&i!==B.water&&i!==B.lava&&i!==B.glass;
   SOLID[i]=!!b&&i!==B.water&&i!==B.lava;
 });
-/* ============================ CENA THREE.JS ================================ */
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.08,2500);
 camera.rotation.order='YXZ';
@@ -624,7 +603,6 @@ const crackMesh=new THREE.Mesh(
   new THREE.MeshBasicMaterial({transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2,opacity:.9}));
 crackMesh.renderOrder=20;crackMesh.visible=false;scene.add(crackMesh);
 buildCrackTextures((Math.random()*0xffffffff)>>>0);
-/* ======================= CÉU: SOL, LUA, ESTRELAS, NUVENS =================== */
 const skyGroup=new THREE.Group(); scene.add(skyGroup);
 function celestialTex(fn){const c=document.createElement('canvas');c.width=c.height=16;
   fn(c.getContext('2d'));
@@ -655,7 +633,6 @@ cloudTex.wrapS=cloudTex.wrapT=THREE.RepeatWrapping; cloudTex.repeat.set(3,3);
 const cloudMat=new THREE.MeshBasicMaterial({map:cloudTex,transparent:true,opacity:.55,fog:false,depthWrite:false,side:THREE.DoubleSide});
 const cloudMesh=new THREE.Mesh(new THREE.PlaneGeometry(1200,1200),cloudMat);
 cloudMesh.rotation.x=-Math.PI/2; cloudMesh.position.y=96; scene.add(cloudMesh);
-/* ============================ GERAÇÃO DE MUNDO ============================= */
 function terrainHeight(x,z){
   const cont=fbm(x*.0018+400.3,z*.0018+900.1,3);
   const hills=fbm(x*.0055+11.7,z*.0055+7.3,3);
@@ -854,7 +831,6 @@ function generateChunkData(cx,cz){
   if(em)for(const[idx,b]of em)data[idx]=b;
   return data;
 }
-/* ============================ ARMAZENAGEM DE CHUNKS ======================== */
 const chunks=new Map(), editsByChunk=new Map();
 const cKey=(cx,cz)=>cx+','+cz;
 const makeChunk=(cx,cz)=>({cx,cz,data:null,mesh:null,wmesh:null,built:false});
@@ -878,7 +854,6 @@ function setBlock(x,y,z,b){
   if(lx===0&&lz===0)rb(cx-1,cz-1); if(lx===0&&lz===15)rb(cx-1,cz+1);
   if(lx===15&&lz===0)rb(cx+1,cz-1); if(lx===15&&lz===15)rb(cx+1,cz+1);
 }
-/* ===================== MESHING COM AMBIENT OCCLUSION ====================== */
 const FACES=[
  {dir:[-1,0,0],shade:.70,ax:0,corners:[{pos:[0,1,0],uv:[0,1]},{pos:[0,0,0],uv:[0,0]},{pos:[0,1,1],uv:[1,1]},{pos:[0,0,1],uv:[1,0]}]},
  {dir:[ 1,0,0],shade:.70,ax:0,corners:[{pos:[1,1,1],uv:[0,1]},{pos:[1,0,1],uv:[0,0]},{pos:[1,1,0],uv:[1,1]},{pos:[1,0,0],uv:[1,0]}]},
@@ -1009,14 +984,12 @@ function updateChunks(){
     }
   }
 }
-/* ================================ JOGADOR ================================== */
 const player={pos:new THREE.Vector3(),vel:new THREE.Vector3(),onGround:false,fly:false,
               wasInWater:false,hSpeed:0,sprint:false};
 const cam={yaw:0,pitch:-.12};
 const keys={};
 const touchState={moveX:0,moveY:0,jump:false,sneak:false,sprint:false};
 let spawnPos=new THREE.Vector3();
-/* ------------------- SUPORTE A GAMEPAD (CONTROLE XBOX) -------------------- */
 const gamepadState = {
   moveX: 0,
   moveY: 0,
@@ -1270,7 +1243,6 @@ function stepPlayer(dt){
   if(p.onGround&&hs>1.2){stepAcc+=hs*dt;if(stepAcc>2.6){stepAcc=0;sfx('step');}}
 }
 function respawn(){player.pos.copy(spawnPos);player.vel.set(0,0,0);player.fly=false;}
-/* ==================== RAYCAST DDA + INTERAÇÃO ============================== */
 function raycast(o,d,maxD){
   let x=Math.floor(o.x),y=Math.floor(o.y),z=Math.floor(o.z);
   const sx=d.x>0?1:-1,sy=d.y>0?1:-1,sz=d.z>0?1:-1;
@@ -1432,7 +1404,6 @@ function pickBlock(){
   else{hotbarItems[sel]=curHit.b;drawIcon(slotCanvases[sel],curHit.b);updateHandItem();showItemName();}
 }
 let mouseL=false,mouseR=false;
-/* ==================== PARTÍCULAS DE QUEBRA ================================ */
 const MAXP=240;
 const pMesh=new THREE.InstancedMesh(new THREE.BoxGeometry(.13,.13,.13),new THREE.MeshBasicMaterial(),MAXP);
 pMesh.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(MAXP*3),3);
@@ -1624,7 +1595,6 @@ function sfx(kind,intensity=1){
     }
   }catch(e){}
 }
-/* ============================ HOTBAR ======================================= */
 const hotbarItems=[B.grass,B.dirt,B.stone,B.cobble,B.planks,B.log,B.leaves,B.water,B.lava];
 let sel=0,itemT=0;
 const hotbarEl=document.getElementById('hotbar'),itemEl=document.getElementById('itemname');
@@ -1676,7 +1646,6 @@ function showItemName(){
   clearTimeout(itemT);
   itemT=setTimeout(()=>itemEl.style.opacity=0,1300);
 }
-/* ==================== MENU DE SELEÇÃO DE BLOCOS (INVENTÁRIO) ================= */
 const blockSelectorEl=document.getElementById('blockselector');
 let isSelectorOpen=false;
 function buildBlockSelector(){
@@ -1714,7 +1683,6 @@ function toggleBlockSelector(forceState){
     requestLock();
   }
 }
-/* ===================== MÃO EM PRIMEIRA PESSOA =================== */
 const handMat=new THREE.MeshBasicMaterial({
   map:atlasTex,
   vertexColors:true,
@@ -1780,7 +1748,6 @@ function updateHand(dt){
   handSwingQuat.setFromEuler(handSwingEuler);
   handGroup.quaternion.copy(camera.quaternion).multiply(handSwingQuat);
 }
-/* ============================ ENTRADA ====================================== */
 let started=false,locked=false,lastTap=0,lastW=0,sprintTap=false,bobPhase=0,showDebug=false;
 addEventListener('keydown',e=>{
   if(e.code==='Space')e.preventDefault();
@@ -2007,7 +1974,6 @@ if(isMobile){
   document.getElementById('desktopcontrols').style.display='none';
   document.getElementById('mobilecontrols').style.display='grid';
 }
-/* ========================= MENU / POINTER LOCK ============================= */
 const overlay=document.getElementById('overlay');
 const subtitle=document.getElementById('subtitle');
 const playbtn=document.getElementById('playbtn');
@@ -2066,7 +2032,6 @@ document.addEventListener('pointerlockchange',()=>{
   if(isMobile)return; // no celular o estado é gerido manualmente por requestLock/releaseLock
   onLockChange(document.pointerLockElement===renderer.domElement);
 });
-/* ========================= CICLO DIA/NOITE ================================= */
 let tod=.05,wind=0;
 const DAY_SKY=[.45,.69,.99],NIGHT_SKY=[.012,.018,.055],DUSK_SKY=[.99,.47,.24];
 const waterfx=document.getElementById('waterfx');
@@ -2109,7 +2074,6 @@ function updateSky(dt){
   cloudMesh.position.set(p.x,96,p.z);
   cloudTex.offset.set(wind,wind*.7);
 }
-/* ====================== DEBUG ESTILO F3 =================================== */
 const debugEl=document.getElementById('debug');
 function updateDebug(){
   if(!started||!showDebug)return;
@@ -2125,7 +2089,6 @@ Bioma: ${bio}
 Hora: ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`+
 (player.fly?' · voando':'')+(player.sprint?' · correndo':'')+(player.onGround?'':' · no ar');
 }
-/* ============================ SPAWN ======================================== */
 function findSpawn(){
   for(let i=0;i<220;i++){
     const x=(i*17)%260-130,z=(i*11)%260-130;
@@ -2137,7 +2100,6 @@ function findSpawn(){
   }
   spawnPos.set(.5,CH-14,.5);
 }
-/* ============================ LOOP PRINCIPAL =============================== */
 let last=performance.now();
 function loop(){
   requestAnimationFrame(loop);
