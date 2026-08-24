@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
 <title>Minecraft Web — Voxel Sandbox</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -58,6 +58,53 @@ kbd{font-family:'VT323';font-size:18px;line-height:1;background:#1d1d1d;border:1
   .btn{min-width:240px}
   .slot{width:42px;height:48px}.slot canvas{width:36px;height:36px}
 }
+
+/* ============================ CONTROLES TOUCH (MOBILE) ============================ */
+body.mobile #hotbar{bottom:calc(8px + env(safe-area-inset-bottom));padding:4px}
+body.mobile .slot{width:46px;height:46px}
+body.mobile .slot canvas{width:38px;height:38px}
+body.mobile .slot .num{font-size:12px}
+body.mobile #itemname{bottom:calc(64px + env(safe-area-inset-bottom))}
+
+#touchcontrols{position:fixed;inset:0;z-index:15;pointer-events:none;display:none}
+#touchcontrols.visible{display:block}
+
+#joystick{position:fixed;left:0;top:0;width:120px;height:120px;border-radius:50%;
+  background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.4);
+  pointer-events:none;display:none}
+#joystick.active{display:block}
+#joystick-knob{position:fixed;left:0;top:0;width:54px;height:54px;border-radius:50%;
+  background:rgba(255,255,255,.5);border:2px solid rgba(255,255,255,.85);pointer-events:none;
+  box-shadow:0 2px 6px rgba(0,0,0,.4)}
+
+.tbtn{position:fixed;pointer-events:auto;border-radius:50%;color:#fff;
+  background:rgba(20,20,20,.5);border:2px solid rgba(255,255,255,.5);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'VT323',monospace;font-size:22px;line-height:1;
+  -webkit-tap-highlight-color:transparent;touch-action:none;user-select:none;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.35)}
+.tbtn:active{background:rgba(255,255,255,.3)}
+.tbtn.on{background:rgba(255,196,0,.55);border-color:#ffe58a}
+.tbtn.small{width:46px;height:46px;font-size:19px}
+.tbtn.big{width:78px;height:78px;font-size:32px;background:rgba(168,44,32,.55)}
+.tbtn.big:active{background:rgba(210,70,50,.7)}
+.tbtn.place{width:60px;height:60px;font-size:24px;background:rgba(36,112,64,.55)}
+.tbtn.place:active{background:rgba(60,150,90,.7)}
+
+#tb-inv{top:calc(10px + env(safe-area-inset-top));right:64px}
+#tb-pause{top:calc(10px + env(safe-area-inset-top));right:10px}
+#tb-sprint{right:18px;bottom:calc(268px + env(safe-area-inset-bottom))}
+#tb-sneak{right:18px;bottom:calc(212px + env(safe-area-inset-bottom))}
+#tb-jump{width:64px;height:64px;font-size:26px;right:104px;bottom:calc(110px + env(safe-area-inset-bottom))}
+#tb-place{right:172px;bottom:calc(24px + env(safe-area-inset-bottom))}
+#tb-break{right:24px;bottom:calc(24px + env(safe-area-inset-bottom))}
+
+#rotatehint{position:fixed;inset:0;z-index:60;background:#111;color:#fff;display:none;
+  align-items:center;justify-content:center;flex-direction:column;gap:14px;text-align:center;
+  padding:30px;font-family:'VT323',monospace}
+#rotatehint .icon{font-size:54px;animation:rothint 1.6s ease-in-out infinite}
+#rotatehint p{font-size:22px;max-width:420px;margin:0}
+@keyframes rothint{0%,100%{transform:rotate(0deg)}50%{transform:rotate(90deg)}}
 </style>
 </head>
 <body>
@@ -67,6 +114,20 @@ kbd{font-family:'VT323';font-size:18px;line-height:1;background:#1d1d1d;border:1
 <div id="debug"></div>
 <div id="itemname"></div>
 <div id="hotbar"></div>
+
+<!-- Controles Touch (exibidos automaticamente em dispositivos móveis) -->
+<div id="touchcontrols">
+  <div id="joystick"><div id="joystick-knob"></div></div>
+  <button id="tb-inv" class="tbtn small" title="Inventário">🎒</button>
+  <button id="tb-pause" class="tbtn small" title="Pausar">⏸</button>
+  <button id="tb-sprint" class="tbtn small" title="Correr">»»</button>
+  <button id="tb-sneak" class="tbtn small" title="Agachar">⇩</button>
+  <button id="tb-jump" class="tbtn" title="Pular (2× voar)">⤒</button>
+  <button id="tb-place" class="tbtn place" title="Colocar bloco">▦</button>
+  <button id="tb-break" class="tbtn big" title="Quebrar bloco">⛏</button>
+</div>
+
+<div id="rotatehint"><div class="icon">📱</div><p>Gire seu dispositivo para o modo paisagem para uma experiência melhor</p></div>
 
 <!-- Menu de Seleção de Blocos (Inventário) -->
 <div id="blockselector">
@@ -81,14 +142,19 @@ kbd{font-family:'VT323';font-size:18px;line-height:1;background:#1d1d1d;border:1
     <div class="logo-wrap"><h1 class="logo">MINECRAFT</h1><span class="splash" id="splash"></span></div>
     <p class="subtitle" id="subtitle">clone de voxels em Three.js · mundo infinito com biomas gerado no seu navegador</p>
     <button class="btn" id="playbtn">JOGAR</button>
-    <div class="controls">
+    <div class="controls" id="desktopcontrols">
       <div><kbd>W A S D</kbd> / <kbd>LS</kbd> mover</div><div><kbd>Mouse</kbd> / <kbd>RS</kbd> olhar</div>
       <div><kbd>Espaço</kbd> / <kbd>A</kbd> pular · 2× voar</div><div><kbd>Ctrl</kbd> / <kbd>L3</kbd> correr</div>
       <div><kbd>Shift</kbd> / <kbd>B</kbd> agachar</div><div><kbd>E</kbd> / <kbd>X</kbd> menu de blocos</div>
       <div><kbd>Esq.</kbd> / <kbd>RT</kbd> quebrar bloco</div><div><kbd>Dir.</kbd> / <kbd>LT</kbd> colocar bloco</div>
       <div><kbd>1–9</kbd> / <kbd>LB/RB</kbd> escolher bloco</div><div><kbd>F3</kbd> debug · <kbd>Esc</kbd> / <kbd>Start</kbd> pausar</div>
     </div>
-    <p class="foot">Three.js r128 · texturas procedurais · suporte a Controle de Xbox otimizado</p>
+    <div class="controls" id="mobilecontrols" style="display:none">
+      <div>🕹️ joystick move</div><div>👉 arraste p/ olhar</div>
+      <div>⤒ pular · 2× toques voa</div><div>⛏ / ▦ quebrar / colocar</div>
+      <div>⇩ agachar · »» correr</div><div>🎒 inventário · ⏸ pausar</div>
+    </div>
+    <p class="foot" id="footnote">Three.js r128 · texturas procedurais · suporte a Controle de Xbox e Touch otimizado</p>
   </div>
 </div>
 
@@ -96,10 +162,18 @@ kbd{font-family:'VT323';font-size:18px;line-height:1;background:#1d1d1d;border:1
 <script>
 'use strict';
 
+/* -------------------------- detecção de dispositivo ------------------------ */
+const isMobile = (('ontouchstart' in window) || navigator.maxTouchPoints > 0) && (
+  /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) || // iPad moderno
+  Math.min(window.innerWidth, window.innerHeight) < 820
+);
+if(isMobile) document.body.classList.add('mobile');
+
 /* ------------------------------ configuração ------------------------------ */
 const CH=80;                     // altura do mundo
 const SEA=30;                    // nível do mar
-const R=15;                      // raio de chunks carregados
+const R=isMobile?9:15;           // raio de chunks carregados (reduzido no celular p/ desempenho)
 const REACH=5.5;                 // alcance de interação
 const GRAVITY=30,JUMP_VEL=8.7,MAX_FALL=-55;
 const SPEED_WALK=4.35,SPEED_SPRINT=5.65,SPEED_SNEAK=1.35,SPEED_SWIM=3.2;
@@ -407,7 +481,7 @@ const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.08,2500);
 camera.rotation.order='YXZ';
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth,innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setPixelRatio(Math.min(devicePixelRatio,isMobile?1.5:2));
 document.body.appendChild(renderer.domElement);
 scene.add(camera);
 scene.fog=new THREE.Fog(0x9fc8ff, 120, 240);
@@ -833,6 +907,7 @@ const player={pos:new THREE.Vector3(),vel:new THREE.Vector3(),onGround:false,fly
               wasInWater:false,hSpeed:0,sprint:false};
 const cam={yaw:0,pitch:-.12};
 const keys={};
+const touchState={moveX:0,moveY:0,jump:false,sneak:false,sprint:false};
 let spawnPos=new THREE.Vector3();
 
 /* ------------------- SUPORTE A GAMEPAD (CONTROLE XBOX) -------------------- */
@@ -876,7 +951,7 @@ function updateGamepad(dt) {
     initAudio();
     started = true;
     overlay.style.display = 'none';
-    renderer.domElement.requestPointerLock();
+    requestLock();
   }
 
   const deadZone = (v, threshold = 0.18) => Math.abs(v) > threshold ? v : 0;
@@ -908,9 +983,9 @@ function updateGamepad(dt) {
     if (isSelectorOpen) {
       toggleBlockSelector(false);
     } else if (locked) {
-      document.exitPointerLock();
+      releaseLock();
     } else {
-      renderer.domElement.requestPointerLock();
+      requestLock();
     }
   }
   gamepadState.prevPause = btnPause;
@@ -1047,6 +1122,8 @@ function stepPlayer(dt){
 
   if (Math.abs(gamepadState.moveY) > 0) iz = gamepadState.moveY;
   if (Math.abs(gamepadState.moveX) > 0) ix = gamepadState.moveX;
+  if (Math.abs(touchState.moveY) > 0) iz = touchState.moveY;
+  if (Math.abs(touchState.moveX) > 0) ix = touchState.moveX;
 
   const len=Math.hypot(ix,iz)||1; 
   if(len > 1) { ix/=len; iz/=len; }
@@ -1054,8 +1131,8 @@ function stepPlayer(dt){
   const yaw=cam.yaw;
   const fx=-Math.sin(yaw),fz=-Math.cos(yaw);
   const rx=Math.cos(yaw),rz=-Math.sin(yaw);
-  const sneak=keys.ShiftLeft||keys.ShiftRight||gamepadState.sneak;
-  const ctrl=keys.ControlLeft||keys.ControlRight||gamepadState.sprint;
+  const sneak=keys.ShiftLeft||keys.ShiftRight||gamepadState.sneak||touchState.sneak;
+  const ctrl=keys.ControlLeft||keys.ControlRight||gamepadState.sprint||touchState.sprint;
   const sprint=(ctrl||sprintTap)&&iz<0&&!sneak;
   p.sprint=sprint;
   const inWater=getBlock(Math.floor(p.pos.x),Math.floor(p.pos.y+.35),Math.floor(p.pos.z))===B.water||
@@ -1073,7 +1150,7 @@ function stepPlayer(dt){
   p.vel.x+=(mx-p.vel.x)*Math.min(1,accel*dt);
   p.vel.z+=(mz-p.vel.z)*Math.min(1,accel*dt);
 
-  const isJumping = (keys.Space || gamepadState.jump) && !isSelectorOpen;
+  const isJumping = (keys.Space || gamepadState.jump || touchState.jump) && !isSelectorOpen;
 
   if(p.fly){
     const vy=(isJumping?speed:0)+(sneak?-speed:0);
@@ -1364,6 +1441,13 @@ function drawIcon(cv,id){
     const cv=document.createElement('canvas');cv.width=cv.height=48;
     d.appendChild(num);d.appendChild(cv);hotbarEl.appendChild(d);
     slotCanvases.push(cv);drawIcon(cv,hotbarItems[i]);
+    if(isMobile){
+      const idx=i;
+      d.addEventListener('touchstart',e=>{
+        e.preventDefault();e.stopPropagation();
+        if(started&&locked&&!isSelectorOpen)selectSlot(idx);
+      },{passive:false});
+    }
   }
 })();
 function selectSlot(i){
@@ -1414,9 +1498,9 @@ function toggleBlockSelector(forceState){
     selectorFocusIndex = 0;
     const slots = document.querySelectorAll('.selector-slot');
     updateSelectorFocus(slots);
-    document.exitPointerLock();
+    releaseLock();
   }else if(started){
-    renderer.domElement.requestPointerLock();
+    requestLock();
   }
 }
 
@@ -1535,6 +1619,150 @@ addEventListener('resize',()=>{
   renderer.setSize(innerWidth,innerHeight);
 });
 
+/* ===================== CONTROLES TOUCH (CELULAR/TABLET) ==================== */
+const touchcontrolsEl=document.getElementById('touchcontrols');
+const joystickEl=document.getElementById('joystick');
+const joystickKnobEl=document.getElementById('joystick-knob');
+const rotateHintEl=document.getElementById('rotatehint');
+const tbBreak=document.getElementById('tb-break');
+const tbPlace=document.getElementById('tb-place');
+const tbJump=document.getElementById('tb-jump');
+const tbSneak=document.getElementById('tb-sneak');
+const tbSprint=document.getElementById('tb-sprint');
+const tbInv=document.getElementById('tb-inv');
+const tbPause=document.getElementById('tb-pause');
+
+let moveTouchId=null,moveOriginX=0,moveOriginY=0;
+let lookTouchId=null,lookLastX=0,lookLastY=0;
+const JOY_MAX=45,TOUCH_LOOK_SENS=.0032;
+let touchLastJumpTap=0;
+
+function isTouchOnUI(t){
+  const el=t.target;
+  return !!(el && el.closest && el.closest('.tbtn,#hotbar,#blockselector,#overlay,button'));
+}
+
+function onTouchStartDoc(e){
+  if(!isMobile)return;
+  for(const t of e.changedTouches){
+    if(isTouchOnUI(t))continue;
+    if(!started||!locked||isSelectorOpen)continue;
+    if(moveTouchId===null && t.clientX<innerWidth*.5){
+      moveTouchId=t.identifier;
+      moveOriginX=t.clientX;moveOriginY=t.clientY;
+      joystickEl.classList.add('active');
+      joystickEl.style.transform=`translate(${moveOriginX-60}px,${moveOriginY-60}px)`;
+      joystickKnobEl.style.transform=`translate(${moveOriginX-27}px,${moveOriginY-27}px)`;
+      e.preventDefault();
+    }else if(lookTouchId===null && t.clientX>=innerWidth*.5){
+      lookTouchId=t.identifier;
+      lookLastX=t.clientX;lookLastY=t.clientY;
+      e.preventDefault();
+    }
+  }
+}
+function onTouchMoveDoc(e){
+  if(!isMobile)return;
+  for(const t of e.changedTouches){
+    if(t.identifier===moveTouchId){
+      let dx=t.clientX-moveOriginX,dy=t.clientY-moveOriginY;
+      const dist=Math.hypot(dx,dy);
+      if(dist>JOY_MAX){dx=dx/dist*JOY_MAX;dy=dy/dist*JOY_MAX;}
+      joystickKnobEl.style.transform=`translate(${moveOriginX-27+dx}px,${moveOriginY-27+dy}px)`;
+      touchState.moveX=Math.abs(dx)<4?0:dx/JOY_MAX;
+      touchState.moveY=Math.abs(dy)<4?0:dy/JOY_MAX;
+      e.preventDefault();
+    }else if(t.identifier===lookTouchId){
+      const dx=t.clientX-lookLastX,dy=t.clientY-lookLastY;
+      lookLastX=t.clientX;lookLastY=t.clientY;
+      if(locked&&!isSelectorOpen){
+        cam.yaw-=dx*TOUCH_LOOK_SENS;
+        cam.pitch=clamp(cam.pitch-dy*TOUCH_LOOK_SENS,-1.55,1.55);
+      }
+      e.preventDefault();
+    }
+  }
+}
+function onTouchEndDoc(e){
+  if(!isMobile)return;
+  for(const t of e.changedTouches){
+    if(t.identifier===moveTouchId){
+      moveTouchId=null;
+      touchState.moveX=0;touchState.moveY=0;
+      joystickEl.classList.remove('active');
+    }else if(t.identifier===lookTouchId){
+      lookTouchId=null;
+    }
+  }
+}
+document.addEventListener('touchstart',onTouchStartDoc,{passive:false});
+document.addEventListener('touchmove',onTouchMoveDoc,{passive:false});
+document.addEventListener('touchend',onTouchEndDoc,{passive:false});
+document.addEventListener('touchcancel',onTouchEndDoc,{passive:false});
+
+function bindHoldBtn(el,onStart,onEnd){
+  el.addEventListener('touchstart',e=>{e.preventDefault();e.stopPropagation();onStart(e);},{passive:false});
+  el.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();onEnd&&onEnd(e);},{passive:false});
+  el.addEventListener('touchcancel',e=>{e.preventDefault();e.stopPropagation();onEnd&&onEnd(e);},{passive:false});
+}
+
+bindHoldBtn(tbBreak,()=>{
+  if(!started||!locked||isSelectorOpen)return;
+  mouseL=true;swingT=0;
+},()=>{mouseL=false;});
+
+bindHoldBtn(tbPlace,()=>{
+  if(!started||!locked||isSelectorOpen)return;
+  mouseR=true;
+},()=>{mouseR=false;});
+
+bindHoldBtn(tbSneak,()=>{touchState.sneak=true;},()=>{touchState.sneak=false;});
+
+bindHoldBtn(tbJump,()=>{
+  if(!started||!locked||isSelectorOpen)return;
+  touchState.jump=true;
+  const now=performance.now();
+  if(now-touchLastJumpTap<280){player.fly=!player.fly;player.vel.y=0;}
+  touchLastJumpTap=now;
+},()=>{touchState.jump=false;});
+
+tbSprint.addEventListener('touchstart',e=>{
+  e.preventDefault();e.stopPropagation();
+  touchState.sprint=!touchState.sprint;
+  tbSprint.classList.toggle('on',touchState.sprint);
+},{passive:false});
+
+tbInv.addEventListener('touchstart',e=>{
+  e.preventDefault();e.stopPropagation();
+  if(!started)return;
+  if(isSelectorOpen)toggleBlockSelector(false);
+  else if(locked)toggleBlockSelector(true);
+},{passive:false});
+
+tbPause.addEventListener('touchstart',e=>{
+  e.preventDefault();e.stopPropagation();
+  if(!started)return;
+  if(isSelectorOpen)toggleBlockSelector(false);
+  else if(locked)releaseLock();
+  else requestLock();
+},{passive:false});
+
+/* aviso para girar o aparelho em modo retrato */
+function checkOrientation(){
+  if(isMobile && innerWidth<innerHeight){
+    rotateHintEl.style.display='flex';
+  }else{
+    rotateHintEl.style.display='none';
+  }
+}
+if(isMobile){
+  addEventListener('resize',checkOrientation);
+  addEventListener('orientationchange',checkOrientation);
+  checkOrientation();
+  document.getElementById('desktopcontrols').style.display='none';
+  document.getElementById('mobilecontrols').style.display='grid';
+}
+
 /* ========================= MENU / POINTER LOCK ============================= */
 const overlay=document.getElementById('overlay');
 const subtitle=document.getElementById('subtitle');
@@ -1549,9 +1777,10 @@ splashEl.textContent=SPLASHES[(Math.random()*SPLASHES.length)|0];
   c.getContext('2d').drawImage(atlasCanvas,sx,sy,TILE,TILE,0,0,16,16);
   overlay.style.backgroundImage=`url(${c.toDataURL()})`;
 }
-playbtn.addEventListener('click',()=>{initAudio();playbtn.blur();renderer.domElement.requestPointerLock();});
-document.addEventListener('pointerlockchange',()=>{
-  locked=document.pointerLockElement===renderer.domElement;
+/* trava de mira: no desktop usa a Pointer Lock API; no celular (onde essa API não
+   existe ou não faz sentido com toque) o estado é controlado manualmente. */
+function onLockChange(newLocked){
+  locked=newLocked;
   if(!isSelectorOpen) overlay.style.display=locked?'none':'flex';
   if(locked)started=true;
   else{
@@ -1563,6 +1792,33 @@ document.addEventListener('pointerlockchange',()=>{
       splashEl.style.display='none';
     }
   }
+  if(isMobile){
+    touchcontrolsEl.classList.toggle('visible',locked);
+    if(!locked){
+      moveTouchId=null;lookTouchId=null;
+      touchState.moveX=0;touchState.moveY=0;touchState.jump=false;touchState.sneak=false;
+      joystickEl.classList.remove('active');
+    }
+  }
+}
+function requestLock(){
+  if(isMobile){onLockChange(true);return;}
+  renderer.domElement.requestPointerLock();
+}
+function releaseLock(){
+  if(isMobile){onLockChange(false);return;}
+  document.exitPointerLock();
+}
+playbtn.addEventListener('click',()=>{
+  initAudio();playbtn.blur();
+  if(isMobile && document.documentElement.requestFullscreen){
+    document.documentElement.requestFullscreen().catch(()=>{});
+  }
+  requestLock();
+});
+document.addEventListener('pointerlockchange',()=>{
+  if(isMobile)return; // no celular o estado é gerido manualmente por requestLock/releaseLock
+  onLockChange(document.pointerLockElement===renderer.domElement);
 });
 
 /* ========================= CICLO DIA/NOITE ================================= */
