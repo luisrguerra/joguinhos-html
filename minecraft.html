@@ -99,12 +99,12 @@ kbd{font-family:'VT323';font-size:18px;line-height:1;background:#1d1d1d;border:1
 /* ------------------------------ configuração ------------------------------ */
 const CH=80;                     // altura do mundo
 const SEA=30;                    // nível do mar
-const R=5;                       // raio de chunks carregados
+const R=15;                      // raio de chunks carregados
 const REACH=5.5;                 // alcance de interação
 const GRAVITY=30,JUMP_VEL=8.7,MAX_FALL=-55;
 const SPEED_WALK=4.35,SPEED_SPRINT=5.65,SPEED_SNEAK=1.35,SPEED_SWIM=3.2;
 const SPEED_FLY=11,SPEED_FLY_FAST=22;
-const GEN_PER_FRAME=2,MESH_PER_FRAME=2,UNLOAD_PAD=2,CLEAN_EVERY=90;
+const GEN_PER_FRAME=4,MESH_PER_FRAME=4,UNLOAD_PAD=3,CLEAN_EVERY=90;
 const DAY_LEN=600;               // segundos por ciclo dia+noite
 const EYE_H=1.62;                // altura dos olhos
 
@@ -141,7 +141,7 @@ function noise3(x,y,z){
 /* ============================ TEXTURAS PROCEDURAIS ========================= */
 const TILE=16, ACOLS=16;
 const atlasCanvas=document.createElement('canvas');
-atlasCanvas.width=ACOLS*TILE; atlasCanvas.height=9*TILE;
+atlasCanvas.width=ACOLS*TILE; atlasCanvas.height=12*TILE;
 const actx=atlasCanvas.getContext('2d');
 const avgColor=[];
 const tr=(x,y,s)=>hash2(x+s*7919,y+s*104729);
@@ -164,6 +164,7 @@ const dim=(c,f)=>[c[0]*f,c[1]*f,c[2]*f];
 
 const GRASS_TOP_TILES=[], DIRT_TILES=[], STONE_TILES=[], COBBLE_TILES=[];
 const LAVA_TILES=[], SAND_TILES=[], WATER_TILES=[], LEAVES_TILES=[];
+const IPE_YELLOW_TILES=[], IPE_PINK_TILES=[], IPE_RED_TILES=[];
 
 for(let v=0;v<16;v++){
   const idx=v; GRASS_TOP_TILES.push(idx);
@@ -235,6 +236,39 @@ for(let v=0;v<16;v++){
   });
 }
 
+/* Folhas de Ipê Amarelo */
+for(let v=0;v<16;v++){
+  const idx=144+v; IPE_YELLOW_TILES.push(idx);
+  paintTile(idx,(x,y)=>{
+    let c=noisy(x,y,[245,205,25],14+(v%5),16+v*13);
+    if(tr(x,y,17+v*7)<.18)c=[255,235,60];
+    else if(tr(x,y,18+v*11)<.10)c=[210,165,15];
+    return c;
+  });
+}
+
+/* Folhas de Ipê Rosa */
+for(let v=0;v<16;v++){
+  const idx=160+v; IPE_PINK_TILES.push(idx);
+  paintTile(idx,(x,y)=>{
+    let c=noisy(x,y,[245,130,185],14+(v%5),16+v*13);
+    if(tr(x,y,17+v*7)<.18)c=[255,170,210];
+    else if(tr(x,y,18+v*11)<.10)c=[215,90,145];
+    return c;
+  });
+}
+
+/* Folhas de Ipê Vermelho */
+for(let v=0;v<16;v++){
+  const idx=176+v; IPE_RED_TILES.push(idx);
+  paintTile(idx,(x,y)=>{
+    let c=noisy(x,y,[190,15,20],10+(v%5),16+v*13);
+    if(tr(x,y,17+v*7)<.18)c=[225,35,40];
+    else if(tr(x,y,18+v*11)<.10)c=[130,5,10];
+    return c;
+  });
+}
+
 paintTile(112,(x,y)=>{
   const drip=[3,4,3,5,4,3,3,4,5,4,3,4,3,5,4,3]; const d=drip[x];
   if(y<d){const n=(tr(x,y,101)-.5)*22; return [clamp(108+n,0,255),clamp(168+n,0,255),clamp(58+n*.6,0,255)];}
@@ -242,7 +276,7 @@ paintTile(112,(x,y)=>{
   let c=noisy(x,y,[134,96,66],14,3);if(tr(x,y,4)<.12)c=dim(c,.78);return c;
 });
 
-/* Padrão do Pedregulho com 16 variações coesas */
+/* Padrão do Pedregulho */
 const cobPts=[[3,2],[11,3],[15,8],[6,7],[1,11],[9,12],[13,15],[4,15],[7,0],[0,4]];
 for(let v=0;v<16;v++){
   const idx=128+v; COBBLE_TILES.push(idx);
@@ -268,7 +302,7 @@ paintTile(114,(x,y)=>{const row=y>>2;let c=noisy(x,y,[172,138,84],7,10+row);
   const t=(tr(0,row,11)-.5)*16;c=[c[0]+t,c[1]+t,c[2]+t];
   if(y%4===3)c=dim(c,.62);else if(x===((row%2)?4:12))c=dim(c,.75);return c;});
 
-/* TEXTURA LATERAL DO TRONCO (115): Casca com Ranhuras e Relevo Detalhado */
+/* TEXTURA LATERAL DO TRONCO (115) */
 paintTile(115,(x,y)=>{
   const colPattern = (x % 4 === 0 || x % 4 === 3) ? 0.82 : 1.12;
   const vNoise = (tr(x, y, 115) - 0.5) * 18;
@@ -279,7 +313,7 @@ paintTile(115,(x,y)=>{
   return [clamp(c[0], 35, 165), clamp(c[1], 25, 135), clamp(c[2], 15, 95)];
 });
 
-/* TEXTURA TOPO/BASE DO TRONCO (116): Anéis Concentricos e Borda de Casca */
+/* TEXTURA TOPO/BASE DO TRONCO (116) */
 paintTile(116,(x,y)=>{
   const dx = Math.abs(x - 7.5), dy = Math.abs(y - 7.5);
   const distCirc = Math.hypot(x - 7.5, y - 7.5);
@@ -343,7 +377,8 @@ paintTile(127,(x,y)=>{const d=Math.max(Math.abs(x-7.5),Math.abs(y-7.5));
 /* ============================== BLOCOS ===================================== */
 const B={air:0,grass:1,dirt:2,stone:3,cobble:4,planks:5,log:6,leaves:7,sand:8,
          water:9,bedrock:10,coal:11,iron:12,diamond:13,glass:14,brick:15,
-         snowgrass:16,sandstone:17,cactus:18,lava:19};
+         snowgrass:16,sandstone:17,cactus:18,lava:19,ipe_yellow_leaves:20,
+         ipe_pink_leaves:21,ipe_red_leaves:22};
 
 const BLOCKS=[null,
  {name:'Grama',top:GRASS_TOP_TILES,side:112,bottom:DIRT_TILES},{name:'Terra',side:DIRT_TILES},{name:'Pedra',side:STONE_TILES},
@@ -352,10 +387,13 @@ const BLOCKS=[null,
  {name:'Minério de Carvão',side:118},{name:'Minério de Ferro',side:119},{name:'Minério de Diamante',side:120},
  {name:'Vidro',side:121},{name:'Tijolos',side:122},
  {name:'Grama com Neve',top:123,side:124,bottom:DIRT_TILES},{name:'Arenito',side:125},
- {name:'Cacto',top:127,side:126,bottom:127},{name:'Lava',side:LAVA_TILES}];
+ {name:'Cacto',top:127,side:126,bottom:127},{name:'Lava',side:LAVA_TILES},
+ {name:'Ipê Amarelo',side:IPE_YELLOW_TILES},
+ {name:'Ipê Rosa',side:IPE_PINK_TILES},
+ {name:'Ipê Vermelho',side:IPE_RED_TILES}];
 for(const b of BLOCKS){if(!b)continue;b.top=b.top??b.side;b.bottom=b.bottom??b.side;}
 
-const HARDNESS=[0,.45,.4,.8,.85,.7,.7,.2,.35,Infinity,Infinity,.95,1.1,1.4,.2,.85,.45,.7,.25,Infinity];
+const HARDNESS=[0,.45,.4,.8,.85,.7,.7,.2,.35,Infinity,Infinity,.95,1.1,1.4,.2,.85,.45,.7,.25,Infinity,.2,.2,.2];
 
 const OPAQUE=[],SOLID=[];
 BLOCKS.forEach((b,i)=>{
@@ -365,14 +403,14 @@ BLOCKS.forEach((b,i)=>{
 
 /* ============================ CENA THREE.JS ================================ */
 const scene=new THREE.Scene();
-const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.08,900);
+const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,.08,2500);
 camera.rotation.order='YXZ';
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(innerWidth,innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 document.body.appendChild(renderer.domElement);
 scene.add(camera);
-scene.fog=new THREE.Fog(0x9fc8ff,40,74);
+scene.fog=new THREE.Fog(0x9fc8ff, 120, 240);
 scene.background=scene.fog.color;
 
 const atlasTex=new THREE.CanvasTexture(atlasCanvas);
@@ -508,13 +546,58 @@ function decorAt(wx,wz){
   if(carved(wx,h,wz,h))return null;
   const dens=TREE_DENSITY[bio];
   if(dens>0&&hash2(gx*3+1011,gz*3-709)<dens)
-    return{kind:'tree',x:wx,z:wz,ground:h,r:hash2(gx+551,gz+937)};
+    return{kind:'tree',x:wx,z:wz,ground:h,r:hash2(gx+551,gz+937),bio:bio};
   if(bio===B.DESERT&&hash2(gx*7+13,gz*7-31)<.14)
     return{kind:'cactus',x:wx,z:wz,ground:h,n:1+Math.floor(hash2(gx-81,gz+45)*3)};
   return null;
 }
 
-function plantTree(put,x,z,ground,r){
+function plantTree(put,x,z,ground,r,bio){
+  /* Implementação da Árvore de Abeto (Pinheiro) para o Bioma Taiga */
+  if(bio===BIO.TAIGA){
+    const trunk=7+Math.floor(r*4); // Tronco mais alto (7 a 10 blocos)
+    const top=ground+trunk;
+
+    // Topo das folhas (Pico do abeto)
+    put(x,top+1,z,B.leaves,false);
+
+    // Camadas de folhas cônicas/em pirâmide
+    for(let ly=top;ly>=ground+2;ly--){
+      const hFromTop=top-ly;
+      let rad=1;
+      if(hFromTop===0) rad=1;
+      else if(hFromTop%2===1) rad=1+Math.floor(hFromTop/4);
+      else rad=2+Math.floor(hFromTop/4);
+      rad=Math.min(rad,3);
+
+      for(let dx=-rad;dx<=rad;dx++){
+        for(let dz=-rad;dz<=rad;dz++){
+          const ax=Math.abs(dx), az=Math.abs(dz);
+          // Recorta os cantos para formar o formato cônico do pinheiro
+          if(ax===rad && az===rad && rad>1) continue;
+          if(dx===0 && dz===0 && ly<=top) continue;
+          put(x+dx,ly,z+dz,B.leaves,false);
+        }
+      }
+    }
+
+    // Tronco e base de terra
+    for(let ly=ground+1;ly<=top;ly++) put(x,ly,z,B.log,true);
+    put(x,ground,z,B.dirt,true);
+    return;
+  }
+
+  /* Árvores de Carvalho / Ipê para os demais biomas */
+  const ipeChance = hash2(x*17+99, z*19+88);
+  let leafType = B.leaves;
+  if (ipeChance < 0.04) {
+    leafType = B.ipe_pink_leaves;
+  } else if (ipeChance < 0.08) {
+    leafType = B.ipe_yellow_leaves;
+  } else if (ipeChance < 0.12) {
+    leafType = B.ipe_red_leaves;
+  }
+
   const trunk=4+Math.floor(r*3);
   const top=ground+trunk;
   for(let ly=top-2;ly<=top+1;ly++){
@@ -524,7 +607,7 @@ function plantTree(put,x,z,ground,r){
       if(!big&&ax+az>1&&ly>top)continue;
       if(dx===0&&dz===0&&ly<=top)continue;
       if(ax===rad&&az===rad&&hash3(x+dx,ly,z+dz)<(big?.55:.5))continue;
-      put(x+dx,ly,z+dz,B.leaves,false);
+      put(x+dx,ly,z+dz,leafType,false);
     }
   }
   for(let ly=ground+1;ly<=top;ly++)put(x,ly,z,B.log,true);
@@ -576,7 +659,7 @@ function generateChunkData(cx,cz){
     const tz=gz*TREE_CELL+Math.floor(hash2(gx+1777,gz-2999)*TREE_CELL);
     const d=decorAt(tx,tz);
     if(!d)continue;
-    if(d.kind==='tree')plantTree(put,d.x,d.z,d.ground,d.r);
+    if(d.kind==='tree')plantTree(put,d.x,d.z,d.ground,d.r,d.bio);
     else for(let k=1;k<=d.n;k++)put(d.x,d.ground+k,d.z,B.cactus,true);
   }
 
@@ -772,7 +855,7 @@ const gamepadState = {
 
 let selectorFocusIndex = 0;
 let menuNavCd = 0;
-let jumpBlockCd = 0; // Trava para prevenir o pulo ao selecionar bloco
+let jumpBlockCd = 0;
 
 function updateGamepad(dt) {
   if (jumpBlockCd > 0) jumpBlockCd -= dt;
@@ -789,7 +872,6 @@ function updateGamepad(dt) {
     return;
   }
 
-  // Desbloqueia áudio/jogo ao pressionar qualquer botão na tela inicial
   if (!started && gp.buttons.some(b => b.pressed)) {
     initAudio();
     started = true;
@@ -799,7 +881,6 @@ function updateGamepad(dt) {
 
   const deadZone = (v, threshold = 0.18) => Math.abs(v) > threshold ? v : 0;
 
-  // Analógicos Xbox e D-Pad
   let axX = deadZone(gp.axes[0]);
   let axY = deadZone(gp.axes[1]);
   if (gp.buttons[14]?.pressed) axX = -1;
@@ -812,19 +893,17 @@ function updateGamepad(dt) {
   gamepadState.lookX = deadZone(gp.axes[2]);
   gamepadState.lookY = deadZone(gp.axes[3]);
 
-  // Mapeamento Padrão Xbox
-  const btnA     = gp.buttons[0]?.pressed;          // A: Pulo / Selecionar Menu
-  const btnB     = gp.buttons[1]?.pressed;          // B: Agachar / Voltar
-  const btnX     = gp.buttons[2]?.pressed;          // X: Abrir/Fechar Menu de Blocos
-  const btnY     = gp.buttons[3]?.pressed;          // Y: Alternar Voo
-  const btnLB    = gp.buttons[4]?.pressed;          // LB: Item Anterior
-  const btnRB    = gp.buttons[5]?.pressed;          // RB: Próximo Item
-  const btnLT    = gp.buttons[6]?.value > 0.1;     // LT: Colocar Bloco
-  const btnRT    = gp.buttons[7]?.value > 0.1;     // RT: Quebrar Bloco
-  const btnPause = gp.buttons[9]?.pressed || gp.buttons[8]?.pressed; // Start / Select
-  const btnL3    = gp.buttons[10]?.pressed;         // L3: Correr
+  const btnA     = gp.buttons[0]?.pressed;
+  const btnB     = gp.buttons[1]?.pressed;
+  const btnX     = gp.buttons[2]?.pressed;
+  const btnY     = gp.buttons[3]?.pressed;
+  const btnLB    = gp.buttons[4]?.pressed;
+  const btnRB    = gp.buttons[5]?.pressed;
+  const btnLT    = gp.buttons[6]?.value > 0.1;
+  const btnRT    = gp.buttons[7]?.value > 0.1;
+  const btnPause = gp.buttons[9]?.pressed || gp.buttons[8]?.pressed;
+  const btnL3    = gp.buttons[10]?.pressed;
 
-  // Menu de Pausa / Despausar via Start / Select
   if (btnPause && !gamepadState.prevPause && started) {
     if (isSelectorOpen) {
       toggleBlockSelector(false);
@@ -836,9 +915,8 @@ function updateGamepad(dt) {
   }
   gamepadState.prevPause = btnPause;
 
-  // Navegação no Menu de Blocos via Analógico / D-Pad
   if (isSelectorOpen) {
-    gamepadState.jump = false; // Garante que o personagem NÃO pule no menu
+    gamepadState.jump = false;
 
     menuNavCd -= dt;
     const slots = Array.from(document.querySelectorAll('.selector-slot'));
@@ -858,13 +936,11 @@ function updateGamepad(dt) {
       }
     }
 
-    // Confirmar Seleção com Botão A
     if (btnA && !gamepadState.prevJump && slots[selectorFocusIndex]) {
-      jumpBlockCd = 0.4; // Define atraso para evitar pular imediatamente ao sair do menu
+      jumpBlockCd = 0.4;
       slots[selectorFocusIndex].click();
     }
 
-    // Fechar menu com X ou B
     if ((btnX && !gamepadState.prevMenu) || btnB) {
       toggleBlockSelector(false);
     }
@@ -873,37 +949,29 @@ function updateGamepad(dt) {
     return;
   }
 
-  // Olhar em 3D com Analógico Direito (RS)
   if (started && locked && !isSelectorOpen) {
     const lookSensitivity = 2.4;
     cam.yaw -= gamepadState.lookX * lookSensitivity * dt;
     cam.pitch = clamp(cam.pitch - gamepadState.lookY * lookSensitivity * dt, -1.55, 1.55);
   }
 
-  // Ações no Jogo
-  mouseL = btnRT; // RT: Quebrar
-  mouseR = btnLT; // LT: Colocar
-
-  // Agachar (B)
+  mouseL = btnRT;
+  mouseR = btnLT;
   gamepadState.sneak = btnB;
 
-  // Correr (L3)
   if (btnL3) gamepadState.sprint = !gamepadState.sprint;
 
-  // Abrir Inventário / Menu de Blocos (X)
   if (btnX && !gamepadState.prevMenu && started) {
     toggleBlockSelector(true);
   }
   gamepadState.prevMenu = btnX;
 
-  // Alternar Voo (Y)
   if (btnY && !gamepadState.prevFlyToggle && started) {
     player.fly = !player.fly;
     player.vel.y = 0;
   }
   gamepadState.prevFlyToggle = btnY;
 
-  // Navegação na Hotbar com LB / RB
   if (btnLB && !gamepadState.prevLB && started) {
     selectSlot((sel - 1 + 9) % 9);
   }
@@ -913,7 +981,6 @@ function updateGamepad(dt) {
   gamepadState.prevLB = btnLB;
   gamepadState.prevRB = btnRB;
 
-  // Pulo / Duplo clique em A para Voar
   const canJumpFromButton = btnA && jumpBlockCd <= 0;
   if (canJumpFromButton && !gamepadState.prevJump && started) {
     const now = performance.now();
@@ -1536,7 +1603,7 @@ function updateSky(dt){
     waterfx.style.background='rgba(230,70,10,.68)';
   }else{
     scene.fog.color.setRGB(s[0],s[1],s[2]);
-    scene.fog.near=40;scene.fog.far=74;
+    scene.fog.near=120;scene.fog.far=240;
     waterfx.style.opacity=0;
   }
   scene.background=scene.fog.color;
