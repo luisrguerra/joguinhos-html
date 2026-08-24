@@ -187,7 +187,7 @@ function noise3(x,y,z){
   return e+(f-e)*w;
 }
 const TILE=16, ACOLS=16;const atlasCanvas=document.createElement('canvas');
-atlasCanvas.width=ACOLS*TILE; atlasCanvas.height=15*TILE;
+atlasCanvas.width=ACOLS*TILE; atlasCanvas.height=17*TILE;
 const actx=atlasCanvas.getContext('2d');
 const avgColor=[];
 const tr=(x,y,s)=>hash2(x+s*7919,y+s*104729);
@@ -209,6 +209,7 @@ const noisy=(x,y,b,a,s)=>{const v=(tr(x,y,s)-.5)*2*a;return[b[0]+v,b[1]+v,b[2]+v
 const dim=(c,f)=>[c[0]*f,c[1]*f,c[2]*f];
 const GRASS_TOP_TILES=[], DIRT_TILES=[], STONE_TILES=[], COBBLE_TILES=[];
 const LAVA_TILES=[], SAND_TILES=[], WATER_TILES=[], LEAVES_TILES=[], SHRUB_TILES=[];
+const GRASS_SIDE_TILES=[], SNOW_TOP_TILES=[], SNOW_SIDE_TILES=[];
 const IPE_YELLOW_TILES=[], IPE_PINK_TILES=[], IPE_RED_TILES=[], IPE_PURPLE_TILES=[], IPE_WHITE_TILES=[];
 for(let v=0;v<16;v++){
   const idx=v; GRASS_TOP_TILES.push(idx);
@@ -415,6 +416,20 @@ for(let v=0;v<16;v++){
     return c;
   });
 }
+/* ================= LATERAL DA GRAMA — 16 VARIAÇÕES ==========================
+   Antes era UM tile único (112). Agora são 16 tiles no atlas (48..63) com
+   listra verde de profundidade e ruído diferentes, escolhidos por bloco via
+   hash3, dando variação natural às paredes de terra/grama. */
+for(let v=0;v<16;v++){
+  const idx=48+v; GRASS_SIDE_TILES.push(idx);
+  paintTile(idx,(x,y)=>{
+    const drip=[3,4,3,5,4,3,3,4,5,4,3,4,3,5,4,3];
+    const d=Math.max(1,Math.min(6,drip[x]+((v+x)%7===3?1:0)-((v+x)%5===1?1:0)));
+    if(y<d){const n=(tr(x,y,101+v*13)-.5)*22; return [clamp(108+n,0,255),clamp(168+n,0,255),clamp(58+n*.6,0,255)];}
+    if(y===d)return [52,82,26];
+    let c=noisy(x,y,[134,96,66],14+(v%4),3+v*7);if(tr(x,y,4+v*9)<.12)c=dim(c,.78);return c;
+  });
+}
 paintTile(112,(x,y)=>{
   const drip=[3,4,3,5,4,3,3,4,5,4,3,4,3,5,4,3]; const d=drip[x];
   if(y<d){const n=(tr(x,y,101)-.5)*22; return [clamp(108+n,0,255),clamp(168+n,0,255),clamp(58+n*.6,0,255)];}
@@ -510,12 +525,29 @@ paintTile(122,(x,y)=>{const row=y>>2,off=(row%2)*4;
   if(y%4===3||((x+off)%8===7))return noisy(x,y,[186,178,172],6,26);
   let c=noisy(x,y,[152,74,62],8,28);
   const t=(tr((x+off)>>3,row,29)-.5)*18;return[c[0]+t,c[1]+t,c[2]+t];});
-paintTile(123,(x,y)=>{let c=noisy(x,y,[236,241,248],6,42);
-  if(tr(x,y,43)<.07)c=dim(c,.92);return c;});
-paintTile(124,(x,y)=>{const d=3+Math.floor(tr(x,0,51)*2);
-  if(y<d)return noisy(x,y,[236,241,248],6,50);
-  if(y===d)return noisy(x,y,[206,212,224],5,51);
-  let c=noisy(x,y,[134,96,66],13,3);if(tr(x,y,4)<.1)c=dim(c,.8);return c;});
+/* ================= TOPO DA NEVE — 16 VARIAÇÕES =============================
+   Antes era UM tile único (123). Agora são 16 tiles no atlas (240..255) com
+   granulado e manchas diferentes, escolhidos por bloco via hash3. */
+for(let v=0;v<16;v++){
+  const idx=240+v; SNOW_TOP_TILES.push(idx);
+  paintTile(idx,(x,y)=>{
+    let c=noisy(x,y,[236,241,248],6+(v%5),42+v*11);
+    if(tr(x,y,43+v*17)<.07)c=dim(c,.92);
+    return c;
+  });
+}
+/* ================= LATERAL DA NEVE (terra nevada) — 16 VARIAÇÕES ===========
+   Antes era UM tile único (124). Agora são 16 tiles no atlas (256..271): cobertura
+   de neve no topo + borda + terra abaixo, com altura da neve e ruído diferentes. */
+for(let v=0;v<16;v++){
+  const idx=256+v; SNOW_SIDE_TILES.push(idx);
+  paintTile(idx,(x,y)=>{
+    const d=3+Math.floor(tr(x,0,51+v*13)*2);
+    if(y<d)return noisy(x,y,[236,241,248],6+(v%5),50+v*19);
+    if(y===d)return noisy(x,y,[206,212,224],5,51+v*23);
+    let c=noisy(x,y,[134,96,66],13+(v%4),3+v*9);if(tr(x,y,4+v*11)<.1)c=dim(c,.8);return c;
+  });
+}
 paintTile(125,(x,y)=>{const band=((y>>2)%2?-7:-1)+(tr(0,y>>2,61)-.5)*6;
   let c=noisy(x,y,[214,201,152],7,62);
   c=[c[0]+band,c[1]+band,c[2]+band*.7];
@@ -533,12 +565,12 @@ const B={air:0,grass:1,dirt:2,stone:3,cobble:4,planks:5,log:6,leaves:7,sand:8,
          snowgrass:16,sandstone:17,cactus:18,lava:19,ipe_yellow_leaves:20,
          ipe_pink_leaves:21,ipe_red_leaves:22,ipe_purple_leaves:23,ipe_white_leaves:24,shrub:25};
 const BLOCKS=[null,
- {name:'Grama',top:GRASS_TOP_TILES,side:112,bottom:DIRT_TILES},{name:'Terra',side:DIRT_TILES},{name:'Pedra',side:STONE_TILES},
+ {name:'Grama',top:GRASS_TOP_TILES,side:GRASS_SIDE_TILES,bottom:DIRT_TILES},{name:'Terra',side:DIRT_TILES},{name:'Pedra',side:STONE_TILES},
  {name:'Pedregulho',side:COBBLE_TILES},{name:'Tábuas',side:114},{name:'Tronco',top:116,side:115,bottom:116},
  {name:'Folhas',side:LEAVES_TILES},{name:'Areia',side:SAND_TILES},{name:'Água',side:WATER_TILES},{name:'Rocha-matriz',side:117},
  {name:'Minério de Carvão',side:118},{name:'Minério de Ferro',side:119},{name:'Minério de Diamante',side:120},
  {name:'Vidro',side:121},{name:'Tijolos',side:122},
- {name:'Grama com Neve',top:123,side:124,bottom:DIRT_TILES},{name:'Arenito',side:125},
+ {name:'Grama com Neve',top:SNOW_TOP_TILES,side:SNOW_SIDE_TILES,bottom:DIRT_TILES},{name:'Arenito',side:125},
  {name:'Cacto',top:127,side:126,bottom:127},{name:'Lava',side:LAVA_TILES},
  {name:'Ipê Amarelo',side:IPE_YELLOW_TILES},
  {name:'Ipê Rosa',side:IPE_PINK_TILES},
