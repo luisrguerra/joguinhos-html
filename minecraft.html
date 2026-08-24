@@ -86,18 +86,25 @@ body.mobile #itemname{bottom:calc(64px + env(safe-area-inset-bottom))}
 .tbtn:active{background:rgba(255,255,255,.3)}
 .tbtn.on{background:rgba(255,196,0,.55);border-color:#ffe58a}
 .tbtn.small{width:46px;height:46px;font-size:19px}
-.tbtn.big{width:78px;height:78px;font-size:32px;background:rgba(168,44,32,.55)}
-.tbtn.big:active{background:rgba(210,70,50,.7)}
-.tbtn.place{width:60px;height:60px;font-size:24px;background:rgba(36,112,64,.55)}
-.tbtn.place:active{background:rgba(60,150,90,.7)}
 
+/* estilo "Clássico" do Pocket Edition: sem botões dedicados de quebrar/colocar —
+   a área de mira (metade direita da tela) já responde a toque-e-segure (minerar) e
+   toque rápido (colocar), então só sobram os botões de pulo/agachar/correr/menu,
+   empilhados no canto inferior direito ao alcance do polegar. */
 #tb-inv{top:calc(10px + env(safe-area-inset-top));right:64px}
 #tb-pause{top:calc(10px + env(safe-area-inset-top));right:10px}
-#tb-sprint{right:18px;bottom:calc(268px + env(safe-area-inset-bottom))}
-#tb-sneak{right:18px;bottom:calc(212px + env(safe-area-inset-bottom))}
-#tb-jump{width:64px;height:64px;font-size:26px;right:104px;bottom:calc(110px + env(safe-area-inset-bottom))}
-#tb-place{right:172px;bottom:calc(24px + env(safe-area-inset-bottom))}
-#tb-break{right:24px;bottom:calc(24px + env(safe-area-inset-bottom))}
+#tb-sprint{width:50px;height:50px;font-size:16px;right:20px;bottom:calc(196px + env(safe-area-inset-bottom))}
+#tb-sneak{width:50px;height:50px;font-size:22px;right:20px;bottom:calc(132px + env(safe-area-inset-bottom))}
+#tb-jump{width:74px;height:74px;font-size:28px;right:14px;bottom:calc(24px + env(safe-area-inset-bottom))}
+
+/* anel de progresso de mineração (estilo Bedrock Touch), some quando não está minerando */
+#minering{position:fixed;left:50%;top:50%;width:42px;height:42px;margin:-21px 0 0 -21px;
+  border-radius:50%;pointer-events:none;z-index:6;opacity:0;transition:opacity .1s;
+  background:conic-gradient(#fff var(--p,0%),rgba(255,255,255,.28) 0);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 4px));
+  mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 4px));
+  filter:drop-shadow(0 1px 1px rgba(0,0,0,.6))}
+#minering.show{opacity:1}
 
 #rotatehint{position:fixed;inset:0;z-index:60;background:#111;color:#fff;display:none;
   align-items:center;justify-content:center;flex-direction:column;gap:14px;text-align:center;
@@ -111,11 +118,14 @@ body.mobile #itemname{bottom:calc(64px + env(safe-area-inset-bottom))}
 
 <div id="waterfx"></div>
 <div id="crosshair"></div>
+<div id="minering"></div>
 <div id="debug"></div>
 <div id="itemname"></div>
 <div id="hotbar"></div>
 
-<!-- Controles Touch (exibidos automaticamente em dispositivos móveis) -->
+<!-- Controles Touch (exibidos automaticamente em dispositivos móveis)
+     Esquema "Clássico" do Pocket Edition: não há botões de quebrar/colocar — a
+     própria área de mira responde a toque-e-segure (minerar) / toque rápido (colocar). -->
 <div id="touchcontrols">
   <div id="joystick"><div id="joystick-knob"></div></div>
   <button id="tb-inv" class="tbtn small" title="Inventário">🎒</button>
@@ -123,8 +133,6 @@ body.mobile #itemname{bottom:calc(64px + env(safe-area-inset-bottom))}
   <button id="tb-sprint" class="tbtn small" title="Correr">»»</button>
   <button id="tb-sneak" class="tbtn small" title="Agachar">⇩</button>
   <button id="tb-jump" class="tbtn" title="Pular (2× voar)">⤒</button>
-  <button id="tb-place" class="tbtn place" title="Colocar bloco">▦</button>
-  <button id="tb-break" class="tbtn big" title="Quebrar bloco">⛏</button>
 </div>
 
 <div id="rotatehint"><div class="icon">📱</div><p>Gire seu dispositivo para o modo paisagem para uma experiência melhor</p></div>
@@ -151,10 +159,11 @@ body.mobile #itemname{bottom:calc(64px + env(safe-area-inset-bottom))}
     </div>
     <div class="controls" id="mobilecontrols" style="display:none">
       <div>🕹️ joystick move</div><div>👉 arraste p/ olhar</div>
-      <div>⤒ pular · 2× toques voa</div><div>⛏ / ▦ quebrar / colocar</div>
-      <div>⇩ agachar · »» correr</div><div>🎒 inventário · ⏸ pausar</div>
+      <div>✊ segure a mira p/ minerar</div><div>👆 toque rápido p/ colocar</div>
+      <div>⤒ pular · 2× toques voa</div><div>⇩ segurar agacha · »» correr</div>
+      <div>🎒 inventário · ⏸ pausar</div><div>🏃 2× joystick p/ frente = correr</div>
     </div>
-    <p class="foot" id="footnote">Three.js r128 · texturas procedurais · suporte a Controle de Xbox e Touch otimizado</p>
+    <p class="foot" id="footnote">Three.js r128 · texturas procedurais · controles touch no estilo Minecraft Pocket Edition (clássico) + suporte a Controle de Xbox</p>
   </div>
 </div>
 
@@ -1240,8 +1249,9 @@ function handleMouse(dt){
   }else{mineKey='';mineT=0;}
   if(mouseR&&placeCd<=0){placeBlock();placeCd=.22;}
 }
+const miningRingEl=document.getElementById('minering');
 function updateCrackFx(){
-  let show=false;
+  let show=false,ringP=0;
   if(curHit&&mouseL&&mineKey){
     const key=curHit.x+'|'+curHit.y+'|'+curHit.z;
     if(key===mineKey){
@@ -1251,10 +1261,15 @@ function updateCrackFx(){
         crackMesh.material.map=crackTextures[stage];
         crackMesh.position.set(curHit.x+.5,curHit.y+.5,curHit.z+.5);
         show=mineT>.04;
+        ringP=Math.min(1,mineT/need);
       }
     }
   }
   crackMesh.visible=show;
+  if(isMobile){
+    miningRingEl.classList.toggle('show',show);
+    if(show)miningRingEl.style.setProperty('--p',(ringP*100)+'%');
+  }
 }
 
 function checkFluidSpread(startX, startY, startZ, fluidType) {
@@ -1619,13 +1634,18 @@ addEventListener('resize',()=>{
   renderer.setSize(innerWidth,innerHeight);
 });
 
-/* ===================== CONTROLES TOUCH (CELULAR/TABLET) ==================== */
+/* ===================== CONTROLES TOUCH (CELULAR/TABLET) ====================
+   Esquema "Clássico" do Pocket Edition (o mesmo usado no Bedrock mobile):
+   - metade esquerda: joystick de movimento
+   - metade direita: arrastar olha ao redor; TOCAR E SEGURAR sobre a mira minera
+     o bloco (com anel/crack de progresso, igual ao jogo real); um TOQUE RÁPIDO,
+     sem arrastar, coloca o bloco selecionado — não existem botões dedicados de
+     quebrar/colocar, exatamente como no controle clássico oficial.
+   - dois toques rápidos empurrando o joystick p/ frente = corrida automática. */
 const touchcontrolsEl=document.getElementById('touchcontrols');
 const joystickEl=document.getElementById('joystick');
 const joystickKnobEl=document.getElementById('joystick-knob');
 const rotateHintEl=document.getElementById('rotatehint');
-const tbBreak=document.getElementById('tb-break');
-const tbPlace=document.getElementById('tb-place');
 const tbJump=document.getElementById('tb-jump');
 const tbSneak=document.getElementById('tb-sneak');
 const tbSprint=document.getElementById('tb-sprint');
@@ -1634,12 +1654,17 @@ const tbPause=document.getElementById('tb-pause');
 
 let moveTouchId=null,moveOriginX=0,moveOriginY=0;
 let lookTouchId=null,lookLastX=0,lookLastY=0;
+let lookStartX=0,lookStartY=0,lookMoved=false,lookMining=false,lookHoldTimer=null;
 const JOY_MAX=45,TOUCH_LOOK_SENS=.0032;
-let touchLastJumpTap=0;
+const TAP_MOVE_LIMIT=14,HOLD_DELAY=130;
+let touchLastJumpTap=0,touchLastFwdTap=0;
 
 function isTouchOnUI(t){
   const el=t.target;
   return !!(el && el.closest && el.closest('.tbtn,#hotbar,#blockselector,#overlay,button'));
+}
+function stopLookHold(){
+  if(lookHoldTimer){clearTimeout(lookHoldTimer);lookHoldTimer=null;}
 }
 
 function onTouchStartDoc(e){
@@ -1656,7 +1681,16 @@ function onTouchStartDoc(e){
       e.preventDefault();
     }else if(lookTouchId===null && t.clientX>=innerWidth*.5){
       lookTouchId=t.identifier;
-      lookLastX=t.clientX;lookLastY=t.clientY;
+      lookLastX=lookStartX=t.clientX;
+      lookLastY=lookStartY=t.clientY;
+      lookMoved=false;lookMining=false;
+      stopLookHold();
+      lookHoldTimer=setTimeout(()=>{
+        lookHoldTimer=null;
+        if(lookTouchId!==null && started && locked && !isSelectorOpen){
+          lookMining=true;mouseL=true;swingT=0;
+        }
+      },HOLD_DELAY);
       e.preventDefault();
     }
   }
@@ -1670,11 +1704,20 @@ function onTouchMoveDoc(e){
       if(dist>JOY_MAX){dx=dx/dist*JOY_MAX;dy=dy/dist*JOY_MAX;}
       joystickKnobEl.style.transform=`translate(${moveOriginX-27+dx}px,${moveOriginY-27+dy}px)`;
       touchState.moveX=Math.abs(dx)<4?0:dx/JOY_MAX;
-      touchState.moveY=Math.abs(dy)<4?0:dy/JOY_MAX;
+      const newY=Math.abs(dy)<4?0:dy/JOY_MAX;
+      if(newY<-.75 && touchState.moveY>-.5){
+        const n=performance.now();
+        if(n-touchLastFwdTap<300)sprintTap=true;
+        touchLastFwdTap=n;
+      }
+      touchState.moveY=newY;
       e.preventDefault();
     }else if(t.identifier===lookTouchId){
       const dx=t.clientX-lookLastX,dy=t.clientY-lookLastY;
       lookLastX=t.clientX;lookLastY=t.clientY;
+      if(!lookMoved && Math.hypot(t.clientX-lookStartX,t.clientY-lookStartY)>TAP_MOVE_LIMIT){
+        lookMoved=true;
+      }
       if(locked&&!isSelectorOpen){
         cam.yaw-=dx*TOUCH_LOOK_SENS;
         cam.pitch=clamp(cam.pitch-dy*TOUCH_LOOK_SENS,-1.55,1.55);
@@ -1689,8 +1732,16 @@ function onTouchEndDoc(e){
     if(t.identifier===moveTouchId){
       moveTouchId=null;
       touchState.moveX=0;touchState.moveY=0;
+      sprintTap=false;
       joystickEl.classList.remove('active');
     }else if(t.identifier===lookTouchId){
+      stopLookHold();
+      if(lookMining){
+        mouseL=false;
+      }else if(!lookMoved && started && locked && !isSelectorOpen){
+        placeBlock(); // toque rápido sem arrastar = colocar bloco (controle clássico do PE)
+      }
+      lookMining=false;lookMoved=false;
       lookTouchId=null;
     }
   }
@@ -1705,16 +1756,6 @@ function bindHoldBtn(el,onStart,onEnd){
   el.addEventListener('touchend',e=>{e.preventDefault();e.stopPropagation();onEnd&&onEnd(e);},{passive:false});
   el.addEventListener('touchcancel',e=>{e.preventDefault();e.stopPropagation();onEnd&&onEnd(e);},{passive:false});
 }
-
-bindHoldBtn(tbBreak,()=>{
-  if(!started||!locked||isSelectorOpen)return;
-  mouseL=true;swingT=0;
-},()=>{mouseL=false;});
-
-bindHoldBtn(tbPlace,()=>{
-  if(!started||!locked||isSelectorOpen)return;
-  mouseR=true;
-},()=>{mouseR=false;});
 
 bindHoldBtn(tbSneak,()=>{touchState.sneak=true;},()=>{touchState.sneak=false;});
 
@@ -1796,8 +1837,10 @@ function onLockChange(newLocked){
     touchcontrolsEl.classList.toggle('visible',locked);
     if(!locked){
       moveTouchId=null;lookTouchId=null;
+      stopLookHold();lookMining=false;lookMoved=false;
       touchState.moveX=0;touchState.moveY=0;touchState.jump=false;touchState.sneak=false;
       joystickEl.classList.remove('active');
+      miningRingEl.classList.remove('show');
     }
   }
 }
