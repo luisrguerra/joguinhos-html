@@ -72,7 +72,7 @@ kbd{font-family:'VT323';font-size:18px;line-height:1;background:#1d1d1d;border:1
 <div id="blockselector">
   <div class="selector-box">
     <div class="selector-title">Selecionar Bloco (Slot Ativo)</div>
-    <div class="selector-grid" id="selectorgird"></div>
+    <div class="selector-grid" id="selectorgrid"></div>
   </div>
 </div>
 
@@ -130,7 +130,7 @@ function fbm(x,z,o){let s=0,a=1,n=0;for(let i=0;i<o;i++){s+=noise2(x,z)*a;n+=a;a
 function noise3(x,y,z){
   const xi=Math.floor(x),yi=Math.floor(y),zi=Math.floor(z);
   const xf=x-xi,yf=y-yi,zf=z-zi;
-  const u=xf*xf*(3-2*xf),v=zf*zf*(3-2*zf),w=zf*zf*(3-2*zf);
+  const u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf),w=zf*zf*(3-2*zf);
   const n000=hash3(xi,yi,zi),n100=hash3(xi+1,yi,zi),n010=hash3(xi,yi+1,zi),n110=hash3(xi+1,yi+1,zi),
         n001=hash3(xi,yi,zi+1),n101=hash3(xi+1,yi,zi+1),n011=hash3(xi,yi+1,zi+1),n111=hash3(xi+1,yi+1,zi+1);
   const a=n000+(n100-n000)*u,b=n010+(n110-n010)*u,c=n001+(n101-n001)*u,d=n011+(n111-n011)*u;
@@ -141,7 +141,7 @@ function noise3(x,y,z){
 /* ============================ TEXTURAS PROCEDURAIS ========================= */
 const TILE=16, ACOLS=16;
 const atlasCanvas=document.createElement('canvas');
-atlasCanvas.width=ACOLS*TILE; atlasCanvas.height=8*TILE;
+atlasCanvas.width=ACOLS*TILE; atlasCanvas.height=9*TILE;
 const actx=atlasCanvas.getContext('2d');
 const avgColor=[];
 const tr=(x,y,s)=>hash2(x+s*7919,y+s*104729);
@@ -162,7 +162,7 @@ function paintTile(idx,fn){
 const noisy=(x,y,b,a,s)=>{const v=(tr(x,y,s)-.5)*2*a;return[b[0]+v,b[1]+v,b[2]+v];};
 const dim=(c,f)=>[c[0]*f,c[1]*f,c[2]*f];
 
-const GRASS_TOP_TILES=[], DIRT_TILES=[], STONE_TILES=[];
+const GRASS_TOP_TILES=[], DIRT_TILES=[], STONE_TILES=[], COBBLE_TILES=[];
 const LAVA_TILES=[], SAND_TILES=[], WATER_TILES=[], LEAVES_TILES=[];
 
 for(let v=0;v<16;v++){
@@ -242,22 +242,58 @@ paintTile(112,(x,y)=>{
   let c=noisy(x,y,[134,96,66],14,3);if(tr(x,y,4)<.12)c=dim(c,.78);return c;
 });
 
+/* Padrão do Pedregulho com 16 variações coesas */
 const cobPts=[[3,2],[11,3],[15,8],[6,7],[1,11],[9,12],[13,15],[4,15],[7,0],[0,4]];
-paintTile(113,(x,y)=>{
-  let d1=99,d2=99,ci=0;
-  for(let k=0;k<cobPts.length;k++){const dx=x-cobPts[k][0],dy=y-cobPts[k][1],dd=Math.sqrt(dx*dx+dy*dy);
-    if(dd<d1){d2=d1;d1=dd;ci=k;}else if(dd<d2)d2=dd;}
-  if(d2-d1<1.5)return noisy(x,y,[74,74,74],7,4);
-  const g=108+tr(ci,0,41)*38;return noisy(x,y,[g,g,g],7,4);
-});
+for(let v=0;v<16;v++){
+  const idx=128+v; COBBLE_TILES.push(idx);
+  paintTile(idx,(x,y)=>{
+    let d1=99,d2=99,ci=0;
+    for(let k=0;k<cobPts.length;k++){
+      const dx=x-cobPts[k][0],dy=y-cobPts[k][1],dd=Math.sqrt(dx*dx+dy*dy);
+      if(dd<d1){d2=d1;d1=dd;ci=k;}else if(dd<d2)d2=dd;
+    }
+    const borderNoise=(tr(x,y,200+v*5)-.5)*0.6;
+    if((d2-d1)+borderNoise<1.5){
+      const mortNoise=(tr(x,y,300+v*7)-.5)*12;
+      return [clamp(60+mortNoise,35,90),clamp(60+mortNoise,35,90),clamp(60+mortNoise,35,90)];
+    }
+    const baseG=105+tr(ci,0,41)*40;
+    const varLight=(tr(x,y,400+v*13)-.5)*(6+(v%4)*2);
+    const g=clamp(baseG+varLight,65,160);
+    return [g,g,g];
+  });
+}
+
 paintTile(114,(x,y)=>{const row=y>>2;let c=noisy(x,y,[172,138,84],7,10+row);
   const t=(tr(0,row,11)-.5)*16;c=[c[0]+t,c[1]+t,c[2]+t];
   if(y%4===3)c=dim(c,.62);else if(x===((row%2)?4:12))c=dim(c,.75);return c;});
-paintTile(115,(x,y)=>{let c=noisy(x,y,[112,86,54],7,13);const col=tr(x,0,14),v=(col-.5)*24;
-  c=[c[0]+v,c[1]+v,c[2]+v];if(col<.2)c=dim(c,.7);if(x===0||x===15)c=dim(c,.85);return c;});
-paintTile(116,(x,y)=>{const d=Math.max(Math.abs(x-7.5),Math.abs(y-7.5));
-  if(d>6.5)return noisy(x,y,[112,86,54],8,13);
-  return noisy(x,y,Math.floor(d)%2?[150,118,70]:[178,146,92],6,15);});
+
+/* TEXTURA LATERAL DO TRONCO (115): Casca com Ranhuras e Relevo Detalhado */
+paintTile(115,(x,y)=>{
+  const colPattern = (x % 4 === 0 || x % 4 === 3) ? 0.82 : 1.12;
+  const vNoise = (tr(x, y, 115) - 0.5) * 18;
+  const crack = (tr(x, Math.floor(y / 3), 116) < 0.28) ? 0.72 : 1.0;
+  const barkBase = [108 + vNoise, 84 + vNoise * 0.8, 50 + vNoise * 0.6];
+  let c = dim(barkBase, colPattern * crack);
+  if (x === 0 || x === 15) c = dim(c, 0.78);
+  return [clamp(c[0], 35, 165), clamp(c[1], 25, 135), clamp(c[2], 15, 95)];
+});
+
+/* TEXTURA TOPO/BASE DO TRONCO (116): Anéis Concentricos e Borda de Casca */
+paintTile(116,(x,y)=>{
+  const dx = Math.abs(x - 7.5), dy = Math.abs(y - 7.5);
+  const distCirc = Math.hypot(x - 7.5, y - 7.5);
+  if (Math.max(dx, dy) >= 6.2) {
+    const n = (tr(x, y, 117) - 0.5) * 18;
+    return [clamp(96 + n, 45, 145), clamp(72 + n, 35, 115), clamp(44 + n, 20, 85)];
+  }
+  const ring = Math.floor(distCirc);
+  const ringVal = (ring % 2 === 0) ? 1.0 : 0.84;
+  const n = (tr(x, y, 118) - 0.5) * 12;
+  const woodBase = [182 * ringVal + n, 144 * ringVal + n, 90 * ringVal + n];
+  return [clamp(woodBase[0], 80, 220), clamp(woodBase[1], 60, 175), clamp(woodBase[2], 35, 125)];
+});
+
 paintTile(117,(x,y)=>tr(x>>1,y>>1,23)<.5?noisy(x,y,[66,66,66],7,24):noisy(x,y,[32,32,32],7,24));
 
 function oreSet(seed){const set=new Set();
@@ -311,7 +347,7 @@ const B={air:0,grass:1,dirt:2,stone:3,cobble:4,planks:5,log:6,leaves:7,sand:8,
 
 const BLOCKS=[null,
  {name:'Grama',top:GRASS_TOP_TILES,side:112,bottom:DIRT_TILES},{name:'Terra',side:DIRT_TILES},{name:'Pedra',side:STONE_TILES},
- {name:'Pedregulho',side:113},{name:'Tábuas',side:114},{name:'Tronco',top:116,side:115,bottom:116},
+ {name:'Pedregulho',side:COBBLE_TILES},{name:'Tábuas',side:114},{name:'Tronco',top:116,side:115,bottom:116},
  {name:'Folhas',side:LEAVES_TILES},{name:'Areia',side:SAND_TILES},{name:'Água',side:WATER_TILES},{name:'Rocha-matriz',side:117},
  {name:'Minério de Carvão',side:118},{name:'Minério de Ferro',side:119},{name:'Minério de Diamante',side:120},
  {name:'Vidro',side:121},{name:'Tijolos',side:122},
@@ -736,8 +772,11 @@ const gamepadState = {
 
 let selectorFocusIndex = 0;
 let menuNavCd = 0;
+let jumpBlockCd = 0; // Trava para prevenir o pulo ao selecionar bloco
 
 function updateGamepad(dt) {
+  if (jumpBlockCd > 0) jumpBlockCd -= dt;
+
   const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
   let gp = null;
   for (let i = 0; i < gamepads.length; i++) {
@@ -785,12 +824,14 @@ function updateGamepad(dt) {
   const btnPause = gp.buttons[9]?.pressed || gp.buttons[8]?.pressed; // Start / Select
   const btnL3    = gp.buttons[10]?.pressed;         // L3: Correr
 
-  // Menu de Pausa via Start / Select
+  // Menu de Pausa / Despausar via Start / Select
   if (btnPause && !gamepadState.prevPause && started) {
     if (isSelectorOpen) {
       toggleBlockSelector(false);
-    } else {
+    } else if (locked) {
       document.exitPointerLock();
+    } else {
+      renderer.domElement.requestPointerLock();
     }
   }
   gamepadState.prevPause = btnPause;
@@ -819,6 +860,7 @@ function updateGamepad(dt) {
 
     // Confirmar Seleção com Botão A
     if (btnA && !gamepadState.prevJump && slots[selectorFocusIndex]) {
+      jumpBlockCd = 0.4; // Define atraso para evitar pular imediatamente ao sair do menu
       slots[selectorFocusIndex].click();
     }
 
@@ -832,7 +874,7 @@ function updateGamepad(dt) {
   }
 
   // Olhar em 3D com Analógico Direito (RS)
-  if (started && !isSelectorOpen) {
+  if (started && locked && !isSelectorOpen) {
     const lookSensitivity = 2.4;
     cam.yaw -= gamepadState.lookX * lookSensitivity * dt;
     cam.pitch = clamp(cam.pitch - gamepadState.lookY * lookSensitivity * dt, -1.55, 1.55);
@@ -872,7 +914,8 @@ function updateGamepad(dt) {
   gamepadState.prevRB = btnRB;
 
   // Pulo / Duplo clique em A para Voar
-  if (btnA && !gamepadState.prevJump && started) {
+  const canJumpFromButton = btnA && jumpBlockCd <= 0;
+  if (canJumpFromButton && !gamepadState.prevJump && started) {
     const now = performance.now();
     if (now - gamepadState.lastJumpTap < 280) {
       player.fly = !player.fly;
@@ -880,7 +923,7 @@ function updateGamepad(dt) {
     }
     gamepadState.lastJumpTap = now;
   }
-  gamepadState.jump = btnA;
+  gamepadState.jump = canJumpFromButton;
   gamepadState.prevJump = btnA;
 }
 
@@ -1029,7 +1072,7 @@ function raycast(o,d,maxD){
 const tmpDir=new THREE.Vector3();
 let curHit=null;
 function updateHighlight(){
-  if(!started){hl.visible=false;curHit=null;return;}
+  if(!started || !locked || isSelectorOpen){hl.visible=false;curHit=null;return;}
   camera.getWorldDirection(tmpDir);
   curHit=raycast(camera.position,tmpDir,REACH);
   hl.visible=!!curHit;
@@ -1274,7 +1317,7 @@ const blockSelectorEl=document.getElementById('blockselector');
 let isSelectorOpen=false;
 
 function buildBlockSelector(){
-  const grid=document.getElementById('selectorgird');
+  const grid=document.getElementById('selectorgrid');
   grid.innerHTML='';
   for(let id=1; id<BLOCKS.length; id++){
     if(!BLOCKS[id]) continue;
@@ -1320,8 +1363,9 @@ const handMat=new THREE.MeshBasicMaterial({
   depthWrite:true,
   side:THREE.FrontSide
 });
+const handScene=new THREE.Scene();
 const handGroup=new THREE.Group();
-camera.add(handGroup);
+handScene.add(handGroup);
 let handMesh=null,swingT=1;
 
 function buildBlockGeom(id){
@@ -1369,10 +1413,10 @@ function updateHand(dt){
 }
 
 /* ============================ ENTRADA ====================================== */
-let started=false,locked=false,lastTap=0,lastW=0,sprintTap=false,bobPhase=0,showDebug=true;
+let started=false,locked=false,lastTap=0,lastW=0,sprintTap=false,bobPhase=0,showDebug=false;
 addEventListener('keydown',e=>{
   if(e.code==='Space')e.preventDefault();
-  if(e.code==='KeyE' && started){
+  if(e.code==='KeyE' && started && locked){
     e.preventDefault();
     toggleBlockSelector();
     return;
@@ -1383,12 +1427,12 @@ addEventListener('keydown',e=>{
       if(n-lastW<260)sprintTap=true;
       lastW=n;
     }
-    if(e.code==='Space'){
+    if(e.code==='Space' && locked && !isSelectorOpen){
       const n=performance.now();
       if(n-lastTap<280){player.fly=!player.fly;player.vel.y=0;}
       lastTap=n;
     }
-    if(/^Digit[1-9]$/.test(e.code))selectSlot(+e.code[5]-1);
+    if(/^Digit[1-9]$/.test(e.code) && locked)selectSlot(+e.code[5]-1);
     if(e.code==='F3'){
       e.preventDefault();
       showDebug=!showDebug;
@@ -1447,7 +1491,7 @@ document.addEventListener('pointerlockchange',()=>{
     for(const k in keys)keys[k]=false;
     mouseL=mouseR=false;sprintTap=false;
     if(started && !isSelectorOpen){
-      subtitle.textContent='jogo pausado — o mundo continua girando';
+      subtitle.textContent='jogo pausado — o mundo congelou no tempo';
       playbtn.textContent='CONTINUAR';
       splashEl.style.display='none';
     }
@@ -1460,7 +1504,7 @@ const DAY_SKY=[.45,.69,.99],NIGHT_SKY=[.012,.018,.055],DUSK_SKY=[.99,.47,.24];
 const waterfx=document.getElementById('waterfx');
 
 function updateSky(dt){
-  if(started&&!isSelectorOpen)tod=(tod+dt/DAY_LEN)%1;
+  if(started && locked && !isSelectorOpen)tod=(tod+dt/DAY_LEN)%1;
   wind+=dt*.0016;
   const ang=tod*Math.PI*2,elev=Math.sin(ang);
   const dayF=smoothstep(-.10,.14,elev);
@@ -1537,9 +1581,15 @@ function loop(){
   const now=performance.now(),dt=Math.min(.05,(now-last)/1000);last=now;
   
   updateGamepad(dt);
-  updateChunks();
 
-  if(started && !isSelectorOpen){stepPlayer(dt);handleMouse(dt);updateCrackFx();}
+  if(started && locked && !isSelectorOpen){
+    updateChunks();
+    stepPlayer(dt);
+    handleMouse(dt);
+    updateCrackFx();
+    updateParticles(dt);
+  }
+
   camera.position.set(player.pos.x,player.pos.y+EYE_H,player.pos.z);
   camera.rotation.set(cam.pitch,cam.yaw,0);
   const tf=75+(player.sprint?(player.fly?12:8):0);
@@ -1548,21 +1598,20 @@ function loop(){
     camera.updateProjectionMatrix();
   }
   const bobA=(player.onGround?Math.min(player.hSpeed/SPEED_WALK,1):0)*.055;
-  if(bobA>0&&!isSelectorOpen)bobPhase+=dt*player.hSpeed*1.9;
+  if(bobA>0&&locked&&!isSelectorOpen)bobPhase+=dt*player.hSpeed*1.9;
   const rX=Math.cos(cam.yaw),rZ=-Math.sin(cam.yaw);
   camera.position.x+=Math.sin(bobPhase)*bobA*rX;
   camera.position.z+=Math.sin(bobPhase)*bobA*rZ;
   camera.position.y-=Math.abs(Math.cos(bobPhase))*bobA;
   updateHand(dt);
   updateHighlight();
-  updateParticles(dt);
   updateSky(dt);
 
   renderer.clear();
   renderer.render(scene,camera);
 
   renderer.clearDepth();
-  if(handMesh) renderer.render(handGroup,camera);
+  if(handMesh) renderer.render(handScene,camera);
 
   if(frame%15===0)updateDebug();
 }
