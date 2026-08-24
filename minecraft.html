@@ -187,7 +187,7 @@ function noise3(x,y,z){
   return e+(f-e)*w;
 }
 const TILE=16, ACOLS=16;const atlasCanvas=document.createElement('canvas');
-atlasCanvas.width=ACOLS*TILE; atlasCanvas.height=17*TILE;
+atlasCanvas.width=ACOLS*TILE; atlasCanvas.height=20*TILE;
 const actx=atlasCanvas.getContext('2d');
 const avgColor=[];
 const tr=(x,y,s)=>hash2(x+s*7919,y+s*104729);
@@ -502,17 +502,28 @@ paintTile(116,(x,y)=>{
   return [clamp(woodBase[0], 80, 220), clamp(woodBase[1], 60, 175), clamp(woodBase[2], 35, 125)];
 });
 paintTile(117,(x,y)=>tr(x>>1,y>>1,23)<.5?noisy(x,y,[66,66,66],7,24):noisy(x,y,[32,32,32],7,24));
-function oreSet(seed){const set=new Set();
-  for(let k=0;k<5;k++){const cx=2+Math.floor(tr(seed,k,31)*12),cy=2+Math.floor(tr(seed,k,32)*12);
+/* ================= MINÉRIOS — 16 VARIAÇÕES DE TEXTURA ======================
+   Antes cada minério usava UM tile único (118/119/120). Agora cada um usa 16
+   tiles no atlas (272..319), com padrão de veio (blobs) e pedra-base diferentes
+   por variação, escolhidos por bloco via hash3 — dando variedade natural às
+   rochas mineradas, como os demais blocos gerados proceduralmente. */
+const COAL_ORE_TILES=[], IRON_ORE_TILES=[], DIAMOND_ORE_TILES=[];
+function oreSetV(seed,v){const set=new Set();
+  for(let k=0;k<5;k++){const cx=2+Math.floor(tr(seed,k,v*13+31)*12),cy=2+Math.floor(tr(seed,k,v*17+32)*12);
     for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){
-      if(Math.abs(dx)+Math.abs(dy)===2&&tr(cx+dx,cy+dy,seed)<.55)continue;
+      if(Math.abs(dx)+Math.abs(dy)===2&&tr(cx+dx,cy+dy,seed+v*29)<.55)continue;
       set.add((cx+dx)+','+(cy+dy));}}
   return set;}
-function paintOre(idx,col){const set=oreSet(idx);
+function paintOreVariation(idx,col,v){const set=oreSetV(idx,v);
   paintTile(idx,(x,y)=>{
-    if(set.has(x+','+y)){const c=noisy(x,y,col,12,33);return tr(x,y,34)<.25?dim(c,1.35):c;}
-    const b=(tr(x>>2,y>>2,7)-.5)*22,c=noisy(x,y,[128,128,128],8,8);return[c[0]+b,c[1]+b,c[2]+b];});}
-paintOre(118,[42,42,46]); paintOre(119,[222,178,148]); paintOre(120,[70,222,214]);
+    if(set.has(x+','+y)){const c=noisy(x,y,col,12,33+v*7);return tr(x,y,34+v*5)<.25?dim(c,1.35):c;}
+    const b=(tr(x>>2,y>>2,7+v*11)-.5)*22,c=noisy(x,y,[128,128,128],8+(v%3),8+v*5);
+    return[c[0]+b,c[1]+b,c[2]+b];});
+}
+let oi=272;
+for(let v=0;v<16;v++){COAL_ORE_TILES.push(oi);paintOreVariation(oi,[42,42,46],v);oi++;}
+for(let v=0;v<16;v++){IRON_ORE_TILES.push(oi);paintOreVariation(oi,[222,178,148],v);oi++;}
+for(let v=0;v<16;v++){DIAMOND_ORE_TILES.push(oi);paintOreVariation(oi,[70,222,214],v);oi++;}
 paintTile(121,(x,y)=>{
   if(x===0||y===0||x===15||y===15) return [195,225,238,255];
   const isGlint = (x===2&&y===1) || (x===1&&y===2) || (x===2&&y===2) ||
@@ -568,7 +579,7 @@ const BLOCKS=[null,
  {name:'Grama',top:GRASS_TOP_TILES,side:GRASS_SIDE_TILES,bottom:DIRT_TILES},{name:'Terra',side:DIRT_TILES},{name:'Pedra',side:STONE_TILES},
  {name:'Pedregulho',side:COBBLE_TILES},{name:'Tábuas',side:114},{name:'Tronco',top:116,side:115,bottom:116},
  {name:'Folhas',side:LEAVES_TILES},{name:'Areia',side:SAND_TILES},{name:'Água',side:WATER_TILES},{name:'Rocha-matriz',side:117},
- {name:'Minério de Carvão',side:118},{name:'Minério de Ferro',side:119},{name:'Minério de Diamante',side:120},
+ {name:'Minério de Carvão',side:COAL_ORE_TILES},{name:'Minério de Ferro',side:IRON_ORE_TILES},{name:'Minério de Diamante',side:DIAMOND_ORE_TILES},
  {name:'Vidro',side:121},{name:'Tijolos',side:122},
  {name:'Grama com Neve',top:SNOW_TOP_TILES,side:SNOW_SIDE_TILES,bottom:DIRT_TILES},{name:'Arenito',side:125},
  {name:'Cacto',top:127,side:126,bottom:127},{name:'Lava',side:LAVA_TILES},
