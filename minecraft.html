@@ -1760,11 +1760,14 @@ function sfx(kind,intensity=1){
   const rnd=(a,b)=>a+Math.random()*(b-a);
   try{
     if(kind==='break'){
+      /* Pequena variação a cada quebra: o tom inicial do filtro e a duração do
+         estouro mudam levemente, mantendo o caráter do som porém nunca idêntico. */
       const f=toneNodes.breakFilter.frequency;
+      const dur=rnd(0.10,0.17);
       f.cancelScheduledValues(now);
-      f.setValueAtTime(950,now);
-      f.exponentialRampToValueAtTime(90,now+0.13);
-      toneNodes.breakNoise.triggerAttackRelease(0.13,now);
+      f.setValueAtTime(rnd(880,1080),now);
+      f.exponentialRampToValueAtTime(rnd(72,120),now+dur);
+      toneNodes.breakNoise.triggerAttackRelease(dur,now);
     }else if(kind==='step'){
       const f=toneNodes.stepFilter.frequency;
       f.cancelScheduledValues(now);
