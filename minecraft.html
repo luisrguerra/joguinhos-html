@@ -1494,7 +1494,7 @@ function handleMouse(dt){
     if(key!==mineKey){mineKey=key;mineT=0;renewCrackPattern(curHit.x,curHit.y,curHit.z);}
     if(swingT>=1)swingT=0;
     mineT+=dt;
-    if(hitCd<=0){sfx('hit');hitCd=.22;}
+    if(hitCd<=0){sfx('hit',1,curHit.b);hitCd=.22;}
     const need=HARDNESS[curHit.b];
     if(Number.isFinite(need)&&mineT>=need){
       breakBlock(curHit);
@@ -1592,7 +1592,7 @@ function breakBlock(hit){
   if(hit.b===B.bedrock)return;
   setBlock(hit.x,hit.y,hit.z,B.air);
   spawnBreakParticles(hit.x,hit.y,hit.z,hit.b);
-  sfx('break');
+  sfx('break',1,hit.b);
   checkFluidSpread(hit.x,hit.y,hit.z, B.water);
   checkFluidSpread(hit.x,hit.y,hit.z, B.lava);
 }
@@ -1671,6 +1671,13 @@ function updateParticles(dt){
    Mantém exatamente os mesmos "kinds" chamados pelo jogo:
    'break', 'step', 'splash', 'hit' (baseados em ruído filtrado) e
    'place' (blip com oscilador triangular deslizando para baixo). */
+/* Blocks cujos sons de hit/break devem ser de FOLHAGEM (farfalho suave)
+   em vez do impacto seco de minerar rocha/terra. */
+function isFoliageBlock(b){
+  return b===B.leaves||b===B.pine_leaves||b===B.shrub||b===B.framboesa||b===B.mirtilo||
+         b===B.ipe_yellow_leaves||b===B.ipe_pink_leaves||b===B.ipe_red_leaves||
+         b===B.ipe_purple_leaves||b===B.ipe_white_leaves;
+}
 let audioReady=false, toneNodes=null;
 function initAudio(){
   if(audioReady)return;
@@ -1707,6 +1714,50 @@ function initAudio(){
       const gain=new Tone.Gain(s.gain);
       noise.chain(filt,gain,comp);
       breakVoices.push({noise,filt,gain,spec:s});
+    }
+
+    /* FOLHAGEM · BREAK — ao destruir folhas e arbustos, em vez do estouro
+       seco de bloco duro, toca um farfalhar suave e "rastejante": ruído
+       filtrado com ataque macio (as folhas cedendo) e banda média-aguda,
+       com ganho menor para não soar exagerado. */
+    const foliageBreakVoices=[];
+    const foliageBreakSpecs=[
+      /* 0: farfalhar de folhas (ruído branco, banda média) */
+      {type:'white', fType:'bandpass', f0:[2200,3000], f1:[700,1100], Q:1.4, dur:[0.10,0.16], atk:0.008, dec:0.14, gain:0.5},
+      /* 1: folhas amassadas (ruído rosa, más abafado) */
+      {type:'pink',  fType:'lowpass',  f0:[1400,1900], f1:[300,500],  Q:0.9, dur:[0.09,0.15], atk:0.010, dec:0.13, gain:0.55},
+      /* 2: estalido seco de galhinhos (banda mais aguda) */
+      {type:'white', fType:'bandpass', f0:[3000,4000], f1:[1100,1600],Q:2.0, dur:[0.06,0.10], atk:0.004, dec:0.09, gain:0.42}
+    ];
+    for(let i=0;i<foliageBreakSpecs.length;i++){
+      const s=foliageBreakSpecs[i];
+      const noise=new Tone.NoiseSynth({
+        noise:{type:s.type},
+        envelope:{attack:s.atk,decay:s.dec,sustain:0,release:0.04}
+      });
+      const filt=new Tone.Filter({type:s.fType,frequency:s.f0[0],Q:s.Q});
+      const gain=new Tone.Gain(s.gain);
+      noise.chain(filt,gain,comp);
+      foliageBreakVoices.push({noise,filt,gain,spec:s});
+    }
+
+    /* FOLHAGEM · HIT — tique bem suave e curto (farfalho leve) ao atingir
+       a folhagem durante a mineração. */
+    const foliageHitVoices=[];
+    const foliageHitSpecs=[
+      {type:'white', fType:'bandpass', f0:[2600,3400], f1:[1400,1900], Q:1.8, dur:[0.028,0.045], atk:0.006, dec:0.04, gain:0.26},
+      {type:'pink',  fType:'bandpass', f0:[1700,2400], f1:[800,1200],  Q:1.3, dur:[0.035,0.055], atk:0.008, dec:0.05, gain:0.28}
+    ];
+    for(let i=0;i<foliageHitSpecs.length;i++){
+      const s=foliageHitSpecs[i];
+      const noise=new Tone.NoiseSynth({
+        noise:{type:s.type},
+        envelope:{attack:s.atk,decay:s.dec,sustain:0,release:0.015}
+      });
+      const filt=new Tone.Filter({type:s.fType,frequency:s.f0[0],Q:s.Q});
+      const gain=new Tone.Gain(s.gain);
+      noise.chain(filt,gain,comp);
+      foliageHitVoices.push({noise,filt,gain,spec:s});
     }
 
     /* STEP — passo curto e abafado */
@@ -1788,21 +1839,24 @@ function initAudio(){
     toneNodes={master,comp,breakVoices,stepNoise,stepFilter,
                splashNoise,splashFilter,splashNoiseGain,splashBody,splashBodyFilter,
                splashBodyGain,splashThump,splashThumpGain,splashDrops,
-               hitVoices,placeSynth};
+               hitVoices,placeSynth,foliageBreakVoices,foliageHitVoices};
     audioReady=true;
   }catch(e){console.warn('Falha ao iniciar o Tone.js:',e);}
 }
-function sfx(kind,intensity=1){
+function sfx(kind,intensity=1,block=0){
   if(!audioReady||!toneNodes)return;
   if(Tone.context.state!=='running')Tone.context.resume();
   const now=Tone.now();
   const rnd=(a,b)=>a+Math.random()*(b-a);
+  const isFoliage=isFoliageBlock(block);
   try{
     if(kind==='break'){
-      /* A cada quebra sorteia uma das vozes de estouro — cada uma tem timbre,
-         faixa de filtro e duração diferentes — e ainda flutua levemente os
-         parâmetros dentro da faixa da voz escolhida, então raramente se repete. */
-      const v=toneNodes.breakVoices[(Math.random()*toneNodes.breakVoices.length)|0];
+      /* Folhagem usa o farfalho próprio; blocos comuns usam o estouro seco. */
+      const voices=isFoliage?toneNodes.foliageBreakVoices:toneNodes.breakVoices;
+      /* A cada quebra sorteia uma das vozes — cada uma tem timbre, faixa de
+         filtro e duração diferentes — e ainda flutua levemente os parâmetros
+         dentro da faixa da voz escolhida, então raramente se repete. */
+      const v=voices[(Math.random()*voices.length)|0];
       const s=v.spec;
       const f=v.filt.frequency;
       const dur=rnd(s.dur[0],s.dur[1]);
@@ -1848,10 +1902,11 @@ function sfx(kind,intensity=1){
         toneNodes.splashDrops.triggerAttackRelease(hz,rnd(.025,.055),now+delay,0.16+force*.34);
       }
     }else if(kind==='hit'){
-      /* "Tick" de mineração: sorteia uma das vozes de tique (cada uma com
-         timbre, filtro e duração próprios) e ainda flutua aleatoriamente os
-         parâmetros, então cada golpe soa diferente. */
-      const v=toneNodes.hitVoices[(Math.random()*toneNodes.hitVoices.length)|0];
+      /* "Tick" de mineração — folhagem usa o tique suave; blocos comuns usam
+         o tique seco. Sorteia uma voz e flutua os parâmetros, então cada
+         golpe soa diferente. */
+      const voices=isFoliage?toneNodes.foliageHitVoices:toneNodes.hitVoices;
+      const v=voices[(Math.random()*voices.length)|0];
       const s=v.spec;
       const dur=rnd(s.dur[0],s.dur[1]);
       const f=v.filt.frequency;
