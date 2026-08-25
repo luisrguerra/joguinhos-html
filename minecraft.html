@@ -545,6 +545,32 @@ paintTile(116,(x,y)=>{
   const woodBase = [182 * ringVal + n, 144 * ringVal + n, 90 * ringVal + n];
   return [clamp(woodBase[0], 80, 220), clamp(woodBase[1], 60, 175), clamp(woodBase[2], 35, 125)];
 });
+/* ================= TRONCO DE BÉTULA — LATERAL (118) =========================
+   Tronco MAIS CLARO que o de carvalho (como a bétula/casca esbranquiçada),
+   com faixas escuras horizontais características e o mesmo corte vertical. */
+paintTile(118,(x,y)=>{
+  const colPattern = (x % 4 === 0 || x % 4 === 3) ? 0.80 : 1.15;
+  const vNoise = (tr(x, y, 118) - 0.5) * 16;
+  const streak = (tr(x, Math.floor(y / 2), 119) < 0.18) ? 0.58 : 1.0; // faixas escuras
+  const barkBase = [204 + vNoise, 192 + vNoise * 0.85, 172 + vNoise * 0.6];
+  let c = dim(barkBase, colPattern * streak);
+  if (x === 0 || x === 15) c = dim(c, 0.80);
+  return [clamp(c[0], 120, 240), clamp(c[1], 108, 226), clamp(c[2], 92, 205)];
+});
+/* TRONCO DE BÉTULA — TOPO/BASE (119): madeira clara com anéis */
+paintTile(119,(x,y)=>{
+  const dx = Math.abs(x - 7.5), dy = Math.abs(y - 7.5);
+  const distCirc = Math.hypot(x - 7.5, y - 7.5);
+  if (Math.max(dx, dy) >= 6.2) {
+    const n = (tr(x, y, 120) - 0.5) * 16;
+    return [clamp(198 + n, 140, 235), clamp(186 + n, 130, 225), clamp(168 + n, 116, 208)];
+  }
+  const ring = Math.floor(distCirc);
+  const ringVal = (ring % 2 === 0) ? 1.0 : 0.86;
+  const n = (tr(x, y, 121) - 0.5) * 10;
+  const woodBase = [228 * ringVal + n, 218 * ringVal + n, 200 * ringVal + n];
+  return [clamp(woodBase[0], 150, 250), clamp(woodBase[1], 140, 240), clamp(woodBase[2], 122, 228)];
+});
 paintTile(117,(x,y)=>tr(x>>1,y>>1,23)<.5?noisy(x,y,[66,66,66],7,24):noisy(x,y,[32,32,32],7,24));
 /* ================= MINÉRIOS — 16 VARIAÇÕES DE TEXTURA ======================
    Antes cada minério usava UM tile único (118/119/120). Agora cada um usa 16
@@ -618,7 +644,7 @@ paintTile(127,(x,y)=>{const d=Math.max(Math.abs(x-7.5),Math.abs(y-7.5));
 const B={air:0,grass:1,dirt:2,stone:3,cobble:4,planks:5,log:6,leaves:7,sand:8,
          water:9,bedrock:10,coal:11,iron:12,diamond:13,glass:14,brick:15,
          snowgrass:16,sandstone:17,cactus:18,lava:19,ipe_yellow_leaves:20,
-         ipe_pink_leaves:21,ipe_red_leaves:22,ipe_purple_leaves:23,ipe_white_leaves:24,shrub:25,framboesa:26,mirtilo:27};
+         ipe_pink_leaves:21,ipe_red_leaves:22,ipe_purple_leaves:23,ipe_white_leaves:24,shrub:25,framboesa:26,mirtilo:27,birch_log:28};
 const BLOCKS=[null,
  {name:'Grama',top:GRASS_TOP_TILES,side:GRASS_SIDE_TILES,bottom:DIRT_TILES},{name:'Terra',side:DIRT_TILES},{name:'Pedra',side:STONE_TILES},
  {name:'Pedregulho',side:COBBLE_TILES},{name:'Tábuas',side:114},{name:'Tronco',top:116,side:115,bottom:116},
@@ -634,9 +660,10 @@ const BLOCKS=[null,
   {name:'Ipê Branco',side:IPE_WHITE_TILES},
   {name:'Arbusto',side:SHRUB_TILES},
    {name:'Framboesa',side:FRAMBOESA_TILES},
-   {name:'Mirtilo',side:MIRTILO_TILES}];
+   {name:'Mirtilo',side:MIRTILO_TILES},
+   {name:'Tronco de Bétula',top:119,side:118,bottom:119}];
 for(const b of BLOCKS){if(!b)continue;b.top=b.top??b.side;b.bottom=b.bottom??b.side;}
-const HARDNESS=[0,.45,.4,.8,.85,.7,.7,.2,.35,Infinity,Infinity,.95,1.1,1.4,.2,.85,.45,.7,.25,Infinity,.2,.2,.2,.2,.2,.2,.2,.2];
+const HARDNESS=[0,.45,.4,.8,.85,.7,.7,.2,.35,Infinity,Infinity,.95,1.1,1.4,.2,.85,.45,.7,.25,Infinity,.2,.2,.2,.2,.2,.2,.2,.2,.7];
 const OPAQUE=[],SOLID=[];
 BLOCKS.forEach((b,i)=>{
   OPAQUE[i]=!!b&&i!==B.water&&i!==B.lava&&i!==B.glass;
@@ -832,7 +859,7 @@ function decorAt(wx,wz){
   const dens=TREE_DENSITY[bio];
   if(dens>0&&hash2(gx*3+1011,gz*3-709)<dens)
     return{kind:'tree',x:wx,z:wz,ground:h,r:hash2(gx+551,gz+937),bio:bio};
-  if(bio===BIO.DESERT&&hash2(gx*7+13,gz*7-31)<.14)
+  if(bio===BIO.DESERT&&hash2(gx*7+13,gz*7-31)<.014)
     return{kind:'cactus',x:wx,z:wz,ground:h,n:1+Math.floor(hash2(gx-81,gz+45)*3)};
   return null;
 }
@@ -880,6 +907,14 @@ function plantTree(put,x,z,ground,r,bio){
   } else if (ipeChance < 0.015) {
     leafType = B.ipe_white_leaves;
   }
+  /* BÉTULA: a ocorrência desta árvore é 1/5 da árvore comum (≈20% das árvores
+     não-taiga). Ela usa o MESMO bloco de folhas padrão (B.leaves), apenas o
+     tronco é o Tronco de Bétula (mais claro).
+     IMPORTANTE: árvores de Ipê (folhas coloridas ipe_*) NUNCA usam tronco de
+     bétula — sempre usam o tronco de carvalho padrão (B.log). */
+  const isIpe = leafType !== B.leaves;
+  const isBirch = !isIpe && hash2(x*23+131, z*27-577) < 0.2;
+  const trunkBlock = isBirch ? B.birch_log : B.log;
   const trunk=4+Math.floor(r*3);
   const top=ground+trunk;
   for(let ly=top-2;ly<=top+1;ly++){
@@ -892,7 +927,7 @@ function plantTree(put,x,z,ground,r,bio){
       put(x+dx,ly,z+dz,leafType,false);
     }
   }
-  for(let ly=ground+1;ly<=top;ly++)put(x,ly,z,B.log,true);
+  for(let ly=ground+1;ly<=top;ly++)put(x,ly,z,trunkBlock,true);
   put(x,ground,z,B.dirt,true);
 }
 function generateChunkData(cx,cz){
