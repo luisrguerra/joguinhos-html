@@ -208,7 +208,7 @@ function paintTile(idx,fn){
 const noisy=(x,y,b,a,s)=>{const v=(tr(x,y,s)-.5)*2*a;return[b[0]+v,b[1]+v,b[2]+v];};
 const dim=(c,f)=>[c[0]*f,c[1]*f,c[2]*f];
 const GRASS_TOP_TILES=[], DIRT_TILES=[], STONE_TILES=[], COBBLE_TILES=[];
-const LAVA_TILES=[], SAND_TILES=[], WATER_TILES=[], LEAVES_TILES=[], SHRUB_TILES=[], FRAMBOESA_TILES=[], MIRTILO_TILES=[];
+const LAVA_TILES=[], SAND_TILES=[], WATER_TILES=[], LEAVES_TILES=[], SHRUB_TILES=[], FRAMBOESA_TILES=[], MIRTILO_TILES=[], PINE_LEAVES_TILES=[];
 const GRASS_SIDE_TILES=[], SNOW_TOP_TILES=[], SNOW_SIDE_TILES=[];
 const IPE_YELLOW_TILES=[], IPE_PINK_TILES=[], IPE_RED_TILES=[], IPE_PURPLE_TILES=[], IPE_WHITE_TILES=[];
 for(let v=0;v<16;v++){
@@ -352,6 +352,18 @@ for(let v=0;v<16;v++){
     let c=noisy(x,y,[56,136,42],12+(v%6),16+v*13);
     if(tr(x,y,17+v*7)<.15)c=[28,76,26];
     else if(tr(x,y,18+v*11)<.09)c=[86,172,64];
+    return c;
+  });
+}
+/* Folhas de Pinheiro (Taiga) — MESMA textura das folhas, porém em verde mais
+   escuro, típico das coníferas. São 14 variações no atlas (82..95 — faixa livre),
+   escolhidos por bloco via hash3, dando variedade natural à copa dos pinheiros. */
+for(let v=0;v<14;v++){
+  const idx=82+v; PINE_LEAVES_TILES.push(idx);
+  paintTile(idx,(x,y)=>{
+    let c=noisy(x,y,[36,96,30],12+(v%6),16+v*13);
+    if(tr(x,y,17+v*7)<.15)c=[18,54,18];
+    else if(tr(x,y,18+v*11)<.09)c=[58,128,42];
     return c;
   });
 }
@@ -644,7 +656,7 @@ paintTile(127,(x,y)=>{const d=Math.max(Math.abs(x-7.5),Math.abs(y-7.5));
 const B={air:0,grass:1,dirt:2,stone:3,cobble:4,planks:5,log:6,leaves:7,sand:8,
          water:9,bedrock:10,coal:11,iron:12,diamond:13,glass:14,brick:15,
          snowgrass:16,sandstone:17,cactus:18,lava:19,ipe_yellow_leaves:20,
-         ipe_pink_leaves:21,ipe_red_leaves:22,ipe_purple_leaves:23,ipe_white_leaves:24,shrub:25,framboesa:26,mirtilo:27,birch_log:28};
+         ipe_pink_leaves:21,ipe_red_leaves:22,ipe_purple_leaves:23,ipe_white_leaves:24,shrub:25,framboesa:26,mirtilo:27,birch_log:28,pine_leaves:29};
 const BLOCKS=[null,
  {name:'Grama',top:GRASS_TOP_TILES,side:GRASS_SIDE_TILES,bottom:DIRT_TILES},{name:'Terra',side:DIRT_TILES},{name:'Pedra',side:STONE_TILES},
  {name:'Pedregulho',side:COBBLE_TILES},{name:'Tábuas',side:114},{name:'Tronco',top:116,side:115,bottom:116},
@@ -661,9 +673,10 @@ const BLOCKS=[null,
   {name:'Arbusto',side:SHRUB_TILES},
    {name:'Framboesa',side:FRAMBOESA_TILES},
    {name:'Mirtilo',side:MIRTILO_TILES},
-   {name:'Tronco de Bétula',top:119,side:118,bottom:119}];
+   {name:'Tronco de Bétula',top:119,side:118,bottom:119},
+   {name:'Folha de Pinheiro',side:PINE_LEAVES_TILES}];
 for(const b of BLOCKS){if(!b)continue;b.top=b.top??b.side;b.bottom=b.bottom??b.side;}
-const HARDNESS=[0,.45,.4,.8,.85,.7,.7,.2,.35,Infinity,Infinity,.95,1.1,1.4,.2,.85,.45,.7,.25,Infinity,.2,.2,.2,.2,.2,.2,.2,.2,.7];
+const HARDNESS=[0,.45,.4,.8,.85,.7,.7,.2,.35,Infinity,Infinity,.95,1.1,1.4,.2,.85,.45,.7,.25,Infinity,.2,.2,.2,.2,.2,.2,.2,.2,.7,.2];
 const OPAQUE=[],SOLID=[];
 BLOCKS.forEach((b,i)=>{
   OPAQUE[i]=!!b&&i!==B.water&&i!==B.lava&&i!==B.glass;
@@ -868,8 +881,9 @@ function plantTree(put,x,z,ground,r,bio){
   if(bio===BIO.TAIGA){
     const trunk=7+Math.floor(r*4); // Tronco mais alto (7 a 10 blocos)
     const top=ground+trunk;
-    // Topo das folhas (Pico do abeto)
-    put(x,top+1,z,B.leaves,false);
+    /* A copa usa a FOLHA DE PINHEIRO (verde mais escuro), em vez da folha comum,
+       dando aos pinheiros da taiga sua aparência característica de conífera. */
+    put(x,top+1,z,B.pine_leaves,false);
     // Camadas de folhas cônicas/em pirâmide
     for(let ly=top;ly>=ground+2;ly--){
       const hFromTop=top-ly;
@@ -884,7 +898,7 @@ function plantTree(put,x,z,ground,r,bio){
           // Recorta os cantos para formar o formato cônico do pinheiro
           if(ax===rad && az===rad && rad>1) continue;
           if(dx===0 && dz===0 && ly<=top) continue;
-          put(x+dx,ly,z+dz,B.leaves,false);
+          put(x+dx,ly,z+dz,B.pine_leaves,false);
         }
       }
     }
