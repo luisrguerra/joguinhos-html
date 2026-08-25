@@ -1806,10 +1806,14 @@ function sfx(kind,intensity=1){
         toneNodes.splashDrops.triggerAttackRelease(hz,rnd(.025,.055),now+delay,0.16+force*.34);
       }
     }else if(kind==='hit'){
+      /* "Tick" de mineração: além do tom inicial variar, a duração também varia
+         levemente, de modo que cada golpe seja nunca exatamente igual. */
+      const dur=rnd(0.038,0.065);
       const f=toneNodes.hitFilter.frequency;
       f.cancelScheduledValues(now);
-      f.setValueAtTime(rnd(1200,1700),now);
-      toneNodes.hitNoise.triggerAttackRelease(0.05,now);
+      f.setValueAtTime(rnd(1200,1800),now);
+      f.exponentialRampToValueAtTime(rnd(900,1400),now+dur);
+      toneNodes.hitNoise.triggerAttackRelease(dur,now);
     }else if(kind==='place'){
       const ps=toneNodes.placeSynth;
       ps.triggerAttackRelease('A3',0.1,now);
