@@ -1904,6 +1904,17 @@ function toggleBlockSelector(forceState){
     requestLock();
   }
 }
+/* Clicar fora do menu de blocos (no fundo escurecido) fecha o menu.
+   Os cliques dentro do .selector-box são ignorados (o box captura e
+   interrompe a propagação), então só o clique no fundo conta como "fora". */
+blockSelectorEl.addEventListener('click', e=>{
+  if(isSelectorOpen && !e.target.closest('.selector-box')){
+    toggleBlockSelector(false);
+  }
+});
+document.querySelector('.selector-box').addEventListener('click', e=>{
+  e.stopPropagation();
+});
 const handMat=new THREE.MeshBasicMaterial({
   map:atlasTex,
   vertexColors:true,
