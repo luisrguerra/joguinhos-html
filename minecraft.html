@@ -1202,6 +1202,7 @@ const cam={yaw:0,pitch:-.12};
 const keys={};
 const touchState={moveX:0,moveY:0,jump:false,sneak:false,sprint:false};
 let spawnPos=new THREE.Vector3();
+let spawnPending=true;   // garante ajuste do spawn ao topo da terra firme no 1º frame
 const gamepadState = {
   moveX: 0,
   moveY: 0,
@@ -2432,15 +2433,41 @@ Hora: ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`+
 (player.fly?' · voando':'')+(player.sprint?' · correndo':'')+(player.onGround?'':' · no ar');
 }
 function findSpawn(){
-  for(let i=0;i<220;i++){
-    const x=(i*17)%260-130,z=(i*11)%260-130;
-    const h=terrainHeight(x,z);
-    if(h>SEA+1){
+  /* Procura um ponto de TERRA FIRME bem acima do nível do mar, para que o
+     jogador NUNCA apareça em cima de um bloco de água (oceano/praia) nem caia
+     do alto. A condição h>=SEA+3 garante folga em relação à água. */
+  for(let rep=0;rep<4;rep++){
+    const off=rep*13103;   // varia a fase a cada tentativa p/ cobrir mais área
+    for(let i=0;i<700;i++){
+      const x=((i*17+off)%260)-130,z=((i*11+off*2)%260)-130;
+      const h=terrainHeight(x,z);
+      if(h<SEA+3)continue;
       const[t,m]=climateAt(x,z);
-      if(biomeFrom(h,t,m)!==BIO.OCEAN){spawnPos.set(x+.5,h+1.01,z+.5);return;}
+      const bio=biomeFrom(h,t,m);
+      if(bio===BIO.OCEAN||bio===BIO.BEACH)continue;
+      spawnPos.set(x+.5,h+1.01,z+.5);
+      return;
     }
   }
-  spawnPos.set(.5,CH-14,.5);
+  /* Fallback raro: ainda fica acima do solo; o secureSpawn abaixo o encaixa
+     no topo da terra firme assim que o chunk gerar. Nunca cai do céu. */
+  spawnPos.set(.5,CH-4,.5);
+}
+/* Encaixa o jogador no topo do bloco SÓLIDO mais alto da coluna do spawn.
+   Garante que, mesmo se o spawn cair sobre água (ou no fallback), o jogador
+   NUNCA apareça submerso mergulhando nem caia do alto: é colocado em pé na
+   terra firme assim que o chunk do spawn fica disponível. */
+function secureSpawn(){
+  if(!spawnPending)return;
+  const bx=Math.floor(player.pos.x),bz=Math.floor(player.pos.z);
+  const ch=chunks.get(cKey(bx>>4,bz>>4));
+  if(!ch||!ch.data)return;            // chunk do spawn ainda não gerado
+  let y=CH-1;
+  for(;y>=0;y--){if(SOLID[getBlock(bx,y,bz)])break;}
+  player.pos.set(bx+.5,y+1.01,bz+.5);
+  player.vel.set(0,0,0);
+  player.fly=false;
+  spawnPending=false;
 }
 let last=performance.now();
 function loop(){
@@ -2449,6 +2476,7 @@ function loop(){
   updateGamepad(dt);
   if(started && locked && !isSelectorOpen){
     updateChunks();
+    secureSpawn();
     stepPlayer(dt);
     handleMouse(dt);
     updateCrackFx();
