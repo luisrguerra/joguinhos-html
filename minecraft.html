@@ -116,7 +116,7 @@ body.mobile #itemname{bottom:calc(64px + env(safe-area-inset-bottom))}
 <div id="rotatehint"><div class="icon"><i class="mdi mdi-phone-rotate-landscape"></i></div><p>Gire seu dispositivo para o modo paisagem para uma experiência melhor</p></div>
 <div id="blockselector">
   <div class="selector-box">
-    <div class="selector-title">Selecionar Bloco (Slot Ativo)</div>
+    <div class="selector-title">Menu de Itens (Slot Ativo)</div>
     <div class="selector-grid" id="selectorgrid"></div>
   </div>
 </div>
@@ -128,7 +128,7 @@ body.mobile #itemname{bottom:calc(64px + env(safe-area-inset-bottom))}
     <div class="controls" id="desktopcontrols">
       <div><kbd>W A S D</kbd> / <kbd>LS</kbd> mover</div><div><kbd>Mouse</kbd> / <kbd>RS</kbd> olhar</div>
       <div><kbd>Espaço</kbd> / <kbd>A</kbd> pular · 2× voar</div><div><kbd>Ctrl</kbd> / <kbd>L3</kbd> correr</div>
-      <div><kbd>Shift</kbd> / <kbd>B</kbd> agachar</div><div><kbd>E</kbd> / <kbd>X</kbd> menu de blocos</div>
+      <div><kbd>Shift</kbd> / <kbd>B</kbd> agachar</div><div><kbd>E</kbd> / <kbd>X</kbd> menu de itens</div>
       <div><kbd>Esq.</kbd> / <kbd>RT</kbd> quebrar bloco</div><div><kbd>Dir.</kbd> / <kbd>LT</kbd> colocar bloco</div>
       <div><kbd>1–9</kbd> / <kbd>LB/RB</kbd> escolher bloco</div><div><kbd>F3</kbd> debug · <kbd>Esc</kbd> / <kbd>Start</kbd> pausar</div>
     </div>
@@ -681,18 +681,18 @@ const SWORD_PALETTE={
    e sombra à esquerda, o guardião (crossguard) é uma barra horizontal mais
    larga que a lâmina, e o cabo desce até a base. */
 const SWORD_PIXELS=[
-  0,0,0,0,0,0,0,0,9,0,0,0,0,0,0,0,
-  0,0,0,0,0,0,0,7,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,7,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,7,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,7,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,7,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,7,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,7,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,7,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,7,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,7,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,7,8,9,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,7,9,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
+  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
+  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
+  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
+  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
+  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
+  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
+  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
+  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
+  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
+  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
   0,0,0,0,0,4,5,5,5,5,4,0,0,0,0,0,
   0,0,0,0,0,0,0,2,3,0,0,0,0,0,0,0,
   0,0,0,0,0,0,0,1,2,0,0,0,0,0,0,0,
@@ -2058,6 +2058,25 @@ let isSelectorOpen=false;
 function buildBlockSelector(){
   const grid=document.getElementById('selectorgrid');
   grid.innerHTML='';
+  /* Itens especiais (não-bloco), como a espada, também aparecem no menu. */
+  const specialItems=[SWORD_ITEM];
+  for(const item of specialItems){
+    const slot=document.createElement('div');
+    slot.className='selector-slot';
+    const cv=document.createElement('canvas');
+    cv.width=cv.height=48;
+    drawIcon(cv, item);
+    slot.appendChild(cv);
+    slot.title=item.name;
+    slot.addEventListener('click', ()=>{
+      hotbarItems[sel]=item;
+      drawIcon(slotCanvases[sel], item);
+      updateHandItem();
+      showItemName();
+      toggleBlockSelector(false);
+    });
+    grid.appendChild(slot);
+  }
   for(let id=1; id<BLOCKS.length; id++){
     if(!BLOCKS[id]) continue;
     const slot=document.createElement('div');
