@@ -657,6 +657,68 @@ const B={air:0,grass:1,dirt:2,stone:3,cobble:4,planks:5,log:6,leaves:7,sand:8,
          water:9,bedrock:10,coal:11,iron:12,diamond:13,glass:14,brick:15,
          snowgrass:16,sandstone:17,cactus:18,lava:19,ipe_yellow_leaves:20,
          ipe_pink_leaves:21,ipe_red_leaves:22,ipe_purple_leaves:23,ipe_white_leaves:24,shrub:25,framboesa:26,mirtilo:27,birch_log:28,pine_leaves:29};
+
+/* ===================== ITEM: ESPADA DE FERRO =====================
+   Sprite 16x16 desenhado pixel a pixel no código (sem baixar da internet),
+   inspirado na textura vanilla do Minecraft (Java Edition). Cada pixel é
+   representado por um array [r,g,b,a]; 0 = transparente. A lâmina é cinza-
+   -azulada com realces claros, o guardião (crossguard) marrom-escuro e o
+   cabo (handle) marrom-claro, exatamente como no jogo original. */
+const SWORD_PALETTE={
+  0:null,
+  1:[62,57,57,255],   // cabo escuro (handle shadow)
+  2:[110,90,60,255],  // cabo (handle)
+  3:[150,125,80,255], // cabo claro (handle highlight)
+  4:[60,60,70,255],   // guardião escuro (guardian shadow)
+  5:[90,90,100,255],  // guardião (guardian)
+  6:[120,120,130,255],// guardião claro (guardian highlight)
+  7:[120,120,130,255],// lâmina escura (blade shadow)
+  8:[180,180,190,255],// lâmina (blade)
+  9:[230,230,240,255] // lâmina clara (blade highlight)
+};
+/* Mapa 16x16 da espada de ferro (orientação diagonal, ponta no canto sup.
+   esquerdo, cabo no canto inf. direito), fiel à textura vanilla. */
+const SWORD_PIXELS=[
+  9,7,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  7,8,9,7,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,7,8,9,7,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,7,8,9,7,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,7,8,9,7,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,7,8,9,7,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,7,8,6,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,5,6,4,0,0,0,0,0,0,0,
+  0,0,0,0,0,4,6,5,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,2,3,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,1,2,3,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,1,2,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+];
+/* Canvas 16x16 com a espada, usado como textura do item na mão e no ícone
+   da hotbar. Construído uma única vez a partir de SWORD_PIXELS. */
+const swordCanvas=document.createElement('canvas');
+swordCanvas.width=swordCanvas.height=16;
+(function buildSwordSprite(){
+  const sctx=swordCanvas.getContext('2d');
+  const img=sctx.createImageData(16,16);
+  for(let i=0;i<256;i++){
+    const c=SWORD_PALETTE[SWORD_PIXELS[i]];
+    const o=i*4;
+    if(c){img.data[o]=c[0];img.data[o+1]=c[1];img.data[o+2]=c[2];img.data[o+3]=c[3];}
+  }
+  sctx.putImageData(img,0,0);
+})();
+/* Textura THREE para a espada na mão (filtragem nearest = pixel art). */
+const swordTex=new THREE.CanvasTexture(swordCanvas);
+swordTex.magFilter=THREE.NearestFilter;
+swordTex.minFilter=THREE.NearestFilter;
+swordTex.generateMipmaps=false;
+/* Itens "especiais" (não-bloco) vivem fora do array BLOCKS. Um item especial
+   é representado na hotbar por um objeto {sword:true,name:'Espada de Ferro'}.
+   O código que desenha ícones e a mão verifica esse formato. */
+const SWORD_ITEM={sword:true,name:'Espada de Ferro'};
 const BLOCKS=[null,
  {name:'Grama',top:GRASS_TOP_TILES,side:GRASS_SIDE_TILES,bottom:DIRT_TILES},{name:'Terra',side:DIRT_TILES},{name:'Pedra',side:STONE_TILES},
  {name:'Pedregulho',side:COBBLE_TILES},{name:'Tábuas',side:114},{name:'Tronco',top:116,side:115,bottom:116},
@@ -1606,6 +1668,12 @@ function placeBlock(){
   const p=player.pos;
   if(tx<p.x+.3&&tx+1>p.x-.3&&ty<p.y+1.8&&ty+1>p.y&&tz<p.z+.3&&tz+1>p.z-.3)return;
   const item = hotbarItems[sel];
+  /* Itens especiais (espada) não são blocos: nada a colocar. Apenas anima
+     o balanço da mão para feedback visual. */
+  if(item&&typeof item==='object'&&item.sword){
+    swingT=0;
+    return;
+  }
   setBlock(tx,ty,tz,item);
   swingT=0;
   sfx('place');
@@ -1924,13 +1992,20 @@ function sfx(kind,intensity=1,block=0){
     }
   }catch(e){}
 }
-const hotbarItems=[B.grass,B.dirt,B.stone,B.cobble,B.planks,B.log,B.leaves,B.water,B.lava];
+const hotbarItems=[B.grass,B.dirt,B.stone,B.cobble,B.planks,B.log,B.leaves,B.water,SWORD_ITEM];
 let sel=0,itemT=0;
 const hotbarEl=document.getElementById('hotbar'),itemEl=document.getElementById('itemname');
 const slotCanvases=[];
 function drawIcon(cv,id){
   const g=cv.getContext('2d');
   g.setTransform(1,0,0,1,0,0);g.clearRect(0,0,48,48);g.imageSmoothingEnabled=false;
+  /* Itens especiais (espada) não são blocos: desenhamos o sprite 16x16
+     escalado e centralizado no slot, sem a projeção isométrica dos blocos. */
+  if(id&&typeof id==='object'&&id.sword){
+    g.imageSmoothingEnabled=false;
+    g.drawImage(swordCanvas,8,8,32,32);
+    return;
+  }
   const info=BLOCKS[id],k=1.15;
   const topTile=Array.isArray(info.top)?info.top[0]:info.top;
   const sideTile=Array.isArray(info.side)?info.side[0]:info.side;
@@ -1970,7 +2045,8 @@ function selectSlot(i){
   showItemName();
 }
 function showItemName(){
-  itemEl.textContent=BLOCKS[hotbarItems[sel]].name;
+  const it=hotbarItems[sel];
+  itemEl.textContent=(it&&typeof it==='object'&&it.name)?it.name:BLOCKS[it].name;
   itemEl.style.opacity=1;
   clearTimeout(itemT);
   itemT=setTimeout(()=>itemEl.style.opacity=0,1300);
@@ -2062,7 +2138,20 @@ function buildBlockGeom(id){
   return g;
 }
 function updateHandItem(){
-  if(handMesh){handGroup.remove(handMesh);handMesh.geometry.dispose();}
+  if(handMesh){handGroup.remove(handMesh);handMesh.geometry.dispose();handMesh.material.dispose();handMesh=null;}
+  const item=hotbarItems[sel];
+  /* Espada: renderizada como um plano (billboard) com a textura do sprite,
+     em vez do cubo isométrico usado para os blocos. */
+  if(item&&typeof item==='object'&&item.sword){
+    const g=new THREE.PlaneGeometry(1,1);
+    const m=new THREE.MeshBasicMaterial({map:swordTex,transparent:true,alphaTest:.5,side:THREE.DoubleSide,fog:false,depthTest:true,depthWrite:false});
+    handMesh=new THREE.Mesh(g,m);
+    handMesh.scale.setScalar(.55);
+    handMesh.rotation.set(.1,-.7,.15);
+    handMesh.renderOrder=999;
+    handGroup.add(handMesh);
+    return;
+  }
   handMesh=new THREE.Mesh(buildBlockGeom(hotbarItems[sel]),handMat);
   handMesh.scale.setScalar(.38);
   handMesh.rotation.set(.1, -.7, .15);
