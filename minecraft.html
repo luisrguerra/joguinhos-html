@@ -81,6 +81,7 @@ body.mobile #itemname{bottom:calc(64px + env(safe-area-inset-bottom))}
 #tb-inv{top:calc(10px + env(safe-area-inset-top));right:64px}
 #tb-pause{top:calc(10px + env(safe-area-inset-top));right:10px}
 #tb-sprint{width:50px;height:50px;font-size:16px;right:20px;bottom:calc(196px + env(safe-area-inset-bottom))}
+#tb-size{width:50px;height:50px;font-size:18px;right:78px;bottom:calc(196px + env(safe-area-inset-bottom))}
 #tb-sneak{width:50px;height:50px;font-size:22px;right:20px;bottom:calc(132px + env(safe-area-inset-bottom))}
 #tb-jump{width:74px;height:74px;font-size:28px;right:14px;bottom:calc(24px + env(safe-area-inset-bottom))}
 #minering{position:fixed;left:50%;top:50%;width:42px;height:42px;margin:-21px 0 0 -21px;
@@ -110,6 +111,7 @@ body.mobile #itemname{bottom:calc(64px + env(safe-area-inset-bottom))}
   <button id="tb-inv" class="tbtn small" title="Inventário"><i class="mdi mdi-bag-personal"></i></button>
   <button id="tb-pause" class="tbtn small" title="Pausar"><i class="mdi mdi-pause"></i></button>
   <button id="tb-sprint" class="tbtn small" title="Correr"><i class="mdi mdi-run-fast"></i></button>
+  <button id="tb-size" class="tbtn small" title="Tamanho do bloco (Q)">1×</button>
   <button id="tb-sneak" class="tbtn small" title="Agachar"><i class="mdi mdi-arrow-down-bold"></i></button>
   <button id="tb-jump" class="tbtn" title="Pular (2× voar)"><i class="mdi mdi-arrow-up-bold"></i></button>
 </div>
@@ -130,7 +132,8 @@ body.mobile #itemname{bottom:calc(64px + env(safe-area-inset-bottom))}
       <div><kbd>Espaço</kbd> / <kbd>A</kbd> pular · 2× voar</div><div><kbd>Ctrl</kbd> / <kbd>L3</kbd> correr</div>
       <div><kbd>Shift</kbd> / <kbd>B</kbd> agachar</div><div><kbd>E</kbd> / <kbd>X</kbd> menu de itens</div>
       <div><kbd>Esq.</kbd> / <kbd>RT</kbd> quebrar bloco</div><div><kbd>Dir.</kbd> / <kbd>LT</kbd> colocar bloco</div>
-      <div><kbd>1–9</kbd> / <kbd>LB/RB</kbd> escolher bloco</div><div><kbd>F3</kbd> debug · <kbd>Esc</kbd> / <kbd>Start</kbd> pausar</div>
+      <div><kbd>1–9</kbd> / <kbd>LB/RB</kbd> escolher bloco</div><div><kbd>Q</kbd> / <kbd>R3</kbd> tamanho do bloco (½ · ¼)</div>
+      <div><kbd>F3</kbd> debug · <kbd>Esc</kbd> / <kbd>Start</kbd> pausar</div>
     </div>
     <div class="controls" id="mobilecontrols" style="display:none">
       <div><i class="mdi mdi-gamepad-variant"></i> joystick move</div><div><i class="mdi mdi-gesture-swipe-horizontal"></i> arraste p/ olhar</div>
@@ -304,29 +307,61 @@ function buildWaterFrames(){
   actx.putImageData(waterFrameData[0], (WATER_TILE%ACOLS)*TILE, ((WATER_TILE/ACOLS)|0)*TILE);
 }
 buildWaterFrames();
-const LAVA_FRAMES = 32;          // mesmo nº de quadros da água (loop perfeito)
-const LAVA_FPS    = 8;           // mesma taxa de quadros da água
+/* ======================= LAVA MELHORADA (magma vivo) =======================
+   A lava deixa de ser apenas "a água em vermelho" e passa a ter textura e
+   animação PRÓPRIAS, com aparência de magma incandescente:
+     • DOMAIN WARP (distorção do domínio) por ondas senoidais seamless+loop, que
+       torce o campo e gera um FLUXO turbulento/viscoso, em vez de ondinhas
+       regulares como a água;
+     • CROSTA fria (vermelho escuro/quase preto) separada por VEIOS quentes
+       (laranja -> amarelo) onde o campo atinge as cristas — o visual clássico
+       de placas de rocha derretida se rompendo;
+     • HOTSPOTS pulsantes (pontos de magma incandescente) que "respiram" ao
+       longo do loop, dando vida ao material;
+   Continua SEM TRANSPARÊNCIA (alpha 255) e perfeitamente contínua entre tiles
+   (frequências espaciais inteiras) e em loop (multiplicadores temporais
+   inteiros). A animação é mais LENTA e densa que a da água (lava é viscosa). */
+const LAVA_FRAMES = 48;          // mais quadros -> animação mais suave
+const LAVA_FPS    = 9;           // taxa menor -> escoamento lento e viscoso
 const lavaFrameData = [];        // ImageData de cada quadro (16×16, contínuo)
 function lavaColorAt(x, y, f){
-  const t = (f / LAVA_FRAMES) * Math.PI * 2;   // fase (fecha em 2π, igual à água)
+  const t = (f / LAVA_FRAMES) * Math.PI * 2;   // fase (fecha em 2π -> loop perfeito)
   const u = x / TILE, v = y / TILE;            // coords normalizadas 0..1
-  // Mesmas ondas da água (freq espaciais inteiras -> seamless; ±k·t inteiros -> loop)
+  /* --- Domain warp: torce as coordenadas com ondas seamless+loop -----------
+     Como wx/wy são periódicas (período 1 em u e v) e fecham em t, a costura
+     entre tiles e o loop temporal são preservados mesmo após a distorção. */
+  const wx = Math.sin(2*Math.PI*(1*v)       + 1*t) * 0.6
+           + Math.sin(2*Math.PI*(2*u + 1*v) - 2*t) * 0.3;
+  const wy = Math.cos(2*Math.PI*(1*u)       - 1*t) * 0.6
+           + Math.cos(2*Math.PI*(1*u + 2*v) + 2*t) * 0.3;
+  /* --- Campo de plumas de magma (ondas moduladas pelo warp) --------------- */
   let w = 0;
-  w += Math.sin(2*Math.PI*(1*u)       + 1*t);
-  w += Math.sin(2*Math.PI*(1*v)       - 1*t) * 0.9;
-  w += Math.sin(2*Math.PI*(2*u + 1*v) + 2*t) * 0.6;
-  w += Math.sin(2*Math.PI*(1*u - 2*v) - 1*t) * 0.5;
-  w += Math.sin(2*Math.PI*(3*u + 2*v) + 3*t) * 0.3;
-  w /= 3.3;                                      // ~ -1 .. 1
-  const shade = (w + 1) * 0.5;                   // 0 .. 1
-  // Paleta VERMELHA: vermelho profundo -> laranja nas cristas das ondas
-  let r = lerp(150, 250, shade);
-  let g = lerp(52, 140, shade);
-  let b = lerp(12, 34, shade);
-  // Brilho especular esparso no topo das cristas (cintilação, como a água)
-  const glint = shade > 0.90 ? (shade - 0.90) / 0.10 : 0;
-  r += glint * 5; g += glint * 90; b += glint * 70;
-  // SEM TRANSPARÊNCIA: alpha fixo em 255
+  w += Math.sin(2*Math.PI*(1*u)       + wx       + 1*t);
+  w += Math.sin(2*Math.PI*(1*v)       + wy       - 1*t) * 0.85;
+  w += Math.sin(2*Math.PI*(2*u + 2*v) + (wx+wy)  + 2*t) * 0.55;
+  w += Math.sin(2*Math.PI*(3*u - 2*v) - 3*t) * 0.30;
+  w /= 2.70;                                     // ~ -1 .. 1
+  const s = (w + 1) * 0.5;                        // 0 (crosta fria) .. 1 (magma)
+  /* --- Paleta molten: crosta escura -> vermelho -> laranja -> amarelo ----- */
+  let r, g, b;
+  if(s < 0.5){
+    const k = s / 0.5;                            // dentro da crosta
+    r = lerp(58, 188, k); g = lerp(12, 42, k); b = lerp(6, 12, k);
+  }else{
+    const k = (s - 0.5) / 0.5;                    // dentro do magma
+    r = lerp(188, 255, k); g = lerp(42, 176, k); b = lerp(12, 32, k);
+  }
+  /* --- Veios brilhantes (rachaduras quentes nas cristas do campo) --------- */
+  const vein = Math.pow(s, 3);
+  r += vein * 26; g += vein * 66; b += vein * 18;
+  /* --- Hotspots pulsantes (magma incandescente que "respira") ------------- */
+  const hs = Math.sin(2*Math.PI*(2*u + 1*v) + 2*t)
+           * Math.sin(2*Math.PI*(1*u - 2*v) - 1*t);
+  if(hs > 0.80){
+    const glow = ((hs - 0.80) / 0.20) * s;   // só acende sobre magma já quente
+    r += glow * 70; g += glow * 92; b += glow * 24;
+  }
+  /* SEM TRANSPARÊNCIA: alpha fixo em 255 */
   return [clamp(r,0,255), clamp(g,0,255), clamp(b,0,255), 255];
 }
 function buildLavaFrames(){
@@ -767,17 +802,28 @@ const matWater=new THREE.MeshBasicMaterial({map:atlasTex,vertexColors:true,trans
 /* Animação da água: troca o quadro no atlas a poucos FPS e reenvia a textura.
    Como todos os blocos de água compartilham o tile 80, todos animam em conjunto
    e de forma contínua entre si (a mão em 1ª pessoa também acompanha). */
-let waterAnimAcc=0, waterFrame=0, lavaFrame=0;
+let waterAnimAcc=0, waterFrame=0, lavaAnimAcc=0, lavaFrame=0;
 function updateWaterAnim(dt){
+  let dirty = false;
+  /* Água: avança no seu próprio ritmo (WATER_FPS). */
   waterAnimAcc += dt;
-  const step = 1 / WATER_FPS;
-  if(waterAnimAcc < step) return;
-  waterAnimAcc %= step;
-  waterFrame = (waterFrame + 1) % WATER_FRAMES;
-  lavaFrame = (lavaFrame + 1) % LAVA_FRAMES;
-  actx.putImageData(waterFrameData[waterFrame], (WATER_TILE%ACOLS)*TILE, ((WATER_TILE/ACOLS)|0)*TILE);
-  actx.putImageData(lavaFrameData[lavaFrame], (LAVA_TILE%ACOLS)*TILE, ((LAVA_TILE/ACOLS)|0)*TILE);
-  atlasTex.needsUpdate = true;
+  const wstep = 1 / WATER_FPS;
+  if(waterAnimAcc >= wstep){
+    waterAnimAcc %= wstep;
+    waterFrame = (waterFrame + 1) % WATER_FRAMES;
+    actx.putImageData(waterFrameData[waterFrame], (WATER_TILE%ACOLS)*TILE, ((WATER_TILE/ACOLS)|0)*TILE);
+    dirty = true;
+  }
+  /* Lava: ritmo próprio e mais lento (LAVA_FPS) — escoamento viscoso. */
+  lavaAnimAcc += dt;
+  const lstep = 1 / LAVA_FPS;
+  if(lavaAnimAcc >= lstep){
+    lavaAnimAcc %= lstep;
+    lavaFrame = (lavaFrame + 1) % LAVA_FRAMES;
+    actx.putImageData(lavaFrameData[lavaFrame], (LAVA_TILE%ACOLS)*TILE, ((LAVA_TILE/ACOLS)|0)*TILE);
+    dirty = true;
+  }
+  if(dirty) atlasTex.needsUpdate = true;
 }
 const hl=new THREE.LineSegments(
   new THREE.EdgesGeometry(new THREE.BoxGeometry(1.002,1.002,1.002)),
@@ -1112,6 +1158,18 @@ function generateChunkData(cx,cz){
   return data;
 }
 const chunks=new Map(), editsByChunk=new Map();
+/* ==================== BLOCOS MENORES (½ e ¼) ==============================
+   Recurso: a tecla Q (e o botão R3 do controle) alterna o tamanho do bloco a
+   ser colocado entre INTEIRO, METADE (½) e UM QUARTO (¼). Os blocos menores
+   vivem numa grade fina de resolução SUB (0.25 de mundo por micro-célula),
+   paralela à grade de voxels inteiros. Assim é possível:
+     • empilhar blocos pequenos uns sobre os outros como blocos normais;
+     • colocar um bloco grande (inteiro) por cima de um bloco pequeno.
+   A espada não é afetada (ela não coloca blocos). */
+const SUB=4;                       // micro-células por bloco (0.25 de mundo cada)
+let placeScale=0;                  // 0 = inteiro · 1 = ½ · 2 = ¼
+const microBlocks=new Map();       // anchorKey "mx,my,mz" -> {id,size,mx,my,mz,mesh}
+const microOccupied=new Map();     // cellKey  "mx,my,mz" -> anchorKey (ocupação)
 const cKey=(cx,cz)=>cx+','+cz;
 const makeChunk=(cx,cz)=>({cx,cz,data:null,mesh:null,wmesh:null,built:false});
 function getBlock(x,y,z){
@@ -1285,6 +1343,7 @@ const gamepadState = {
   prevFlyToggle: false,
   prevLB: false,
   prevRB: false,
+  prevSize: false,   // R3 (clique do analógico direito) — alterna tamanho do bloco
   lastJumpTap: 0,
   dig: false,      // quebrar (botão/trigger direito do controle)
   place: false     // colocar (botão/trigger esquerdo do controle)
@@ -1332,6 +1391,7 @@ function updateGamepad(dt) {
   const btnRT    = gp.buttons[7]?.value > 0.1;
   const btnPause = gp.buttons[9]?.pressed || gp.buttons[8]?.pressed;
   const btnL3    = gp.buttons[10]?.pressed;
+  const btnR3    = gp.buttons[11]?.pressed;  // clique do analógico direito
   if (btnPause && !gamepadState.prevPause && started) {
     if (isSelectorOpen) {
       toggleBlockSelector(false);
@@ -1396,6 +1456,11 @@ function updateGamepad(dt) {
   }
   gamepadState.prevLB = btnLB;
   gamepadState.prevRB = btnRB;
+  /* R3 (clique do analógico direito) alterna o tamanho do bloco: inteiro → ½ → ¼ */
+  if (btnR3 && !gamepadState.prevSize && started) {
+    cyclePlaceScale();
+  }
+  gamepadState.prevSize = btnR3;
   const canJumpFromButton = btnA && jumpBlockCd <= 0;
   if (canJumpFromButton && !gamepadState.prevJump && started) {
     const now = performance.now();
@@ -1439,6 +1504,7 @@ function moveAxis(axis,amt){
   for(let i=0;i<steps;i++){
     if(axis===0)player.pos.x+=d;else if(axis===1)player.pos.y+=d;else player.pos.z+=d;
     collide(axis,d);
+    microCollide(axis,d);
   }
 }
 function hasSupportUnder(){
@@ -1448,7 +1514,32 @@ function hasSupportUnder(){
   const z0=Math.floor(p.z-HW),z1=Math.floor(p.z+HW);
   for(let bx=x0;bx<=x1;bx++)for(let bz=z0;bz<=z1;bz++)
     if(SOLID[getBlock(bx,by,bz)])return true;
+  /* também aceita apoio sobre blocos pequenos (micro-blocos) */
+  const my=Math.floor((p.y-.12)*SUB);
+  const mx0=Math.floor((p.x-HW)*SUB),mx1=Math.floor((p.x+HW)*SUB);
+  const mz0=Math.floor((p.z-HW)*SUB),mz1=Math.floor((p.z+HW)*SUB);
+  for(let mx=mx0;mx<=mx1;mx++)for(let mz=mz0;mz<=mz1;mz++)
+    if(microOccupied.has(mx+','+my+','+mz))return true;
   return false;
+}
+/* Colisão do jogador contra os blocos pequenos (grade fina de micro-células).
+   Espelha a lógica de collide(), mas em passos de 1/SUB, empurrando o jogador
+   para fora de qualquer micro-célula ocupada — permitindo andar e ficar em pé
+   sobre blocos ½ e ¼. */
+function microCollide(axis,d){
+  const p=player.pos,HW=.3,PH=1.8,E=.001,S=1/SUB;
+  const x0=Math.floor((p.x-HW)*SUB),x1=Math.floor((p.x+HW)*SUB);
+  const y0=Math.floor(p.y*SUB),y1=Math.floor((p.y+PH)*SUB);
+  const z0=Math.floor((p.z-HW)*SUB),z1=Math.floor((p.z+HW)*SUB);
+  for(let mx=x0;mx<=x1;mx++)for(let my=y0;my<=y1;my++)for(let mz=z0;mz<=z1;mz++){
+    if(!microOccupied.has(mx+','+my+','+mz))continue;
+    if(axis===0){p.x=d>0?Math.min(p.x,mx*S-HW-E):Math.max(p.x,(mx+1)*S+HW+E);player.vel.x=0;}
+    else if(axis===1){
+      if(d>0)p.y=Math.min(p.y,my*S-PH-E);
+      else{p.y=Math.max(p.y,(my+1)*S+E);player.onGround=true;}
+      player.vel.y=0;
+    }else{p.z=d>0?Math.min(p.z,mz*S-HW-E):Math.max(p.z,(mz+1)*S+HW+E);player.vel.z=0;}
+  }
 }
 let stepAcc=0;
 function stepPlayer(dt){
@@ -1548,17 +1639,156 @@ function raycast(o,d,maxD){
 }
 const tmpDir=new THREE.Vector3();
 let curHit=null;
+let curMicroHit=null;
+/* Uma micro-célula é considerada "sólida" para o raycast fino se estiver dentro
+   de um voxel inteiro sólido OU se estiver ocupada por um bloco pequeno. */
+function microSolid(mx,my,mz){
+  const fx=Math.floor(mx/SUB),fy=Math.floor(my/SUB),fz=Math.floor(mz/SUB);
+  const b=getBlock(fx,fy,fz);
+  if(b!==0&&b!==B.water&&b!==B.lava)return{type:'full',fx,fy,fz,b};
+  const k=mx+','+my+','+mz;
+  if(microOccupied.has(k))return{type:'micro',anchor:microOccupied.get(k)};
+  return null;
+}
+/* Raycast na grade fina (0.25). Detecta tanto blocos inteiros quanto pequenos,
+   devolvendo a micro-célula atingida, a face e o que foi atingido. */
+function microRaycast(o,dir,maxDist){
+  const S=SUB;
+  const ox=o.x*S,oy=o.y*S,oz=o.z*S;
+  let x=Math.floor(ox),y=Math.floor(oy),z=Math.floor(oz);
+  const dx=dir.x,dy=dir.y,dz=dir.z;
+  const sx=dx>0?1:-1,sy=dy>0?1:-1,sz=dz>0?1:-1;
+  const tdx=dx!==0?Math.abs(1/dx):Infinity;
+  const tdy=dy!==0?Math.abs(1/dy):Infinity;
+  const tdz=dz!==0?Math.abs(1/dz):Infinity;
+  let tmx=dx!==0?((sx>0?x+1-ox:ox-x)*tdx):Infinity;
+  let tmy=dy!==0?((sy>0?y+1-oy:oy-y)*tdy):Infinity;
+  let tmz=dz!==0?((sz>0?z+1-oz:oz-z)*tdz):Infinity;
+  let fx=0,fy=0,fz=0;
+  const maxMicro=maxDist*S;
+  for(let i=0;i<400;i++){
+    const s=microSolid(x,y,z);
+    if(s)return{mx:x,my:y,mz:z,face:[fx,fy,fz],hit:s};
+    if(tmx<=tmy&&tmx<=tmz){if(tmx>maxMicro)return null;x+=sx;tmx+=tdx;fx=-sx;fy=0;fz=0;}
+    else if(tmy<=tmz){if(tmy>maxMicro)return null;y+=sy;tmy+=tdy;fx=0;fy=-sy;fz=0;}
+    else{if(tmz>maxMicro)return null;z+=sz;tmz+=tdz;fx=0;fy=0;fz=-sz;}
+  }
+  return null;
+}
+/* Cria a malha de um bloco pequeno reutilizando a geometria do cubo do item. */
+function makeMicroMesh(id,ax,ay,az,size){
+  const mesh=new THREE.Mesh(buildBlockGeom(id),matOpaque);
+  const S=1/SUB;
+  mesh.scale.setScalar(size*S);
+  mesh.position.set((ax+size/2)*S,(ay+size/2)*S,(az+size/2)*S);
+  scene.add(mesh);
+  return mesh;
+}
+function breakMicroBlock(anchorKey,silent){
+  const mb=microBlocks.get(anchorKey);
+  if(!mb)return;
+  scene.remove(mb.mesh);mb.mesh.geometry.dispose();
+  microBlocks.delete(anchorKey);
+  for(let ix=mb.mx;ix<mb.mx+mb.size;ix++)for(let iy=mb.my;iy<mb.my+mb.size;iy++)for(let iz=mb.mz;iz<mb.mz+mb.size;iz++)
+    microOccupied.delete(ix+','+iy+','+iz);
+  if(!silent){
+    spawnMicroBreakParticles(mb.mx/SUB,mb.my/SUB,mb.mz/SUB,mb.size,mb.id);
+    /* bloco menor = som de quebra um pouco mais leve/curto */
+    sfx('break',mb.size===2?.72:.5,mb.id);
+  }
+}
+/* Remove os blocos pequenos contidos numa célula inteira (usado ao colocar um
+   bloco grande sobre blocos pequenos). */
+function clearMicroInCell(fx,fy,fz){
+  const x0=fx*SUB,x1=x0+SUB,y0=fy*SUB,y1=y0+SUB,z0=fz*SUB,z1=z0+SUB;
+  for(const [key,mb] of [...microBlocks]){
+    if(mb.mx<x1&&mb.mx+mb.size>x0&&mb.my<y1&&mb.my+mb.size>y0&&mb.mz<z1&&mb.mz+mb.size>z0)
+      breakMicroBlock(key,true);
+  }
+}
+/* Coloca um bloco INTEIRO adjacente à face atingida (mesmo que a face pertença a
+   um bloco pequeno — assim dá para pôr um bloco grande sobre um pequeno). */
+function placeFullBlock(mh,item){
+  if(!mh)return;
+  const ax=mh.mx+mh.face[0],ay=mh.my+mh.face[1],az=mh.mz+mh.face[2];
+  const tx=Math.floor(ax/SUB),ty=Math.floor(ay/SUB),tz=Math.floor(az/SUB);
+  if(ty<1||ty>=CH)return;
+  const cur=getBlock(tx,ty,tz);
+  if(cur!==B.air&&cur!==B.water&&cur!==B.lava)return;
+  const p=player.pos;
+  if(tx<p.x+.3&&tx+1>p.x-.3&&ty<p.y+1.8&&ty+1>p.y&&tz<p.z+.3&&tz+1>p.z-.3)return;
+  clearMicroInCell(tx,ty,tz);
+  setBlock(tx,ty,tz,item);
+  swingT=0;sfx('place');
+  if(item===B.water||item===B.lava)checkFluidSpread(tx,ty,tz,item);
+}
+/* Coloca um bloco PEQUENO (sm = tamanho em micro-células: 2 = ½, 1 = ¼) na
+   micro-célula livre adjacente à face atingida. Blocos pequenos empilham. */
+function placeMicroBlock(mh,item,sm){
+  if(!mh)return;
+  const align=(m,f,sz)=>f>0?m+1:(f<0?m-sz:Math.floor(m/sz)*sz);
+  const ax=align(mh.mx,mh.face[0],sm);
+  const ay=align(mh.my,mh.face[1],sm);
+  const az=align(mh.mz,mh.face[2],sm);
+  if(ay<1||ay+sm>CH*SUB)return;
+  /* célula(s) precisam estar livres (sem voxel sólido nem outro micro-bloco) */
+  for(let ix=ax;ix<ax+sm;ix++)for(let iy=ay;iy<ay+sm;iy++)for(let iz=az;iz<az+sm;iz++){
+    if(microSolid(ix,iy,iz))return;
+  }
+  /* não colocar dentro do próprio jogador */
+  const p=player.pos,HW=.3,S=1/SUB;
+  if(ax*S<p.x+HW&&(ax+sm)*S>p.x-HW&&ay*S<p.y+1.8&&(ay+sm)*S>p.y&&az*S<p.z+HW&&(az+sm)*S>p.z-HW)return;
+  const key=ax+','+ay+','+az;
+  const mesh=makeMicroMesh(item,ax,ay,az,sm);
+  microBlocks.set(key,{id:item,size:sm,mx:ax,my:ay,mz:az,mesh});
+  for(let ix=ax;ix<ax+sm;ix++)for(let iy=ay;iy<ay+sm;iy++)for(let iz=az;iz<az+sm;iz++)
+    microOccupied.set(ix+','+iy+','+iz,key);
+  swingT=0;sfx('place');
+}
+function cyclePlaceScale(){
+  placeScale=(placeScale+1)%3;
+  showScaleName();
+  updateHandItem();   // reconstrói a mão para o cubo diminuir/aumentar junto com o tamanho
+  if(typeof tbSize!=='undefined'&&tbSize)tbSize.textContent=['1×','½','¼'][placeScale];
+}
+function showScaleName(){
+  const names=['Bloco inteiro','Meio bloco (½)','Bloco 1/4 (¼)'];
+  itemEl.textContent=names[placeScale];
+  itemEl.style.opacity=1;
+  clearTimeout(itemT);
+  itemT=setTimeout(()=>itemEl.style.opacity=0,1300);
+}
 function updateHighlight(){
-  if(!started || !locked || isSelectorOpen){hl.visible=false;curHit=null;return;}
+  if(!started || !locked || isSelectorOpen){hl.visible=false;curHit=null;curMicroHit=null;return;}
   camera.getWorldDirection(tmpDir);
   curHit=raycast(camera.position,tmpDir,REACH);
-  hl.visible=!!curHit;
-  if(curHit)hl.position.set(curHit.x+.5,curHit.y+.5,curHit.z+.5);
+  const mh=microRaycast(camera.position,tmpDir,REACH);
+  curMicroHit=mh;
+  if(mh){
+    hl.visible=true;
+    if(mh.hit.type==='micro'){
+      const mb=microBlocks.get(mh.hit.anchor);
+      if(mb){
+        hl.position.set((mb.mx+mb.size/2)/SUB,(mb.my+mb.size/2)/SUB,(mb.mz+mb.size/2)/SUB);
+        hl.scale.setScalar(mb.size/SUB);
+      }else{hl.visible=false;}
+    }else{
+      hl.position.set(mh.hit.fx+.5,mh.hit.fy+.5,mh.hit.fz+.5);
+      hl.scale.setScalar(1);
+    }
+  }else{
+    hl.visible=false;
+  }
 }
 let mineKey='',mineT=0,hitCd=0,placeCd=0;
 function handleMouse(dt){
   hitCd-=dt;placeCd-=dt;
-  if(digPressed()&&curHit){
+  const microTarget=curMicroHit&&curMicroHit.hit.type==='micro';
+  if(digPressed()&&microTarget){
+    /* Bloco pequeno: quebra imediata (sem barra de progresso). */
+    mineKey='';mineT=0;
+    if(hitCd<=0){if(swingT>=1)swingT=0;breakMicroBlock(curMicroHit.hit.anchor);hitCd=.22;}
+  }else if(digPressed()&&curHit){
     const key=curHit.x+'|'+curHit.y+'|'+curHit.z;
     if(key!==mineKey){mineKey=key;mineT=0;renewCrackPattern(curHit.x,curHit.y,curHit.z);}
     if(swingT>=1)swingT=0;
@@ -1666,25 +1896,21 @@ function breakBlock(hit){
   checkFluidSpread(hit.x,hit.y,hit.z, B.lava);
 }
 function placeBlock(){
-  if(!curHit)return;
-  const tx=curHit.x+curHit.face[0],ty=curHit.y+curHit.face[1],tz=curHit.z+curHit.face[2];
-  if(ty<1||ty>=CH)return;
-  const cur=getBlock(tx,ty,tz);
-  if(cur!==B.air&&cur!==B.water&&cur!==B.lava)return;
-  const p=player.pos;
-  if(tx<p.x+.3&&tx+1>p.x-.3&&ty<p.y+1.8&&ty+1>p.y&&tz<p.z+.3&&tz+1>p.z-.3)return;
+  camera.getWorldDirection(tmpDir);
+  const mh=microRaycast(camera.position,tmpDir,REACH);
+  if(!mh)return;
   const item = hotbarItems[sel];
   /* Itens especiais (espada) não são blocos: nada a colocar. Apenas anima
-     o balanço da mão para feedback visual. */
+     o balanço da mão para feedback visual. A espada NÃO é afetada pela tecla Q. */
   if(item&&typeof item==='object'&&item.sword){
     swingT=0;
     return;
   }
-  setBlock(tx,ty,tz,item);
-  swingT=0;
-  sfx('place');
-  if(item===B.water||item===B.lava){
-    checkFluidSpread(tx,ty,tz,item);
+  /* De acordo com o tamanho selecionado (tecla Q / R3): inteiro, ½ ou ¼. */
+  if(placeScale===0){
+    placeFullBlock(mh,item);
+  }else{
+    placeMicroBlock(mh,item,placeScale===1?2:1);   // ½ = 2 micro-células · ¼ = 1
   }
 }
 function pickBlock(){
@@ -1718,6 +1944,38 @@ function spawnBreakParticles(bx,by,bz,id){
       life:.45+Math.random()*.4,max:.85,r:ac[0]/255*f,g:ac[1]/255*f,b:ac[2]/255*f});
   }
 }
+/* ============== PARTÍCULAS DE DESTRUIÇÃO DE BLOCO PEQUENO ==================
+   Blocos ½ e ¼ têm um efeito de quebra PRÓPRIO, proporcional ao seu tamanho:
+   os estilhaços nascem SOMENTE dentro do volume real do bloco (não num cubo
+   inteiro 1×1×1 como antes), são MENORES (escala 'sc' proporcional ao tamanho)
+   e voam com força reduzida — de modo que o pó de destruição casa exatamente
+   com o tamanho do bloquinho, em vez de espalhar estilhaços gigantes ao redor. */
+function spawnMicroBreakParticles(wx,wy,wz,micro,id){
+  const sideTile=Array.isArray(BLOCKS[id].side)?BLOCKS[id].side[0]:BLOCKS[id].side;
+  const ac=avgColor[sideTile]||[130,130,130];
+  const s=micro/SUB;                       // lado do bloco pequeno (mundo): ½=0.5 · ¼=0.25
+  const cx=wx+s/2, cy=wy+s/2, cz=wz+s/2;   // centro do bloquinho
+  const count=micro===2?14:9;              // ½ solta mais estilhaços que ¼
+  const psc=clamp(s*1.5,.30,.78);          // escala das partículas ∝ tamanho do bloco
+  const spd=1.4+s*3.2;                     // impulso proporcional (bloquinho = jato menor)
+  for(let i=0;i<count;i++){
+    if(parts.length>=MAXP)parts.shift();
+    const f=.7+Math.random()*.5;
+    /* posição SEMPRE dentro do cubo real do bloco pequeno, com uma leve margem */
+    const px=wx+(0.1+Math.random()*0.8)*s;
+    const py=wy+(0.1+Math.random()*0.8)*s;
+    const pz=wz+(0.1+Math.random()*0.8)*s;
+    /* velocidade radial (explode a partir do centro) + arremesso vertical */
+    parts.push({
+      x:px, y:py, z:pz,
+      vx:(px-cx)*4.5+(Math.random()-.5)*spd,
+      vy:1.0+Math.random()*spd,
+      vz:(pz-cz)*4.5+(Math.random()-.5)*spd,
+      life:.36+Math.random()*.34, max:.7, sc:psc,
+      r:ac[0]/255*f, g:ac[1]/255*f, b:ac[2]/255*f
+    });
+  }
+}
 function updateParticles(dt){
   for(let i=parts.length-1;i>=0;i--){
     const p=parts[i];
@@ -1731,7 +1989,7 @@ function updateParticles(dt){
   let n=0;
   for(const p of parts){
     _v.set(p.x,p.y,p.z);
-    _s.setScalar(Math.max(.2,Math.min(1,p.life/p.max)));
+    _s.setScalar(Math.max(.2,Math.min(1,p.life/p.max))*(p.sc||1));
     _m.compose(_v,_q,_s);
     pMesh.setMatrixAt(n,_m);
     pMesh.setColorAt(n,_c.setRGB(p.r,p.g,p.b));
@@ -2178,7 +2436,10 @@ function updateHandItem(){
     return;
   }
   handMesh=new THREE.Mesh(buildBlockGeom(hotbarItems[sel]),handMat);
-  handMesh.scale.setScalar(.38);
+  /* O cubo na mão acompanha o tamanho de colocação selecionado (tecla Q / R3):
+     inteiro (1×), metade (½) ou um quarto (¼) — assim o jogador vê na própria
+     mão o tamanho do bloco que será colocado. */
+  handMesh.scale.setScalar(.38*[1,.5,.25][placeScale]);
   handMesh.rotation.set(.1, -.7, .15);
   handMesh.renderOrder=999;
   handGroup.add(handMesh);
@@ -2225,6 +2486,11 @@ addEventListener('keydown',e=>{
       lastTap=n;
     }
     if(/^Digit[1-9]$/.test(e.code) && locked)selectSlot(+e.code[5]-1);
+    /* Q — alterna o tamanho do bloco a ser colocado: inteiro → ½ → ¼. */
+    if(e.code==='KeyQ' && locked && !isSelectorOpen){
+      e.preventDefault();
+      cyclePlaceScale();
+    }
     if(e.code==='F3'){
       e.preventDefault();
       showDebug=!showDebug;
@@ -2274,6 +2540,7 @@ const rotateHintEl=document.getElementById('rotatehint');
 const tbJump=document.getElementById('tb-jump');
 const tbSneak=document.getElementById('tb-sneak');
 const tbSprint=document.getElementById('tb-sprint');
+const tbSize=document.getElementById('tb-size');
 const tbInv=document.getElementById('tb-inv');
 const tbPause=document.getElementById('tb-pause');
 let moveTouchId=null,moveOriginX=0,moveOriginY=0;
@@ -2402,6 +2669,11 @@ tbSprint.addEventListener('touchstart',e=>{
   e.preventDefault();e.stopPropagation();
   touchState.sprint=!touchState.sprint;
   tbSprint.classList.toggle('on',touchState.sprint);
+},{passive:false});
+tbSize.addEventListener('touchstart',e=>{
+  e.preventDefault();e.stopPropagation();
+  if(!started)return;
+  cyclePlaceScale();
 },{passive:false});
 tbInv.addEventListener('touchstart',e=>{
   e.preventDefault();e.stopPropagation();
