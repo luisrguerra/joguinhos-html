@@ -666,37 +666,41 @@ const B={air:0,grass:1,dirt:2,stone:3,cobble:4,planks:5,log:6,leaves:7,sand:8,
    cabo (handle) marrom-claro, exatamente como no jogo original. */
 const SWORD_PALETTE={
   0:null,
-  1:[62,57,57,255],   // cabo escuro (handle shadow)
-  2:[110,90,60,255],  // cabo (handle)
-  3:[150,125,80,255], // cabo claro (handle highlight)
-  4:[60,60,70,255],   // guardião escuro (guardian shadow)
-  5:[90,90,100,255],  // guardião (guardian)
-  6:[120,120,130,255],// guardião claro (guardian highlight)
-  7:[120,120,130,255],// lâmina escura (blade shadow)
-  8:[180,180,190,255],// lâmina (blade)
-  9:[230,230,240,255] // lâmina clara (blade highlight)
+  1:[40,42,50,255],    // contorno / linha mais escura (outline)
+  2:[92,101,118,255],  // lâmina — sombra (bisel esquerdo)
+  3:[150,159,176,255], // lâmina — cor base
+  4:[205,212,226,255], // lâmina — realce (bisel direito, luz)
+  5:[247,250,255,255], // lâmina — brilho especular (gleam)
+  6:[78,56,34,255],    // cabo escuro (handle shadow)
+  7:[122,88,52,255],   // cabo médio (handle)
+  8:[170,126,76,255],  // cabo claro (handle highlight)
+  9:[66,70,80,255],    // guardião escuro (guardian shadow)
+  10:[112,117,130,255],// guardião médio (guardian)
+  11:[166,171,186,255] // guardião claro (guardian highlight)
 };
 /* Mapa 16x16 da espada de ferro (orientação VERTICAL, ponta no topo, cabo
-   embaixo), fiel à textura vanilla. A lâmina é fina com realce claro à direita
-   e sombra à esquerda, o guardião (crossguard) é uma barra horizontal mais
-   larga que a lâmina, e o cabo desce até a base. */
+   embaixo) — MESMA POSIÇÃO de antes, apenas o desenho foi refinado. Agora a
+   lâmina tem contorno próprio (silhueta destacada), bisel em 3 tons (sombra à
+   esquerda, base ao centro, realce à direita), um brilho especular perto da
+   ponta, guardião (crossguard) mais largo e sombreado, além de cabo com pega e
+   pomo (pommel), no estilo da textura vanilla do Minecraft. */
 const SWORD_PIXELS=[
-  0,0,0,0,0,0,0,7,9,0,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,0,7,8,8,9,0,0,0,0,0,0,
-  0,0,0,0,0,4,5,5,5,5,4,0,0,0,0,0,
-  0,0,0,0,0,0,0,2,3,0,0,0,0,0,0,0,
-  0,0,0,0,0,0,0,1,2,0,0,0,0,0,0,0,
-  0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0
+  0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,1,4,1,0,0,0,0,0,0,
+  0,0,0,0,0,0,1,2,4,5,1,0,0,0,0,0,
+  0,0,0,0,0,0,1,2,3,4,1,0,0,0,0,0,
+  0,0,0,0,0,0,1,2,3,5,1,0,0,0,0,0,
+  0,0,0,0,0,0,1,2,3,4,1,0,0,0,0,0,
+  0,0,0,0,0,0,1,2,3,4,1,0,0,0,0,0,
+  0,0,0,0,0,0,1,2,3,4,1,0,0,0,0,0,
+  0,0,0,0,0,0,1,2,3,4,1,0,0,0,0,0,
+  0,0,0,0,0,0,1,2,3,4,1,0,0,0,0,0,
+  0,0,0,0,0,0,1,2,3,4,1,0,0,0,0,0,
+  0,0,0,0,1,1,11,10,10,11,1,1,0,0,0,0,
+  0,0,0,0,1,9,10,11,11,10,9,1,0,0,0,0,
+  0,0,0,0,0,1,1,8,7,1,1,0,0,0,0,0,
+  0,0,0,0,0,0,1,8,6,1,0,0,0,0,0,0,
+  0,0,0,0,0,1,6,7,7,6,1,0,0,0,0,0
 ];
 /* Canvas 16x16 com a espada, usado como textura do item na mão e no ícone
    da hotbar. Construído uma única vez a partir de SWORD_PIXELS. */
@@ -2542,42 +2546,68 @@ Bioma: ${bio}
 Hora: ${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`+
 (player.fly?' · voando':'')+(player.sprint?' · correndo':'')+(player.onGround?'':' · no ar');
 }
+/* Bloco de superfície (topo, d===0) de acordo com o bioma — replica a lógica
+   de geração em generateChunkData. Usado para garantir que o jogador só nasça
+   sobre GRAMA ou AREIA. */
+function surfaceBlockOf(bio){
+  if(bio===BIO.DESERT||bio===BIO.BEACH||bio===BIO.OCEAN)return B.sand;
+  if(bio===BIO.MOUNTAIN)return B.stone;
+  if(bio===BIO.TAIGA||bio===BIO.SNOWPEAK)return B.snowgrass;
+  return B.grass;
+}
 function findSpawn(){
-  /* Procura um ponto de TERRA FIRME bem acima do nível do mar, para que o
-     jogador NUNCA apareça em cima de um bloco de água (oceano/praia) nem caia
-     do alto. A condição h>=SEA+3 garante folga em relação à água. */
+  /* Procura um ponto de TERRA FIRME acima do nível do mar cujo bloco de topo
+     seja GRAMA ou AREIA — o jogador só deve nascer sobre esses dois blocos.
+     Assim ele NUNCA aparece sobre água, pedra, neve, etc. nem cai do alto. */
   for(let rep=0;rep<4;rep++){
     const off=rep*13103;   // varia a fase a cada tentativa p/ cobrir mais área
     for(let i=0;i<700;i++){
       const x=((i*17+off)%260)-130,z=((i*11+off*2)%260)-130;
       const h=terrainHeight(x,z);
-      if(h<SEA+3)continue;
+      if(h<SEA)continue;                       // não submerso
       const[t,m]=climateAt(x,z);
       const bio=biomeFrom(h,t,m);
-      if(bio===BIO.OCEAN||bio===BIO.BEACH)continue;
+      if(carved(x,h,z,h))continue;             // topo aberto por caverna
+      const surf=surfaceBlockOf(bio);
+      if(surf!==B.grass&&surf!==B.sand)continue; // só grama ou areia
       spawnPos.set(x+.5,h+1.01,z+.5);
       return;
     }
   }
   /* Fallback raro: ainda fica acima do solo; o secureSpawn abaixo o encaixa
-     no topo da terra firme assim que o chunk gerar. Nunca cai do céu. */
+     no topo de um bloco de grama/areia assim que o chunk gerar. Nunca cai do céu. */
   spawnPos.set(.5,CH-4,.5);
 }
-/* Encaixa o jogador no topo do bloco SÓLIDO mais alto da coluna do spawn.
-   Garante que, mesmo se o spawn cair sobre água (ou no fallback), o jogador
-   NUNCA apareça submerso mergulhando nem caia do alto: é colocado em pé na
-   terra firme assim que o chunk do spawn fica disponível. */
+/* Encaixa o jogador em pé no topo de um bloco de GRAMA ou AREIA. Procura em
+   espiral, a partir da coluna do spawn, a primeira coluna já carregada cujo
+   bloco de topo sólido seja grama ou areia — garantindo que o jogador só
+   apareça sobre esses dois blocos, nunca submerso, sobre pedra/neve nem caindo
+   do alto. Enquanto nenhuma coluna válida estiver carregada, aguarda os
+   próximos chunks (o jogador permanece parado no lugar do spawn). */
 function secureSpawn(){
   if(!spawnPending)return;
   const bx=Math.floor(player.pos.x),bz=Math.floor(player.pos.z);
-  const ch=chunks.get(cKey(bx>>4,bz>>4));
-  if(!ch||!ch.data)return;            // chunk do spawn ainda não gerado
-  let y=CH-1;
-  for(;y>=0;y--){if(SOLID[getBlock(bx,y,bz)])break;}
-  player.pos.set(bx+.5,y+1.01,bz+.5);
-  player.vel.set(0,0,0);
-  player.fly=false;
-  spawnPending=false;
+  const MAXR=48;
+  for(let r=0;r<=MAXR;r++){
+    for(let dz=-r;dz<=r;dz++)for(let dx=-r;dx<=r;dx++){
+      if(Math.max(Math.abs(dx),Math.abs(dz))!==r)continue; // só a borda do anel
+      const x=bx+dx,z=bz+dz;
+      const ch=chunks.get(cKey(x>>4,z>>4));
+      if(!ch||!ch.data)continue;        // chunk ainda não gerado
+      let y=CH-1;
+      for(;y>=0;y--){if(SOLID[getBlock(x,y,z)])break;}
+      if(y<0)continue;
+      const top=getBlock(x,y,z);
+      if(top!==B.grass&&top!==B.sand)continue; // só grama ou areia
+      player.pos.set(x+.5,y+1.01,z+.5);
+      player.vel.set(0,0,0);
+      player.fly=false;
+      spawnPos.copy(player.pos);        // respawn futuro também será válido
+      spawnPending=false;
+      return;
+    }
+  }
+  // nenhuma coluna de grama/areia carregada ainda: aguarda próximos chunks
 }
 let last=performance.now();
 function loop(){
