@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>City Builder 3D — v6 (jogabilidade simples · ícones MDI)</title>
+<title>City Builder 3D — v7 (modelos 3D com CSG · ícones MDI)</title>
 
 <!-- =========================================================
      SEÇÃO 1 — ÍCONES (Material Design Icons) E ESTILO
@@ -124,8 +124,8 @@
 <body>
 
 <div id="loader">
-  <div>Carregando Three.js…</div>
-  <small>Se esta mensagem persistir, verifique a conexão com a internet (Three.js e os ícones MDI são carregados via CDN apenas no primeiro acesso).</small>
+  <div>Carregando Three.js e compilando os sólidos CSG…</div>
+  <small>Se esta mensagem persistir, verifique a conexão com a internet (Three.js e os ícones MDI são carregados via CDN apenas no primeiro acesso). A biblioteca CSG está embutida neste arquivo.</small>
 </div>
 
 <!-- =========================================================
@@ -200,28 +200,358 @@
 <script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
 <script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 
+<!-- =========================================================
+     SEÇÃO 3b — csg.js (Constructive Solid Geometry por BSP)
+     Implementação de Evan Wallace (csg.js, licença MIT), embutida
+     para que o arquivo continue funcionando via file:// e offline.
+     ========================================================= -->
+<script>
+(function(global){
+'use strict';
+
+function CSG(){ this.polygons = []; }
+
+CSG.fromPolygons = function(polygons){
+  var csg = new CSG();
+  csg.polygons = polygons;
+  return csg;
+};
+
+CSG.prototype = {
+  clone: function(){
+    var csg = new CSG();
+    csg.polygons = this.polygons.map(function(p){ return p.clone(); });
+    return csg;
+  },
+  toPolygons: function(){ return this.polygons; },
+
+  union: function(csg){
+    var a = new CSG.Node(this.clone().polygons);
+    var b = new CSG.Node(csg.clone().polygons);
+    a.clipTo(b);
+    b.clipTo(a);
+    b.invert(); b.clipTo(a); b.invert();
+    a.build(b.allPolygons());
+    return CSG.fromPolygons(a.allPolygons());
+  },
+
+  subtract: function(csg){
+    var a = new CSG.Node(this.clone().polygons);
+    var b = new CSG.Node(csg.clone().polygons);
+    a.invert();
+    a.clipTo(b);
+    b.clipTo(a);
+    b.invert(); b.clipTo(a); b.invert();
+    a.build(b.allPolygons());
+    a.invert();
+    return CSG.fromPolygons(a.allPolygons());
+  },
+
+  intersect: function(csg){
+    var a = new CSG.Node(this.clone().polygons);
+    var b = new CSG.Node(csg.clone().polygons);
+    a.invert();
+    b.clipTo(a);
+    b.invert();
+    a.clipTo(b);
+    b.clipTo(a);
+    a.build(b.allPolygons());
+    a.invert();
+    return CSG.fromPolygons(a.allPolygons());
+  },
+
+  inverse: function(){
+    var csg = this.clone();
+    csg.polygons.forEach(function(p){ p.flip(); });
+    return csg;
+  }
+};
+
+/* ---------- Vector ---------- */
+CSG.Vector = function(x, y, z){ this.x = x; this.y = y; this.z = z; };
+CSG.Vector.prototype = {
+  clone: function(){ return new CSG.Vector(this.x, this.y, this.z); },
+  negated: function(){ return new CSG.Vector(-this.x, -this.y, -this.z); },
+  plus: function(a){ return new CSG.Vector(this.x + a.x, this.y + a.y, this.z + a.z); },
+  minus: function(a){ return new CSG.Vector(this.x - a.x, this.y - a.y, this.z - a.z); },
+  times: function(a){ return new CSG.Vector(this.x * a, this.y * a, this.z * a); },
+  dividedBy: function(a){ return new CSG.Vector(this.x / a, this.y / a, this.z / a); },
+  dot: function(a){ return this.x * a.x + this.y * a.y + this.z * a.z; },
+  lerp: function(a, t){ return this.plus(a.minus(this).times(t)); },
+  length: function(){ return Math.sqrt(this.dot(this)); },
+  unit: function(){ var l = this.length() || 1e-9; return this.dividedBy(l); },
+  cross: function(a){
+    return new CSG.Vector(
+      this.y * a.z - this.z * a.y,
+      this.z * a.x - this.x * a.z,
+      this.x * a.y - this.y * a.x
+    );
+  }
+};
+
+/* ---------- Vertex ---------- */
+CSG.Vertex = function(pos, normal){ this.pos = pos.clone(); this.normal = normal.clone(); };
+CSG.Vertex.prototype = {
+  clone: function(){ return new CSG.Vertex(this.pos, this.normal); },
+  flip: function(){ this.normal = this.normal.negated(); },
+  interpolate: function(other, t){
+    return new CSG.Vertex(this.pos.lerp(other.pos, t), this.normal.lerp(other.normal, t));
+  }
+};
+
+/* ---------- Plane ---------- */
+CSG.Plane = function(normal, w){ this.normal = normal; this.w = w; };
+CSG.Plane.EPSILON = 1e-5;
+
+CSG.Plane.fromPoints = function(a, b, c){
+  var n = b.minus(a).cross(c.minus(a)).unit();
+  return new CSG.Plane(n, n.dot(a));
+};
+
+CSG.Plane.prototype = {
+  clone: function(){ return new CSG.Plane(this.normal.clone(), this.w); },
+  flip: function(){ this.normal = this.normal.negated(); this.w = -this.w; },
+  splitPolygon: function(polygon, coplanarFront, coplanarBack, front, back){
+    var COPLANAR = 0, FRONT = 1, BACK = 2, SPANNING = 3;
+    var polygonType = 0, types = [], i, t;
+
+    for (i = 0; i < polygon.vertices.length; i++){
+      t = this.normal.dot(polygon.vertices[i].pos) - this.w;
+      var type = (t < -CSG.Plane.EPSILON) ? BACK : (t > CSG.Plane.EPSILON) ? FRONT : COPLANAR;
+      polygonType |= type;
+      types.push(type);
+    }
+
+    switch (polygonType){
+      case COPLANAR:
+        (this.normal.dot(polygon.plane.normal) > 0 ? coplanarFront : coplanarBack).push(polygon);
+        break;
+      case FRONT: front.push(polygon); break;
+      case BACK:  back.push(polygon);  break;
+      case SPANNING:
+        var f = [], b = [];
+        for (i = 0; i < polygon.vertices.length; i++){
+          var j = (i + 1) % polygon.vertices.length;
+          var ti = types[i], tj = types[j];
+          var vi = polygon.vertices[i], vj = polygon.vertices[j];
+          if (ti !== BACK)  f.push(vi);
+          if (ti !== FRONT) b.push(ti !== BACK ? vi.clone() : vi);
+          if ((ti | tj) === SPANNING){
+            var tt = (this.w - this.normal.dot(vi.pos)) /
+                      this.normal.dot(vj.pos.minus(vi.pos));
+            var v = vi.interpolate(vj, tt);
+            f.push(v); b.push(v.clone());
+          }
+        }
+        if (f.length >= 3) front.push(new CSG.Polygon(f, polygon.shared));
+        if (b.length >= 3) back.push(new CSG.Polygon(b, polygon.shared));
+        break;
+    }
+  }
+};
+
+/* ---------- Polygon ---------- */
+CSG.Polygon = function(vertices, shared){
+  this.vertices = vertices;
+  this.shared = shared;
+  this.plane = CSG.Plane.fromPoints(vertices[0].pos, vertices[1].pos, vertices[2].pos);
+};
+CSG.Polygon.prototype = {
+  clone: function(){
+    return new CSG.Polygon(this.vertices.map(function(v){ return v.clone(); }), this.shared);
+  },
+  flip: function(){
+    this.vertices.reverse().forEach(function(v){ v.flip(); });
+    this.plane.flip();
+  }
+};
+
+/* ---------- Node (árvore BSP) ---------- */
+CSG.Node = function(polygons){
+  this.plane = null; this.front = null; this.back = null; this.polygons = [];
+  if (polygons) this.build(polygons);
+};
+CSG.Node.prototype = {
+  clone: function(){
+    var node = new CSG.Node();
+    node.plane = this.plane && this.plane.clone();
+    node.front = this.front && this.front.clone();
+    node.back  = this.back  && this.back.clone();
+    node.polygons = this.polygons.map(function(p){ return p.clone(); });
+    return node;
+  },
+  invert: function(){
+    for (var i = 0; i < this.polygons.length; i++) this.polygons[i].flip();
+    if (this.plane) this.plane.flip();
+    if (this.front) this.front.invert();
+    if (this.back)  this.back.invert();
+    var temp = this.front; this.front = this.back; this.back = temp;
+  },
+  clipPolygons: function(polygons){
+    if (!this.plane) return polygons.slice();
+    var front = [], back = [];
+    for (var i = 0; i < polygons.length; i++){
+      this.plane.splitPolygon(polygons[i], front, back, front, back);
+    }
+    if (this.front) front = this.front.clipPolygons(front);
+    back = this.back ? this.back.clipPolygons(back) : [];
+    return front.concat(back);
+  },
+  clipTo: function(bsp){
+    this.polygons = bsp.clipPolygons(this.polygons);
+    if (this.front) this.front.clipTo(bsp);
+    if (this.back)  this.back.clipTo(bsp);
+  },
+  allPolygons: function(){
+    var polygons = this.polygons.slice();
+    if (this.front) polygons = polygons.concat(this.front.allPolygons());
+    if (this.back)  polygons = polygons.concat(this.back.allPolygons());
+    return polygons;
+  },
+  build: function(polygons){
+    if (!polygons.length) return;
+    if (!this.plane) this.plane = polygons[0].plane.clone();
+    var front = [], back = [];
+    for (var i = 0; i < polygons.length; i++){
+      this.plane.splitPolygon(polygons[i], this.polygons, this.polygons, front, back);
+    }
+    if (front.length){ if (!this.front) this.front = new CSG.Node(); this.front.build(front); }
+    if (back.length){ if (!this.back) this.back = new CSG.Node(); this.back.build(back); }
+  }
+};
+
+global.CSG = CSG;
+})(window);
+</script>
+
+<!-- =========================================================
+     SEÇÃO 3c — PONTE CSG ↔ THREE.js E FÁBRICA DE SÓLIDOS
+     ========================================================= -->
+<script>
+'use strict';
+
+var CSGX = (function(){
+
+  /* BufferGeometry (triângulos) → CSG */
+  function fromGeometry(geo){
+    var g = geo.index ? geo.toNonIndexed() : geo;
+    if (!g.attributes.normal) g.computeVertexNormals();
+    var pos = g.attributes.position.array;
+    var nor = g.attributes.normal.array;
+    var polys = [];
+    for (var i = 0; i < pos.length; i += 9){
+      var vs = [];
+      for (var k = 0; k < 3; k++){
+        var o = i + k * 3;
+        vs.push(new CSG.Vertex(
+          new CSG.Vector(pos[o], pos[o + 1], pos[o + 2]),
+          new CSG.Vector(nor[o], nor[o + 1], nor[o + 2])
+        ));
+      }
+      /* descarta triângulos degenerados (evitam planos inválidos no BSP) */
+      var a = vs[0].pos, b = vs[1].pos, c = vs[2].pos;
+      if (b.minus(a).cross(c.minus(a)).length() < 1e-10) continue;
+      polys.push(new CSG.Polygon(vs));
+    }
+    return CSG.fromPolygons(polys);
+  }
+
+  /* CSG → BufferGeometry (triangulação em leque) */
+  function toGeometry(csg){
+    var polys = csg.toPolygons();
+    var pos = [], nor = [];
+    for (var p = 0; p < polys.length; p++){
+      var vs = polys[p].vertices;
+      for (var j = 2; j < vs.length; j++){
+        var tri = [vs[0], vs[j - 1], vs[j]];
+        for (var k = 0; k < 3; k++){
+          pos.push(tri[k].pos.x, tri[k].pos.y, tri[k].pos.z);
+          nor.push(tri[k].normal.x, tri[k].normal.y, tri[k].normal.z);
+        }
+      }
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+    g.setAttribute('normal',   new THREE.BufferAttribute(new Float32Array(nor), 3));
+    g.computeBoundingSphere();
+    return g;
+  }
+
+  /* --- primitivas convenientes, já posicionadas em coordenadas locais --- */
+  function box(w, h, d, x, y, z, ry){
+    var g = new THREE.BoxGeometry(w, h, d);
+    if (ry) g.rotateY(ry);
+    g.translate(x || 0, y || 0, z || 0);
+    return fromGeometry(g);
+  }
+  function cyl(rTop, rBot, h, seg, x, y, z, axis){
+    var g = new THREE.CylinderGeometry(rTop, rBot, h, seg || 16);
+    if (axis === 'x') g.rotateZ(Math.PI / 2);
+    if (axis === 'z') g.rotateX(Math.PI / 2);
+    g.translate(x || 0, y || 0, z || 0);
+    return fromGeometry(g);
+  }
+  function sphere(r, x, y, z, seg){
+    var g = new THREE.SphereGeometry(r, seg || 16, (seg || 16) * 0.6);
+    g.translate(x || 0, y || 0, z || 0);
+    return fromGeometry(g);
+  }
+  function cone(r, h, seg, x, y, z){
+    var g = new THREE.ConeGeometry(r, h, seg || 16);
+    g.translate(x || 0, y || 0, z || 0);
+    return fromGeometry(g);
+  }
+  function prism(shape, depth, mtx){
+    var g = new THREE.ExtrudeGeometry(shape, { depth: depth, bevelEnabled: false });
+    if (mtx) g.applyMatrix4(mtx);
+    return fromGeometry(g);
+  }
+
+  /* Normaliza o sólido para caber em 1×1×1 com a base em y = 0,
+     preservando o "contrato" das geometrias usadas em InstancedMesh. */
+  function normalize(csgSolid, keepWidth){
+    var g = toGeometry(csgSolid);
+    g.computeBoundingBox();
+    var bb = g.boundingBox;
+    var sx = bb.max.x - bb.min.x, sy = bb.max.y - bb.min.y, sz = bb.max.z - bb.min.z;
+    g.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
+    if (!keepWidth) g.scale(1 / sx, 1 / sy, 1 / sz);
+    return g;
+  }
+
+  return {
+    from: fromGeometry, to: toGeometry, normalize: normalize,
+    box: box, cyl: cyl, sphere: sphere, cone: cone, prism: prism
+  };
+})();
+</script>
+
 <script>
 /* =========================================================================
    CITY BUILDER 3D — arquivo único, sem build, sem servidor, sem texturas.
 
-   REVISÃO v6
-     1. JOGABILIDADE SIMPLIFICADA
-        · Regra única e clara: lote precisa de ESTRADA + ENERGIA para crescer.
-        · Sem "níveis de detalhe", sem opções escondidas: 7 ferramentas.
-        · Feedback imediato: moldura vermelha, tooltip explicativo e avisos.
-     2. SOMBRAS sempre ativas (botão removido).
-     3. VISTA DE ZONAS sempre ativa (botão e atalho Z removidos).
-     4. Ícones da interface via Material Design Icons (@mdi/font).
-     5. Prefeitura e Parque com modelos 3D melhores, porém simples.
-     6. Economia reescrita (Seção 10): oferta/procura de moradia e emprego,
-        taxa de ocupação, impostos proporcionais ao emprego, manutenção por
-        nível e demanda RCI derivada de déficits reais.
+   REVISÃO v7 — MODELOS 3D COM CSG
+     · Biblioteca csg.js (BSP booleano) embutida + ponte CSG ↔ Three.js.
+     · Todos os volumes principais passaram a ser sólidos booleanos:
+         · fachadas com portas/janelas SUBTRAÍDAS (relevo real, não pintado);
+         · chaminés e caixas d'água tubulares (cilindro − cilindro);
+         · torre de resfriamento da usina (perfil em ampulheta, oca);
+         · torre do relógio da prefeitura com mostradores rebaixados;
+         · arcadas do pórtico (paredes − arcos);
+         · coreto vazado e chafariz em anel no parque;
+         · bancos com ripas vazadas.
+     · As operações booleanas rodam UMA vez na inicialização e o resultado é
+       reutilizado por InstancedMesh — custo zero por quadro.
+
+   Mantido da v6: jogabilidade simples (estrada + energia), sombras sempre
+   ativas, vista de zonas sempre ativa, ícones MDI e a economia da Seção 10.
 
    Organização:
      4. Configuração e constantes
      5. Estado do jogo (mapa em grid)
      6. Cena Three.js (céu, câmera, luzes)
-     7. Materiais, geometrias e meshes instanciados
+     7. Materiais e geometrias
+     7a. SÓLIDOS CSG (booleanos)
      7b. Gerador de edifícios
      7c. Construções especiais (prefeitura, parque, usina)
      8. Raycasting / seleção de tiles
@@ -236,6 +566,11 @@ if (typeof THREE === 'undefined') {
   document.getElementById('loader').innerHTML =
     '<div>Falha ao carregar o Three.js.</div><small>Conecte-se à internet uma vez para baixar a biblioteca do CDN e recarregue a página.</small>';
   throw new Error('Three.js não carregado');
+}
+if (typeof CSG === 'undefined') {
+  document.getElementById('loader').innerHTML =
+    '<div>Falha ao inicializar a biblioteca CSG.</div>';
+  throw new Error('CSG não carregado');
 }
 
 /* =========================================================
@@ -269,32 +604,28 @@ const ZONE_COL = {
    ECONOMIA — parâmetros em um único lugar (fáceis de ajustar)
    --------------------------------------------------------- */
 const ECO = {
-  /* Capacidade por nível de lote */
-  HOMES_PER_LEVEL : 10,   // moradores que cabem por nível residencial
-  JOBS_COM_LEVEL  : 5,    // empregos por nível comercial
-  JOBS_IND_LEVEL  : 7,    // empregos por nível industrial
+  HOMES_PER_LEVEL : 10,
+  JOBS_COM_LEVEL  : 5,
+  JOBS_IND_LEVEL  : 7,
 
-  /* Impostos por mês */
-  TAX_PER_RESIDENT: 0.85, // imposto por morador (escalado pelo emprego)
+  TAX_PER_RESIDENT: 0.85,
   TAX_PER_COM_JOB : 0.70,
   TAX_PER_IND_JOB : 0.55,
 
-  /* Manutenção mensal */
   UP_ROAD         : 0.5,
-  UP_LOT_BASE     : 0.15, // por lote zoneado
-  UP_LOT_LEVEL    : 0.30, // + por nível construído
+  UP_LOT_BASE     : 0.15,
+  UP_LOT_LEVEL    : 0.30,
   UP_HALL         : 6,
   UP_PARK         : 3,
   UP_POWER        : 16,
 
-  /* Dinâmica */
-  MIGRATION       : 0.22, // velocidade com que a população persegue o alvo
-  SEED_POP        : 20,   // moradores atraídos pela prefeitura
-  JOB_PULL        : 1.7,  // moradores atraídos por emprego disponível
-  SHOP_RATIO      : 0.30, // empregos comerciais desejados por morador
-  IND_RATIO       : 0.22, // empregos industriais desejados por morador
-  IND_SUPPLY      : 0.30, // + demanda industrial puxada pelo comércio
-  DEMAND_SCALE    : 50,   // divisor que normaliza os déficits em −1..1
+  MIGRATION       : 0.22,
+  SEED_POP        : 20,
+  JOB_PULL        : 1.7,
+  SHOP_RATIO      : 0.30,
+  IND_RATIO       : 0.22,
+  IND_SUPPLY      : 0.30,
+  DEMAND_SCALE    : 50,
   DEBT_LIMIT      : -2000
 };
 
@@ -312,7 +643,6 @@ const DEF = {
 const DEMOLISH_COST = 5;
 const ZONE_TYPES = [T.RES, T.COM, T.IND];
 
-/* Nome arquitetônico por zona/nível (tooltip) */
 const ARCH_NAME = {
   [T.RES]: ['lote vazio','casa térrea','casa de dois pavimentos','sobrado com sacadas','edifício residencial'],
   [T.COM]: ['lote vazio','loja de esquina','galeria comercial','edifício comercial','torre de escritórios'],
@@ -338,12 +668,10 @@ const DET = {
   sign : 0xe8e4dc, band : 0xa9aeb3
 };
 
-/* Vista de zonas SEMPRE ativa: o chão recebe a cor da zona e as fachadas
-   recebem um tingimento moderado (para continuar parecendo arquitetura). */
-const ZONE_TINT   = 0.26;   // tingimento das fachadas
-const GROUND_TINT = 0.50;   // tingimento do chão do lote
+const ZONE_TINT   = 0.26;
+const GROUND_TINT = 0.50;
 
-const ALERT_COL = 0xff4d4d; // moldura de aviso (sem estrada / sem energia)
+const ALERT_COL = 0xff4d4d;
 
 /* =========================================================
    SEÇÃO 5 — ESTADO DO JOGO
@@ -399,7 +727,7 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.outputEncoding = THREE.sRGBEncoding;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
-renderer.shadowMap.enabled = true;              // sombras SEMPRE ligadas
+renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
@@ -490,6 +818,7 @@ const MAXI = N * N;
 const MAXB = N * N * 3;
 const MAXDET = N * N * 32;
 const MAXCYL = N * N * 8;
+const MAXTUBE = N * N * 4;
 
 const winUniform = { value: 0 };
 
@@ -542,6 +871,155 @@ G.frame = (function(){
 G.disc = new THREE.CircleGeometry(0.5, 20).rotateX(-Math.PI / 2);
 
 G.corner = new THREE.BoxGeometry(0.30, 0.03, 0.08);
+
+/* =========================================================
+   SEÇÃO 7a — SÓLIDOS CSG (booleanos, calculados uma única vez)
+   -----------------------------------------------------------
+   Convenção herdada da v6: toda geometria de corpo ocupa a caixa
+   unitária 1×1×1 com a BASE em y = 0, para que as chamadas de
+   escala existentes continuem válidas.
+   ========================================================= */
+const CSGGEO = (function(){
+  const t0 = performance.now();
+  const B = CSGX.box, C = CSGX.cyl;
+
+  /* ---- Fachada residencial: embasamento, cornija, porta e janelas ---- */
+  function shellRes(){
+    let s = B(1, 1, 1, 0, 0.5, 0);
+    /* Sem volumes salientes: a caixa continua com 12 faces de partida,
+       o que mantém a malha final leve mesmo com os recortes. */
+    s = s.subtract(B(0.24, 0.28, 0.16, 0, 0.16, 0.46));  // porta recuada
+    /* janelas apenas nas duas fachadas principais: mantém a contagem
+       de triângulos baixa (a malha é reutilizada por milhares de lotes) */
+    s = s.subtract(B(0.66, 0.16, 0.09, 0, 0.55,  0.475));
+    s = s.subtract(B(0.66, 0.16, 0.09, 0, 0.55, -0.475));
+    s = s.subtract(B(0.09, 0.16, 0.66,  0.475, 0.55, 0));
+    s = s.subtract(B(0.09, 0.16, 0.66, -0.475, 0.55, 0));
+    return CSGX.normalize(s);
+  }
+
+  /* ---- Fachada comercial: montantes verticais e marquise ---- */
+  function shellCom(){
+    let s = B(1, 1, 1, 0, 0.5, 0);
+    /* sulcos verticais contínuos (um por face) */
+    s = s.subtract(B(0.10, 0.86, 0.05, 0, 0.53,  0.49));
+    s = s.subtract(B(0.10, 0.86, 0.05, 0, 0.53, -0.49));
+    s = s.subtract(B(0.05, 0.86, 0.10,  0.49, 0.53, 0));
+    s = s.subtract(B(0.05, 0.86, 0.10, -0.49, 0.53, 0));
+    s = s.subtract(B(0.62, 0.16, 0.12, 0, 0.10, 0.47));  // vitrine recuada
+    s = s.subtract(B(1.02, 0.028, 0.04, 0, 0.95, 0.50));  // friso de coroamento
+    s = s.subtract(B(0.04, 0.028, 1.02, 0.50, 0.95, 0));
+    return CSGX.normalize(s);
+  }
+
+  /* ---- Galpão industrial: portão, faixa e beiral ---- */
+  function shellInd(){
+    let s = B(1, 1, 1, 0, 0.5, 0);
+    s = s.subtract(B(0.46, 0.44, 0.12, 0, 0.25, 0.47));   // portão
+    s = s.subtract(B(1.02, 0.05, 0.06, 0, 0.72,  0.49));  // faixa
+    s = s.subtract(B(1.02, 0.05, 0.06, 0, 0.72, -0.49));
+    return CSGX.normalize(s);
+  }
+
+  /* ---- Tubo (chaminé / caixa d'água): cilindro − cilindro ---- */
+  function tube(){
+    let s = C(0.5, 0.5, 1, 12, 0, 0.5, 0);
+    s = s.subtract(C(0.36, 0.36, 0.9, 12, 0, 0.62, 0));   // vazio superior
+    return CSGX.normalize(s);
+  }
+
+  /* ---- Telhado de duas águas com beiral e cumeeira ---- */
+  function gable(){
+    const tri = new THREE.Shape();
+    tri.moveTo(-0.5, 0); tri.lineTo(0.5, 0); tri.lineTo(0, 1); tri.lineTo(-0.5, 0);
+    const g = new THREE.ExtrudeGeometry(tri, { depth:1.06, bevelEnabled:false });
+    g.translate(0, 0, -0.53);
+    g.computeVertexNormals();
+    let s = CSGX.from(g);
+    s = s.union(B(1.10, 0.06, 1.12, 0, 0.02, 0));         // beiral
+    s = s.union(C(0.05, 0.05, 1.12, 10, 0, 0.96, 0, 'z')); // cumeeira
+    return CSGX.normalize(s);
+  }
+
+  /* -----------------------------------------------------------------
+     Peças das construções especiais: aqui os sólidos são gerados JÁ no
+     tamanho final (1 unidade = 1 tile), portanto não passam pelo
+     normalize() e são posicionados com escala 1.
+     ----------------------------------------------------------------- */
+
+  /* ---- Bacia do chafariz: anel (cilindro − cilindro) ---- */
+  function basin(){
+    let s = C(0.28, 0.28, 0.07, 26, 0, 0.035, 0);
+    s = s.subtract(C(0.235, 0.235, 0.07, 26, 0, 0.05, 0));
+    s = s.union(C(0.30, 0.30, 0.012, 26, 0, 0.070, 0));      // borda
+    return CSGX.to(s);
+  }
+
+  /* ---- Cobertura do coreto: cone oco com lanternim ---- */
+  function kioskRoof(){
+    let s = CSGX.cone(0.34, 0.12, 16, 0, 0.06, 0);
+    s = s.subtract(CSGX.cone(0.30, 0.11, 16, 0, 0.035, 0));  // vaza por baixo
+    s = s.union(C(0.018, 0.018, 0.06, 10, 0, 0.145, 0));     // pináculo
+    return CSGX.to(s);
+  }
+
+  /* ---- Arcada do pórtico: parede com quatro arcos plenos vazados ---- */
+  function arcade(){
+    let s = B(0.56, 0.30, 0.09, 0, 0.15, 0);
+    for (const c of [-0.195, -0.065, 0.065, 0.195]){
+      s = s.subtract(B(0.085, 0.16, 0.20, c, 0.090, 0));            // vão reto
+      s = s.subtract(C(0.0425, 0.0425, 0.20, 16, c, 0.17, 0, 'z')); // arco
+    }
+    s = s.union(B(0.60, 0.028, 0.13, 0, 0.294, 0));                 // arquitrave
+    s = s.union(B(0.60, 0.026, 0.13, 0, 0.012, 0));                 // estilóbata
+    return CSGX.to(s);
+  }
+
+  /* ---- Torre do relógio: mostradores rebaixados nas quatro faces ---- */
+  function clockTower(){
+    let s = B(0.26, 0.30, 0.26, 0, 0.15, 0);
+    for (const f of [[0, 0.13, 'z'], [0, -0.13, 'z'], [0.13, 0, 'x'], [-0.13, 0, 'x']]){
+      const x = f[2] === 'x' ? f[0] : 0, z = f[2] === 'x' ? 0 : f[1];
+      s = s.subtract(C(0.055, 0.055, 0.03, 20, x, 0.205, z, f[2]));
+    }
+    s = s.union(B(0.30, 0.024, 0.30, 0, 0.300, 0));   // coroamento
+    s = s.union(B(0.29, 0.024, 0.29, 0, 0.011, 0));   // base
+    return CSGX.to(s);
+  }
+
+  /* ---- Torre de resfriamento: perfil em ampulheta, oca no topo ---- */
+  function coolTower(){
+    let s = C(0.145, 0.225, 0.30, 24, 0, 0.15, 0);
+    s = s.union(C(0.200, 0.145, 0.22, 24, 0, 0.41, 0));
+    s = s.subtract(C(0.170, 0.115, 0.26, 24, 0, 0.43, 0));  // chaminé oca
+    s = s.union(C(0.235, 0.235, 0.024, 24, 0, 0.011, 0));   // sapata
+    return CSGX.to(s);
+  }
+
+  /* ---- Banco de praça: assento e encosto com ripas vazadas ---- */
+  function bench(){
+    let s = B(0.17, 0.016, 0.055, 0, 0.042, 0);                       // assento
+    for (const c of [-0.017, 0.017]) s = s.subtract(B(0.20, 0.03, 0.010, 0, 0.042, c));
+    s = s.union(B(0.17, 0.042, 0.010, 0, 0.070, -0.024));             // encosto
+    s = s.subtract(B(0.20, 0.010, 0.03, 0, 0.070, -0.024));
+    for (const c of [-0.070, 0.070]){                                  // pés
+      s = s.union(B(0.012, 0.036, 0.048, c, 0.018, 0));
+    }
+    return CSGX.to(s);
+  }
+
+  const out = {
+    shellRes: shellRes(), shellCom: shellCom(), shellInd: shellInd(),
+    tube: tube(), gable: gable(), basin: basin(), kioskRoof: kioskRoof(),
+    arcade: arcade(), clockTower: clockTower(), coolTower: coolTower(),
+    bench: bench()
+  };
+  out.buildMs = Math.round(performance.now() - t0);
+  return out;
+})();
+
+/* o telhado de duas águas passa a ser o sólido booleano */
+G.gable = CSGGEO.gable;
 
 function mat(color, rough, metal){
   return new THREE.MeshStandardMaterial({
@@ -621,8 +1099,6 @@ function facadeMaterial(baseColor, opts){
   return m;
 }
 
-/* InstancedMesh já nasce com instanceColor alocado → shader compilado com
-   suporte a cor por instância desde o primeiro frame (sem "pisca"). */
 function makeInstanced(geo, material, count, shadow){
   const m = new THREE.InstancedMesh(geo, material, count);
   m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -692,7 +1168,6 @@ function paintGround(){
         const n = (Math.sin(x * 0.37) + Math.cos(z * 0.29) + Math.sin((x + z) * 0.13)) / 3;
         c = cA.clone().lerp(cB, 0.5 + n * 0.5).lerp(cD, Math.max(0, t.seed - 0.7) * 0.8);
         if (t.type !== T.EMPTY) c.multiplyScalar(0.9);
-        /* vista de zonas sempre ativa */
         if (ZONE_COL[t.type] !== undefined && t.type !== T.ROAD){
           c.lerp(new THREE.Color(ZONE_COL[t.type]), GROUND_TINT);
         }
@@ -725,11 +1200,11 @@ const cornerMesh = makeInstanced(G.corner, flatMaterial(1.0), MAXI * 8, false);
 frameMesh.renderOrder = 2;
 cornerMesh.renderOrder = 3;
 
-/* --- Corpos dos edifícios --- */
+/* --- Corpos dos edifícios (sólidos CSG) --- */
 const buildMesh = {
-  [T.RES]: makeInstanced(G.box, facadeMaterial(FACADE[T.RES], { winW:0.20, winH:0.24, glass:0.42 }), MAXB, true),
-  [T.COM]: makeInstanced(G.box, facadeMaterial(FACADE[T.COM], { winW:0.16, winH:0.20, glass:0.62, roughness:0.40, metalness:0.18 }), MAXB, true),
-  [T.IND]: makeInstanced(G.box, facadeMaterial(FACADE[T.IND], { winW:0.30, winH:0.30, glass:0.28 }), MAXB, true)
+  [T.RES]: makeInstanced(CSGGEO.shellRes, facadeMaterial(FACADE[T.RES], { winW:0.20, winH:0.24, glass:0.42 }), MAXB, true),
+  [T.COM]: makeInstanced(CSGGEO.shellCom, facadeMaterial(FACADE[T.COM], { winW:0.16, winH:0.20, glass:0.62, roughness:0.40, metalness:0.18 }), MAXB, true),
+  [T.IND]: makeInstanced(CSGGEO.shellInd, facadeMaterial(FACADE[T.IND], { winW:0.30, winH:0.30, glass:0.28 }), MAXB, true)
 };
 
 /* --- Telhados --- */
@@ -740,6 +1215,7 @@ const capMesh   = makeInstanced(G.slab,  mat(DET.slab, 0.9), MAXB, true);
 /* --- Detalhes construtivos --- */
 const detailMesh = makeInstanced(G.box, mat(0xffffff, 0.8), MAXDET, true);
 const cylMesh    = makeInstanced(G.cylU, mat(0xffffff, 0.7, 0.15), MAXCYL, true);
+const tubeMesh   = makeInstanced(CSGGEO.tube, mat(0xffffff, 0.65, 0.20), MAXTUBE, true);
 
 /* --- Vegetação em tiles vazios --- */
 const trunkMesh = makeInstanced(G.cyl, mat(0x6b4a2f, 1), MAXI, true);
@@ -763,6 +1239,7 @@ scene.add(gridHelper);
 
 /* =========================================================
    SEÇÃO 7c — CONSTRUÇÕES ESPECIAIS (prefeitura, parque, usina)
+   Todas usam os sólidos booleanos da Seção 7a.
    ========================================================= */
 const matHall    = facadeMaterial(COL.hall, { winW:0.16, winH:0.22, glass:0.40 });
 const matGold    = mat(COL.gold, 0.32, 0.75);
@@ -804,62 +1281,57 @@ function addMesh(parent, geo, material, px, py, pz, sx, sy, sz, ry){
   parent.add(m);
   return m;
 }
+/* atalho para as peças CSG, que já vêm no tamanho final */
+function addCSG(parent, geo, material, px, py, pz, ry){
+  return addMesh(parent, geo, material, px, py, pz, 1, 1, 1, ry);
+}
 
-/* ---------- PREFEITURA (simples, porém legível) ----------
-   Praça elevada + escadaria frontal + corpo principal + pórtico com 6 colunas
-   e frontão + torre do relógio com cúpula dourada, lanternim e mastro. */
+/* ---------- PREFEITURA ----------
+   Praça elevada + escadaria + corpo em U + pórtico com arcada booleana
+   (paredes menos arcos plenos) + torre do relógio com mostradores
+   rebaixados por subtração + cúpula dourada. */
 function buildHall(g){
-  /* praça e base */
   addMesh(g, G.slab, matStoneD, 0, 0.02, 0, 0.98, 1.0, 0.98);
   addMesh(g, G.box,  matStone,  0, 0.03, 0, 0.90, 0.06, 0.90);
 
-  /* escadaria frontal (3 degraus) */
   for (let i = 0; i < 3; i++){
     addMesh(g, G.box, matStoneD, 0, 0.03 + i * 0.022, 0.40 - i * 0.035,
             0.44 - i * 0.04, 0.022, 0.10 + i * 0.035);
   }
 
-  /* corpo principal em U raso: bloco central + duas alas */
+  /* corpo principal + alas */
   addMesh(g, G.box, matHall, 0, 0.09, -0.06, 0.62, 0.34, 0.46);
   addMesh(g, G.box, matHall, -0.34, 0.09, -0.02, 0.22, 0.26, 0.38);
   addMesh(g, G.box, matHall,  0.34, 0.09, -0.02, 0.22, 0.26, 0.38);
 
-  /* cornija das alas e do corpo */
   addMesh(g, G.box, matStone, 0, 0.43, -0.06, 0.66, 0.03, 0.50);
   addMesh(g, G.box, matStone, -0.34, 0.35, -0.02, 0.25, 0.025, 0.41);
   addMesh(g, G.box, matStone,  0.34, 0.35, -0.02, 0.25, 0.025, 0.41);
 
-  /* telhado das alas (duas águas) */
   addMesh(g, G.gable, matRoofH, -0.34, 0.375, -0.02, 0.41, 0.09, 0.25, Math.PI / 2);
   addMesh(g, G.gable, matRoofH,  0.34, 0.375, -0.02, 0.41, 0.09, 0.25, Math.PI / 2);
 
-  /* pórtico: plataforma, 6 colunas, arquitrave e frontão */
+  /* pórtico com arcada CSG */
   addMesh(g, G.box, matStone, 0, 0.088, 0.24, 0.56, 0.02, 0.20);
-  for (let i = 0; i < 6; i++){
-    const px = -0.225 + i * 0.09;
-    addMesh(g, G.cylU, matStone, px, 0.105, 0.28, 0.035, 0.26, 0.035);
-    addMesh(g, G.box,  matStone, px, 0.098, 0.28, 0.055, 0.012, 0.055); // base
-    addMesh(g, G.box,  matStone, px, 0.362, 0.28, 0.055, 0.012, 0.055); // capitel
-  }
-  addMesh(g, G.box,   matStone,  0, 0.374, 0.28, 0.56, 0.03, 0.09);
-  addMesh(g, G.gable, matStone,  0, 0.404, 0.28, 0.56, 0.10, 0.09);
-  /* relógio/brasão no frontão */
-  addMesh(g, G.cylU, matGold, 0, 0.435, 0.325, 0.055, 0.012, 0.055, 0)
-    .rotation.set(Math.PI / 2, 0, 0);
+  addCSG(g, CSGGEO.arcade, matStone, 0, 0.098, 0.30);
+  /* arcadas laterais nas alas (giradas 90°) */
+  addCSG(g, CSGGEO.arcade, matStone, -0.455, 0.098, -0.02, Math.PI / 2);
+  addCSG(g, CSGGEO.arcade, matStone,  0.455, 0.098, -0.02, Math.PI / 2);
+
+  /* frontão sobre a arcada */
+  addMesh(g, G.gable, matStone, 0, 0.404, 0.30, 0.60, 0.10, 0.10);
+  const clockF = addMesh(g, G.disc, matGold, 0, 0.437, 0.352, 0.055, 1, 0.055);
+  clockF.rotation.x = Math.PI / 2;
 
   /* porta principal */
   addMesh(g, G.box, matDoor, 0, 0.10, 0.17, 0.11, 0.17, 0.012);
 
-  /* torre do relógio + cúpula */
-  addMesh(g, G.box,  matHall,  0, 0.46, -0.06, 0.26, 0.30, 0.26);
-  addMesh(g, G.box,  matStone, 0, 0.76, -0.06, 0.30, 0.025, 0.30);
-  /* mostradores do relógio (4 faces) */
-  const cf = [[0, 0.135], [0, -0.135], [0.135, 0], [-0.135, 0]];
-  for (const c of cf){
-    const m = addMesh(g, G.disc, matGold, c[0], 0.66, -0.06 + c[1], 0.10, 1, 0.10);
-    m.rotation.x = Math.PI / 2;
-    m.rotation.z = Math.atan2(c[0], c[1]);
-    m.position.y = 0.66;
+  /* torre do relógio (sólido booleano) + cúpula */
+  addCSG(g, CSGGEO.clockTower, matHall, 0, 0.46, -0.06);
+  for (const f of [[0, 0.131, 0], [0, -0.131, Math.PI], [0.131, 0, Math.PI / 2], [-0.131, 0, -Math.PI / 2]]){
+    const d = addMesh(g, G.disc, matGold, f[0], 0.665, -0.06 + f[1], 0.10, 1, 0.10);
+    d.rotation.x = Math.PI / 2;
+    d.rotation.z = f[2];
   }
   addMesh(g, G.box,  matHall,  0, 0.785, -0.06, 0.20, 0.10, 0.20);
   addMesh(g, G.dome, matGold,  0, 0.885, -0.06, 0.26, 0.20, 0.26);
@@ -878,42 +1350,37 @@ function buildHall(g){
   }
 }
 
-/* ---------- PARQUE (simples, porém agradável) ----------
-   Gramado com borda, dois caminhos cruzados, praça central com coreto,
-   lago com bordas, bancos, postes e árvores de tamanhos variados. */
+/* ---------- PARQUE ----------
+   Gramado, caminhos cruzados, coreto vazado ou chafariz em anel (ambos
+   sólidos CSG), lago, bancos ripados, postes e arborização variada. */
 function buildPark(g, tile){
   const s = tile.seed;
   const R = (k) => ((Math.sin(s * 91.7 + k * 47.3) * 43758.5453) % 1 + 1) % 1;
 
-  /* gramado com borda mais escura */
   addMesh(g, G.slab, matLawnD, 0, 0.018, 0, 0.98, 1.1, 0.98);
   addMesh(g, G.slab, matLawn,  0, 0.030, 0, 0.90, 1.1, 0.90);
 
-  /* caminhos cruzados */
   addMesh(g, G.slab, matPath, 0, 0.040, 0, 0.98, 1.0, 0.14);
   addMesh(g, G.slab, matPath, 0, 0.040, 0, 0.14, 1.0, 0.98);
-  /* praça circular no centro */
   addMesh(g, G.disc, matPath, 0, 0.046, 0, 0.34, 1, 0.34);
 
   if (R(1) > 0.45){
-    /* --- coreto no centro --- */
+    /* --- coreto: piso, seis colunas e cobertura cônica oca (CSG) --- */
     addMesh(g, G.cylU, matStone, 0, 0.048, 0, 0.30, 0.03, 0.30);
     for (let i = 0; i < 6; i++){
       const a = i * Math.PI / 3;
       addMesh(g, G.cylU, matLamp, Math.cos(a) * 0.115, 0.078, Math.sin(a) * 0.115,
               0.018, 0.13, 0.018);
     }
-    addMesh(g, G.cone12, matRoofH, 0, 0.208, 0, 0.34, 0.10, 0.34);
-    addMesh(g, G.cylU, matGold, 0, 0.308, 0, 0.02, 0.05, 0.02);
+    addCSG(g, CSGGEO.kioskRoof, matRoofH, 0, 0.208, 0);
   } else {
-    /* --- chafariz no centro --- */
-    addMesh(g, G.cylU, matStone, 0, 0.048, 0, 0.30, 0.025, 0.30);
-    addMesh(g, G.disc, matWater, 0, 0.076, 0, 0.26, 1, 0.26);
+    /* --- chafariz: bacia em anel (CSG) + esguicho --- */
+    addCSG(g, CSGGEO.basin, matStone, 0, 0.048, 0);
+    addMesh(g, G.disc, matWater, 0, 0.088, 0, 0.245, 1, 0.245);
     addMesh(g, G.cylU, matStone, 0, 0.070, 0, 0.06, 0.06, 0.06);
     addMesh(g, G.sphere, matWater, 0, 0.140, 0, 0.09, 0.09, 0.09);
   }
 
-  /* lago em um dos quadrantes */
   if (R(2) > 0.4){
     const qx = R(3) > 0.5 ? 0.26 : -0.26;
     const qz = R(4) > 0.5 ? 0.26 : -0.26;
@@ -921,25 +1388,20 @@ function buildPark(g, tile){
     addMesh(g, G.disc, matWater,  qx, 0.050, qz, 0.28, 1, 0.22);
   }
 
-  /* bancos ao longo do caminho */
-  for (let i = 0; i < 4; i++){
-    const along = (i % 2 === 0);
-    const sgn = i < 2 ? 1 : -1;
-    const bx = along ? sgn * 0.27 : 0.11 * (i === 1 ? 1 : -1);
-    const bz = along ? 0.11 * (i === 0 ? 1 : -1) : sgn * 0.27;
-    const b = addMesh(g, G.box, matBench, bx, 0.048, bz, along ? 0.16 : 0.05, 0.02, along ? 0.05 : 0.16);
-    addMesh(g, G.box, matBench, bx, 0.068, bz + (along ? 0.022 : 0),
-            along ? 0.16 : 0.012, 0.04, along ? 0.012 : 0.16);
-    b.receiveShadow = true;
-  }
+  /* bancos ripados (CSG) ao longo dos caminhos */
+  const seats = [
+    [ 0.27,  0.11, 0],
+    [-0.27, -0.11, Math.PI],
+    [ 0.11, -0.27, Math.PI / 2],
+    [-0.11,  0.27, -Math.PI / 2]
+  ];
+  for (const b of seats) addCSG(g, CSGGEO.bench, matBench, b[0], 0.040, b[1], b[2]);
 
-  /* postes de luz (acendem à noite pelo material emissivo) */
   for (const p of [[-0.20, -0.20], [0.20, 0.20]]){
     addMesh(g, G.cylU, matLamp, p[0], 0.046, p[1], 0.016, 0.20, 0.016);
     addMesh(g, G.sphere, matGlow, p[0], 0.256, p[1], 0.05, 0.05, 0.05);
   }
 
-  /* árvores nos cantos, tamanhos variados */
   for (let i = 0; i < 5; i++){
     const a = R(10 + i) * 6.283;
     const rr = 0.30 + R(20 + i) * 0.10;
@@ -956,7 +1418,6 @@ function buildPark(g, tile){
     }
   }
 
-  /* arbustos de canteiro */
   for (let i = 0; i < 3; i++){
     const px = (R(50 + i) - 0.5) * 0.6, pz = (R(60 + i) - 0.5) * 0.6;
     if (Math.abs(px) < 0.12 && Math.abs(pz) < 0.12) continue;
@@ -964,16 +1425,20 @@ function buildPark(g, tile){
   }
 }
 
+/* ---------- USINA ----------
+   Pátio, casa de máquinas, duas torres de resfriamento ocas (CSG) e
+   um tanque tubular. */
 function buildPower(g){
   addMesh(g, G.slab, matYard, 0, 0.02, 0, 0.98, 1, 0.98);
-  addMesh(g, G.box, matPlant, 0, 0.04, 0.12, 0.82, 0.50, 0.62);
-  addMesh(g, G.box, matPlantY, 0, 0.50, 0.12, 0.84, 0.08, 0.64);
-  for (let i = 0; i < 2; i++){
-    const px = i ? 0.24 : -0.24;
-    addMesh(g, G.stack, matStack, px, 0.04, -0.28, 1, 0.95, 1);
-    addMesh(g, G.cylU, matPlantY, px, 0.99, -0.28, 0.25, 0.06, 0.25);
-  }
-  addMesh(g, G.box, matLamp, 0.34, 0.04, -0.10, 0.14, 0.20, 0.14);
+  addMesh(g, G.box, matPlant, 0, 0.04, 0.14, 0.82, 0.42, 0.56);
+  addMesh(g, G.box, matPlantY, 0, 0.44, 0.14, 0.84, 0.07, 0.58);
+
+  addCSG(g, CSGGEO.coolTower, matStack, -0.24, 0.03, -0.26);
+  addCSG(g, CSGGEO.coolTower, matStack,  0.24, 0.03, -0.26);
+
+  addMesh(g, CSGGEO.tube, matPlant, 0.34, 0.04, -0.02, 0.20, 0.22, 0.20);
+  addMesh(g, G.box, matLamp, -0.36, 0.04, 0.40, 0.10, 0.16, 0.10);
+  addMesh(g, G.box, matPlantY, 0, 0.04, -0.46, 0.60, 0.03, 0.05);
 }
 
 function buildSpecial(tile){
@@ -1004,7 +1469,7 @@ scene.add(specialGroup);
 function rnd(seed, k){ return ((Math.sin(seed * 127.1 + k * 311.7) * 43758.5453) % 1 + 1) % 1; }
 function pick(arr, seed, k){ return arr[Math.floor(rnd(seed, k) * arr.length) % arr.length]; }
 
-const CNT = { det:0, cyl:0, gab:0, hip:0, cap:0, body:{} };
+const CNT = { det:0, cyl:0, tube:0, gab:0, hip:0, cap:0, body:{} };
 
 function makeEmitter(cx, cz, baseY, rot){
   const cosr = Math.cos(rot), sinr = Math.sin(rot);
@@ -1032,6 +1497,19 @@ function makeEmitter(cx, cz, baseY, rot){
       cylMesh.setMatrixAt(CNT.cyl, dummy.matrix);
       cylMesh.setColorAt(CNT.cyl, tmpColor2.setHex(colorHex));
       CNT.cyl++;
+    },
+    /* tubo oco (CSG): chaminés, caixas d'água, silos */
+    tube(ox, oy, oz, dia, hgt, colorHex){
+      if (CNT.tube >= MAXTUBE) return;
+      const wx = cx + ox * cosr + oz * sinr;
+      const wz = cz - ox * sinr + oz * cosr;
+      dummy.position.set(wx, baseY + oy, wz);
+      dummy.rotation.set(0, rot, 0);
+      dummy.scale.set(dia, hgt, dia);
+      dummy.updateMatrix();
+      tubeMesh.setMatrixAt(CNT.tube, dummy.matrix);
+      tubeMesh.setColorAt(CNT.tube, tmpColor2.setHex(colorHex));
+      CNT.tube++;
     },
     body(type, ox, oy, oz, sx, sy, sz, color){
       const m = buildMesh[type];
@@ -1117,7 +1595,6 @@ function emitResidential(E, t, zoneHex, tint){
       E.gable(ox, 0.03 + h, -0.02, (ridgeX ? d : w) * 1.18, rh, (ridgeX ? w : d) * 1.18, roof, ridgeX);
     }
 
-    E.box(ox, 0.03, -0.02 + d / 2 + 0.004, 0.09, 0.15, 0.012, DET.door);
     E.box(ox, 0.02, -0.02 + d / 2 + 0.05, 0.16, 0.03, 0.09, DET.concrete);
     E.box(ox + w / 2 + 0.11, 0.03, 0.02, 0.20, 0.16, 0.24, 0xd7d2c8);
     E.gable(ox + w / 2 + 0.11, 0.19, 0.02, 0.22, 0.07, 0.26, roof, true);
@@ -1127,7 +1604,6 @@ function emitResidential(E, t, zoneHex, tint){
     E.box( 0.18, 0.0, 0.42, 0.26, 0.07, 0.05, DET.garden);
     E.cyl(ox - w / 2 - 0.10, 0.0, -0.26, 0.05, 0.12, 0x6b4a2f);
     E.box(ox - w / 2 - 0.10, 0.11, -0.26, 0.16, 0.16, 0.16, 0x3f8a42);
-    E.box(ox, 0.03 + h - 0.015, -0.02, w * 1.10, 0.02, d * 1.10, 0xe9e4da);
     return { topY: 0.03 + h + 0.24, w: w * 1.2, d: d * 1.2 };
   }
 
@@ -1163,7 +1639,7 @@ function emitResidential(E, t, zoneHex, tint){
 
   E.cap(0, topY, 0, topW * 1.07, topD * 1.07, DET.slab);
   E.box(0, topY, 0, topW * 1.07, 0.05, topD * 1.07, DET.slab);
-  E.cyl(topW * 0.22, topY + 0.04, -topD * 0.20, 0.14, 0.13, DET.tank);
+  E.tube(topW * 0.22, topY + 0.04, -topD * 0.20, 0.15, 0.14, DET.tank);   // caixa d'água
   E.box(-topW * 0.20, topY + 0.04, topD * 0.16, 0.14, 0.09, 0.14, DET.concrete);
   if (t.level === 4){
     E.cyl(0, topY + 0.04, 0, 0.02, 0.22, DET.metal);
@@ -1219,7 +1695,7 @@ function emitCommercial(E, t, zoneHex, tint){
 
   E.cap(0, topY, 0, topW * 1.08, topD * 1.08, DET.slab);
   E.box(0, topY, 0, topW * 1.08, 0.05, topD * 1.08, DET.slab);
-  E.box(topW * 0.18, topY + 0.04, topD * 0.14, 0.14, 0.08, 0.14, DET.concrete);
+  E.tube(topW * 0.20, topY + 0.04, topD * 0.16, 0.16, 0.10, DET.tank);
   E.cyl(0, topY + 0.04, 0, 0.022, t.level === 4 ? 0.34 : 0.20, DET.metal);
   E.box(0, topY + (t.level === 4 ? 0.30 : 0.18), 0, 0.05, 0.03, 0.05, DET.stripeR);
   return { topY: topY + 0.08, w: topW, d: topD };
@@ -1237,18 +1713,18 @@ function emitIndustrial(E, t, zoneHex, tint){
   E.box(0, 0.0, 0, 0.94, 0.03, 0.94, 0x8d9095);
   E.body(T.IND, 0, 0.03, -0.04, w, h, d, wall);
   E.gable(0, 0.03 + h, -0.04, d * 1.06, 0.10 + rnd(s, 17) * 0.05, w * 1.06, 0x77808a, true);
-  E.box(0, 0.03, -0.04 + d / 2 + 0.005, w * 0.34, h * 0.62, 0.012, 0x5f6a72);
   E.box(0, 0.03 + h - 0.05, -0.04, w * 1.02, 0.035, d * 1.02, DET.band);
   E.box(0, 0.03, d / 2 + 0.10, w * 0.5, 0.06, 0.14, DET.concrete);
 
   if (t.level >= 2){
-    E.cyl(-w / 2 - 0.09, 0.03, 0.22, 0.16, 0.30 + t.level * 0.05, DET.tank);
-    E.box(-w / 2 - 0.09, 0.03 + 0.30 + t.level * 0.05, 0.22, 0.17, 0.03, 0.17, DET.metal);
+    /* silo tubular (CSG) */
+    E.tube(-w / 2 - 0.09, 0.03, 0.22, 0.17, 0.30 + t.level * 0.05, DET.tank);
+    E.box(-w / 2 - 0.09, 0.03 + 0.30 + t.level * 0.05, 0.22, 0.17, 0.02, 0.17, DET.metal);
   }
   if (t.level >= 3){
     const ch = 0.42 + t.level * 0.10;
-    E.cyl(w / 2 - 0.06, 0.03 + h, -0.22, 0.10, ch, 0xe6e6e6);
-    E.cyl(w / 2 - 0.06, 0.03 + h + ch * 0.55, -0.22, 0.105, ch * 0.16, DET.stripeR);
+    E.tube(w / 2 - 0.06, 0.03 + h, -0.22, 0.11, ch, 0xe6e6e6);       // chaminé oca
+    E.cyl(w / 2 - 0.06, 0.03 + h + ch * 0.55, -0.22, 0.115, ch * 0.16, DET.stripeR);
     E.cyl(w / 2 - 0.12, 0.03, 0.28, 0.20, 0.14, 0xb9c2c7);
   }
   if (t.level === 4){
@@ -1272,7 +1748,7 @@ function isRoad(x, z){ const t = tileAt(x, z); return !!t && t.type === T.ROAD; 
 
 function rebuild(){
   let ia = 0, icb = 0, ist = 0, ip = 0, ifr = 0, icn = 0, itr = 0;
-  CNT.det = 0; CNT.cyl = 0; CNT.gab = 0; CNT.hip = 0; CNT.cap = 0;
+  CNT.det = 0; CNT.cyl = 0; CNT.tube = 0; CNT.gab = 0; CNT.hip = 0; CNT.cap = 0;
   CNT.body = { [T.RES]:0, [T.COM]:0, [T.IND]:0 };
 
   while (specialGroup.children.length){
@@ -1417,7 +1893,7 @@ function rebuild(){
   fin(asphaltMesh, ia); fin(curbMesh, icb); fin(stripeMesh, ist);
   fin(padMesh, ip); fin(frameMesh, ifr); fin(cornerMesh, icn);
   fin(trunkMesh, itr); fin(crownMesh, itr);
-  fin(detailMesh, CNT.det); fin(cylMesh, CNT.cyl);
+  fin(detailMesh, CNT.det); fin(cylMesh, CNT.cyl); fin(tubeMesh, CNT.tube);
   fin(gableMesh, CNT.gab); fin(hipMesh, CNT.hip); fin(capMesh, CNT.cap);
   for (const k of ZONE_TYPES) fin(buildMesh[k], CNT.body[k]);
 
@@ -1625,23 +2101,19 @@ function simulate(){
   game.homes = homes;
   game.jobs = jobs;
 
-  /* ---------- 2. Migração ----------
-     A cidade atrai gente pelos empregos, mas só cabe quem tem moradia. */
+  /* ---------- 2. Migração ---------- */
   const attraction = jobs * ECO.JOB_PULL + ECO.SEED_POP;
   const target = Math.min(homes, attraction);
   game.population += (target - game.population) * ECO.MIGRATION;
   if (game.population < 0.5) game.population = 0;
   const pop = game.population;
 
-  /* ---------- 3. Ocupação (empregos ocupados / força de trabalho) ---------- */
+  /* ---------- 3. Ocupação ---------- */
   const workforce = pop * 0.5;
   const filledJobs = Math.min(jobs, workforce);
   game.employment = workforce > 0 ? clamp(filledJobs / workforce, 0, 1) : 1;
 
-  /* ---------- 4. Demanda RCI (déficit normalizado) ----------
-     R: faltam casas para quem os empregos atraem
-     C: faltam lojas para atender os moradores
-     I: faltam fábricas para abastecer moradores e comércio */
+  /* ---------- 4. Demanda RCI (déficit normalizado) ---------- */
   const d = game.demand;
   const K = ECO.DEMAND_SCALE;
   const wantCom = pop * ECO.SHOP_RATIO;
@@ -1650,9 +2122,7 @@ function simulate(){
   d.C = clamp((wantCom - comJobs) / K, -1, 1);
   d.I = clamp((wantInd - indJobs) / K, -1, 1);
 
-  /* ---------- 5. Finanças ----------
-     Impostos residenciais caem quando há desemprego; empresas pagam pelos
-     empregos efetivamente ocupados. */
+  /* ---------- 5. Finanças ---------- */
   const jobFill = jobs > 0 ? clamp(filledJobs / jobs, 0, 1) : 0;
   const resTax = pop * ECO.TAX_PER_RESIDENT * (0.55 + 0.45 * game.employment);
   const comTax = comJobs * jobFill * ECO.TAX_PER_COM_JOB;
@@ -1677,12 +2147,11 @@ function simulate(){
     const dem = t.type === T.RES ? d.R : (t.type === T.COM ? d.C : d.I);
     const serviced = t.connected && t.powered;
 
-    /* Sem estrada ou sem energia → o lote definha. */
     if (!serviced){
       if (t.level > 0 && Math.random() < 0.10){ t.level--; dirty = true; }
       continue;
     }
-    if (broke) continue;   // prefeitura endividada não licencia obras
+    if (broke) continue;
 
     if (dem > 0.05 && t.level < CFG.MAX_LEVEL){
       const chance = 0.12 + dem * 0.38 + amenityBonus(t);
@@ -1986,6 +2455,7 @@ applySky(0);
 rebuild();
 updateHUD();
 document.getElementById('loader').style.display = 'none';
+toast('Sólidos CSG compilados em ' + CSGGEO.buildMs + ' ms', false, 'vector-difference');
 requestAnimationFrame(loop);
 </script>
 </body>
