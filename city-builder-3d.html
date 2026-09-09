@@ -1,0 +1,1992 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>City Builder 3D — v6 (jogabilidade simples · ícones MDI)</title>
+
+<!-- =========================================================
+     SEÇÃO 1 — ÍCONES (Material Design Icons) E ESTILO
+     ========================================================= -->
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" />
+
+<style>
+  :root{
+    --bg:#0d1117; --panel:rgba(18,24,33,.88); --border:#2b3648;
+    --txt:#e6edf3; --dim:#93a1b5; --accent:#4da3ff;
+    --road:#6b7480; --res:#2fbf5a; --com:#2f7ff2; --ind:#f07a1e;
+    --park:#8bd66a; --power:#f2c94c; --dem:#e05252;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);
+    font-family:"Segoe UI",system-ui,Roboto,Arial,sans-serif;color:var(--txt);
+    user-select:none;-webkit-user-select:none}
+  canvas{display:block}
+  .mdi{line-height:1}
+
+  /* ---- HUD superior ---- */
+  #hud{position:fixed;top:12px;left:12px;right:12px;display:flex;gap:10px;
+    flex-wrap:wrap;align-items:stretch;pointer-events:none;z-index:10}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    padding:8px 12px;backdrop-filter:blur(6px);pointer-events:auto;
+    box-shadow:0 6px 20px rgba(0,0,0,.35)}
+  #stats{display:flex;gap:18px;align-items:center}
+  .stat{display:flex;flex-direction:column;line-height:1.15}
+  .stat b{font-size:15px;font-variant-numeric:tabular-nums}
+  .stat span{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);
+    display:flex;align-items:center;gap:4px}
+  .stat span .mdi{font-size:12px}
+  .money-pos{color:#7ee08a} .money-neg{color:#ff7b7b}
+
+  /* ---- Demanda RCI ---- */
+  #rci{display:flex;gap:14px;align-items:flex-end}
+  .rci-col{display:flex;flex-direction:column;align-items:center;gap:4px;width:26px}
+  .rci-bar{width:16px;height:46px;background:#1b2430;border:1px solid var(--border);
+    border-radius:3px;position:relative;overflow:hidden}
+  .rci-fill{position:absolute;left:0;right:0;bottom:50%;height:0%;transition:height .3s,bottom .3s}
+  .rci-mid{position:absolute;left:0;right:0;top:50%;height:1px;background:#3c4a5e}
+  .rci-col small{font-size:13px;color:var(--dim)}
+
+  /* ---- Toolbar inferior ---- */
+  #toolbar{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);
+    display:flex;gap:6px;z-index:10}
+  .tool{background:var(--panel);border:1px solid var(--border);border-radius:9px;
+    color:var(--txt);padding:7px 12px 6px;min-width:78px;cursor:pointer;text-align:center;
+    font-size:11.5px;transition:.15s;pointer-events:auto;position:relative}
+  .tool:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .tool.active{border-color:var(--accent);background:#1c2c42;box-shadow:0 0 0 1px var(--accent) inset}
+  .tool .bar{position:absolute;left:8px;right:8px;top:3px;height:3px;border-radius:2px}
+  .tool .ico{display:block;font-size:21px;margin:4px 0 2px}
+  .tool .k{position:absolute;top:5px;right:7px;font-size:9px;color:var(--dim)}
+  .tool .price{display:block;font-size:10px;color:var(--dim);margin-top:2px}
+
+  /* ---- Painel lateral ---- */
+  #right{position:fixed;top:12px;right:12px;display:flex;flex-direction:column;
+    gap:8px;align-items:flex-end;z-index:10}
+  .row{display:flex;gap:6px}
+  .btn{background:var(--panel);border:1px solid var(--border);color:var(--txt);
+    border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;transition:.15s;
+    display:inline-flex;align-items:center;gap:5px}
+  .btn .mdi{font-size:15px}
+  .btn:hover{border-color:var(--accent)}
+  .btn.active{background:#1c2c42;border-color:var(--accent)}
+
+  /* ---- Legenda de zonas ---- */
+  #legend{background:var(--panel);border:1px solid var(--border);border-radius:10px;
+    padding:9px 11px;font-size:11.5px;line-height:1.5;min-width:206px;
+    box-shadow:0 6px 20px rgba(0,0,0,.35)}
+  #legend h5{margin:0 0 6px;font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--dim);font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px}
+  #legend h5 .mdi{font-size:13px}
+  #legend .item{display:flex;align-items:center;gap:8px;padding:2px 0}
+  #legend .sw{width:14px;height:14px;border-radius:3px;flex:none;
+    box-shadow:0 0 0 1px rgba(255,255,255,.28) inset,0 0 6px rgba(0,0,0,.5)}
+  #legend .nm{flex:1}
+  #legend .hint{color:var(--dim);font-size:10px;margin-top:6px;border-top:1px solid var(--border);
+    padding-top:6px}
+  #legend.min .body{display:none}
+
+  /* ---- Tooltip do tile ---- */
+  #tip{position:fixed;pointer-events:none;z-index:20;background:rgba(10,14,20,.94);
+    border:1px solid var(--border);border-radius:7px;padding:6px 9px;font-size:11.5px;
+    display:none;line-height:1.5;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+  #tip b{color:var(--accent)}
+  #tip .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;
+    vertical-align:middle;box-shadow:0 0 0 1px rgba(255,255,255,.3)}
+  #tip .pips{letter-spacing:2px}
+  #tip .arch{color:var(--dim)}
+  #tip .ok{color:#7ee08a} #tip .no{color:#ff7b7b}
+
+  /* ---- Mensagens ---- */
+  #toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);
+    background:rgba(10,14,20,.95);border:1px solid var(--border);border-radius:8px;
+    padding:7px 14px;font-size:12.5px;z-index:30;opacity:0;transition:opacity .25s;
+    display:flex;align-items:center;gap:7px}
+  #toast.show{opacity:1}
+  #toast.err{border-color:var(--dem);color:#ffb3b3}
+
+  /* ---- Ajuda ---- */
+  #help{position:fixed;bottom:14px;left:14px;font-size:11px;color:var(--dim);
+    background:var(--panel);border:1px solid var(--border);border-radius:9px;
+    padding:8px 11px;z-index:10;max-width:255px;line-height:1.7}
+  #help b{color:var(--txt)}
+  #help.min .body{display:none}
+  #help h4{margin:0;font-size:11px;cursor:pointer;color:var(--txt);
+    display:flex;align-items:center;gap:6px}
+  #help h4 .mdi{font-size:13px}
+
+  #loader{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:var(--bg);z-index:50;flex-direction:column;gap:10px;font-size:14px}
+  #loader small{color:var(--dim);max-width:420px;text-align:center;line-height:1.6}
+</style>
+</head>
+<body>
+
+<div id="loader">
+  <div>Carregando Three.js…</div>
+  <small>Se esta mensagem persistir, verifique a conexão com a internet (Three.js e os ícones MDI são carregados via CDN apenas no primeiro acesso).</small>
+</div>
+
+<!-- =========================================================
+     SEÇÃO 2 — MARCAÇÃO DA INTERFACE
+     ========================================================= -->
+<div id="hud">
+  <div class="card" id="stats">
+    <div class="stat"><b id="s-money">§0</b><span><i class="mdi mdi-cash"></i>Saldo</span></div>
+    <div class="stat"><b id="s-pop">0</b><span><i class="mdi mdi-account-group"></i>População</span></div>
+    <div class="stat"><b id="s-jobs">0</b><span><i class="mdi mdi-briefcase"></i>Empregos</span></div>
+    <div class="stat"><b id="s-emp">100%</b><span><i class="mdi mdi-chart-donut"></i>Ocupação</span></div>
+    <div class="stat"><b id="s-bal">§0</b><span><i class="mdi mdi-scale-balance"></i>Balanço/mês</span></div>
+    <div class="stat"><b id="s-time">Ano 1</b><span><i class="mdi mdi-calendar-clock"></i>Data</span></div>
+  </div>
+  <div class="card" id="rci">
+    <div class="rci-col"><div class="rci-bar"><div class="rci-mid"></div><div class="rci-fill" id="f-R" style="background:var(--res)"></div></div><small><i class="mdi mdi-home"></i></small></div>
+    <div class="rci-col"><div class="rci-bar"><div class="rci-mid"></div><div class="rci-fill" id="f-C" style="background:var(--com)"></div></div><small><i class="mdi mdi-store"></i></small></div>
+    <div class="rci-col"><div class="rci-bar"><div class="rci-mid"></div><div class="rci-fill" id="f-I" style="background:var(--ind)"></div></div><small><i class="mdi mdi-factory"></i></small></div>
+  </div>
+</div>
+
+<div id="right">
+  <div class="card row" id="speed">
+    <button class="btn" data-speed="0"><i class="mdi mdi-pause"></i>Pausa</button>
+    <button class="btn active" data-speed="1"><i class="mdi mdi-play"></i>Normal</button>
+    <button class="btn" data-speed="3"><i class="mdi mdi-fast-forward"></i>Rápido</button>
+  </div>
+  <div class="card row">
+    <button class="btn" id="b-save"><i class="mdi mdi-content-save"></i>Salvar</button>
+    <button class="btn" id="b-load"><i class="mdi mdi-folder-open"></i>Carregar</button>
+    <button class="btn" id="b-new"><i class="mdi mdi-city-variant-outline"></i>Nova</button>
+    <button class="btn" id="b-night"><i class="mdi mdi-white-balance-sunny"></i><span>Dia</span></button>
+  </div>
+
+  <div id="legend">
+    <h5 id="legend-title"><i class="mdi mdi-palette"></i>Legenda de zonas</h5>
+    <div class="body">
+      <div class="item"><span class="sw" id="lg-res"></span><span class="nm">Residencial</span><i class="mdi mdi-home"></i></div>
+      <div class="item"><span class="sw" id="lg-com"></span><span class="nm">Comercial</span><i class="mdi mdi-store"></i></div>
+      <div class="item"><span class="sw" id="lg-ind"></span><span class="nm">Industrial</span><i class="mdi mdi-factory"></i></div>
+      <div class="item"><span class="sw" id="lg-park"></span><span class="nm">Parque</span><i class="mdi mdi-tree"></i></div>
+      <div class="item"><span class="sw" id="lg-power"></span><span class="nm">Usina</span><i class="mdi mdi-transmission-tower"></i></div>
+      <div class="item"><span class="sw" id="lg-road"></span><span class="nm">Estrada</span><i class="mdi mdi-road-variant"></i></div>
+      <div class="hint">
+        <i class="mdi mdi-information-outline"></i>
+        Todo lote precisa de <b>estrada</b> e <b>energia</b>.<br>
+        Moldura vermelha = falta um dos dois.<br>
+        Nível ●●●● = quanto o lote já cresceu.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toolbar"></div>
+<div id="tip"></div>
+<div id="toast"></div>
+
+<div id="help" class="">
+  <h4 id="help-title"><i class="mdi mdi-help-circle-outline"></i>Controles (clique para recolher)</h4>
+  <div class="body">
+    <i class="mdi mdi-mouse-left-click-outline"></i> <b>Esquerdo:</b> construir (arraste)<br>
+    <i class="mdi mdi-rotate-3d-variant"></i> <b>Direito:</b> girar câmera<br>
+    <i class="mdi mdi-magnify"></i> <b>Scroll:</b> zoom · <b>WASD:</b> mover<br>
+    <i class="mdi mdi-numeric"></i> <b>1–7:</b> ferramentas<br>
+    <i class="mdi mdi-pause"></i> <b>Espaço:</b> pausar · <b>N:</b> dia/noite
+  </div>
+</div>
+
+<!-- =========================================================
+     SEÇÃO 3 — BIBLIOTECAS (CDN, builds clássicos p/ abrir via file://)
+     ========================================================= -->
+<script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+/* =========================================================================
+   CITY BUILDER 3D — arquivo único, sem build, sem servidor, sem texturas.
+
+   REVISÃO v6
+     1. JOGABILIDADE SIMPLIFICADA
+        · Regra única e clara: lote precisa de ESTRADA + ENERGIA para crescer.
+        · Sem "níveis de detalhe", sem opções escondidas: 7 ferramentas.
+        · Feedback imediato: moldura vermelha, tooltip explicativo e avisos.
+     2. SOMBRAS sempre ativas (botão removido).
+     3. VISTA DE ZONAS sempre ativa (botão e atalho Z removidos).
+     4. Ícones da interface via Material Design Icons (@mdi/font).
+     5. Prefeitura e Parque com modelos 3D melhores, porém simples.
+     6. Economia reescrita (Seção 10): oferta/procura de moradia e emprego,
+        taxa de ocupação, impostos proporcionais ao emprego, manutenção por
+        nível e demanda RCI derivada de déficits reais.
+
+   Organização:
+     4. Configuração e constantes
+     5. Estado do jogo (mapa em grid)
+     6. Cena Three.js (céu, câmera, luzes)
+     7. Materiais, geometrias e meshes instanciados
+     7b. Gerador de edifícios
+     7c. Construções especiais (prefeitura, parque, usina)
+     8. Raycasting / seleção de tiles
+     9. Ferramentas e construção
+    10. Simulação (economia)
+    11. Interface (HUD, toolbar, legenda, tooltip)
+    12. Entrada e loop de render
+    13. Persistência
+   ========================================================================= */
+
+if (typeof THREE === 'undefined') {
+  document.getElementById('loader').innerHTML =
+    '<div>Falha ao carregar o Three.js.</div><small>Conecte-se à internet uma vez para baixar a biblioteca do CDN e recarregue a página.</small>';
+  throw new Error('Three.js não carregado');
+}
+
+/* =========================================================
+   SEÇÃO 4 — CONFIGURAÇÃO E CONSTANTES
+   ========================================================= */
+const CFG = {
+  GRID: 48,
+  TILE: 1,
+  TICK_MS: 2000,      // 1 tick = 1 mês
+  START_MONEY: 8000,
+  MAX_LEVEL: 4,
+  POWER_RADIUS: 11,
+  PARK_RADIUS: 5,
+  GROUND_Y: 0.20
+};
+
+const T = { EMPTY:0, ROAD:1, RES:2, COM:3, IND:4, HALL:5, PARK:6, POWER:7, WATER:8 };
+
+/* PALETA OFICIAL DAS ZONAS */
+const ZONE_COL = {
+  [T.RES]  : 0x2fbf5a,
+  [T.COM]  : 0x2f7ff2,
+  [T.IND]  : 0xf07a1e,
+  [T.PARK] : 0x8bd66a,
+  [T.POWER]: 0xf2c94c,
+  [T.HALL] : 0xf0e6c8,
+  [T.ROAD] : 0x6b7480
+};
+
+/* ---------------------------------------------------------
+   ECONOMIA — parâmetros em um único lugar (fáceis de ajustar)
+   --------------------------------------------------------- */
+const ECO = {
+  /* Capacidade por nível de lote */
+  HOMES_PER_LEVEL : 10,   // moradores que cabem por nível residencial
+  JOBS_COM_LEVEL  : 5,    // empregos por nível comercial
+  JOBS_IND_LEVEL  : 7,    // empregos por nível industrial
+
+  /* Impostos por mês */
+  TAX_PER_RESIDENT: 0.85, // imposto por morador (escalado pelo emprego)
+  TAX_PER_COM_JOB : 0.70,
+  TAX_PER_IND_JOB : 0.55,
+
+  /* Manutenção mensal */
+  UP_ROAD         : 0.5,
+  UP_LOT_BASE     : 0.15, // por lote zoneado
+  UP_LOT_LEVEL    : 0.30, // + por nível construído
+  UP_HALL         : 6,
+  UP_PARK         : 3,
+  UP_POWER        : 16,
+
+  /* Dinâmica */
+  MIGRATION       : 0.22, // velocidade com que a população persegue o alvo
+  SEED_POP        : 20,   // moradores atraídos pela prefeitura
+  JOB_PULL        : 1.7,  // moradores atraídos por emprego disponível
+  SHOP_RATIO      : 0.30, // empregos comerciais desejados por morador
+  IND_RATIO       : 0.22, // empregos industriais desejados por morador
+  IND_SUPPLY      : 0.30, // + demanda industrial puxada pelo comércio
+  DEMAND_SCALE    : 50,   // divisor que normaliza os déficits em −1..1
+  DEBT_LIMIT      : -2000
+};
+
+const DEF = {
+  [T.ROAD ]:{ name:'Estrada',     color:ZONE_COL[T.ROAD],  cost:10,  icon:'road-variant' },
+  [T.RES  ]:{ name:'Residencial', color:ZONE_COL[T.RES],   cost:25,  icon:'home' },
+  [T.COM  ]:{ name:'Comercial',   color:ZONE_COL[T.COM],   cost:30,  icon:'store' },
+  [T.IND  ]:{ name:'Industrial',  color:ZONE_COL[T.IND],   cost:35,  icon:'factory' },
+  [T.HALL ]:{ name:'Prefeitura',  color:ZONE_COL[T.HALL],  cost:0,   icon:'bank' },
+  [T.PARK ]:{ name:'Parque',      color:ZONE_COL[T.PARK],  cost:120, icon:'tree' },
+  [T.POWER]:{ name:'Usina',       color:ZONE_COL[T.POWER], cost:600, icon:'transmission-tower' },
+  [T.WATER]:{ name:'Água',        color:0x54a7d6,          cost:0,   icon:'waves' },
+  [T.EMPTY]:{ name:'Terreno',     color:0x6c9c4f,          cost:0,   icon:'grass' }
+};
+const DEMOLISH_COST = 5;
+const ZONE_TYPES = [T.RES, T.COM, T.IND];
+
+/* Nome arquitetônico por zona/nível (tooltip) */
+const ARCH_NAME = {
+  [T.RES]: ['lote vazio','casa térrea','casa de dois pavimentos','sobrado com sacadas','edifício residencial'],
+  [T.COM]: ['lote vazio','loja de esquina','galeria comercial','edifício comercial','torre de escritórios'],
+  [T.IND]: ['lote vazio','oficina','galpão logístico','fábrica com silos','complexo industrial']
+};
+
+const COL = {
+  grassA:0x76a352, grassB:0x6a9749, grassDry:0x8ba85c,
+  water:0x3f88b8, sand:0xd8c9a0,
+  asphalt:0x3c4249, sidewalk:0x9aa2a8, stripe:0xe8dfa8,
+  hall:0xf1e7cd, gold:0xd8a83a
+};
+
+const FACADE = { [T.RES]:0xd9cbb4, [T.COM]:0x9fc3dd, [T.IND]:0xc0a68c };
+
+const ROOF_COLORS  = [0x9d4433, 0xa8583d, 0x8c4b40, 0x7d5548, 0xb06246, 0x6f4a44];
+const WALL_TINTS   = [0xf2e7d4, 0xe7d9c2, 0xdfe6e2, 0xf0dfd0, 0xe3ded4, 0xead9c8];
+const DET = {
+  concrete : 0xbdb7ac, slab : 0x8e9298, darkTrim : 0x4a5058,
+  door : 0x5b3f2e, glass : 0x2a3d4d, rail : 0xd6d9dc,
+  metal : 0xc3c8cc, tank : 0xdfe3e6, stripeR : 0xd94f3a,
+  garden : 0x4f8f43, path : 0xcabfa6, awning : 0xb9c0c6,
+  sign : 0xe8e4dc, band : 0xa9aeb3
+};
+
+/* Vista de zonas SEMPRE ativa: o chão recebe a cor da zona e as fachadas
+   recebem um tingimento moderado (para continuar parecendo arquitetura). */
+const ZONE_TINT   = 0.26;   // tingimento das fachadas
+const GROUND_TINT = 0.50;   // tingimento do chão do lote
+
+const ALERT_COL = 0xff4d4d; // moldura de aviso (sem estrada / sem energia)
+
+/* =========================================================
+   SEÇÃO 5 — ESTADO DO JOGO
+   ========================================================= */
+const N = CFG.GRID;
+let map = [];
+let game = null;
+let dirty = true;
+
+function idx(x, z){ return z * N + x; }
+function inBounds(x, z){ return x >= 0 && z >= 0 && x < N && z < N; }
+function tileAt(x, z){ return inBounds(x, z) ? map[idx(x, z)] : null; }
+
+function newTile(x, z){
+  return { x, z, type:T.EMPTY, level:0, connected:false, powered:false, seed:Math.random() };
+}
+
+function newGame(seedCity){
+  map = new Array(N * N);
+  for (let z = 0; z < N; z++)
+    for (let x = 0; x < N; x++)
+      map[idx(x, z)] = newTile(x, z);
+
+  game = {
+    money: CFG.START_MONEY,
+    population: 0, jobs: 0, employment: 1,
+    homes: 0, tick: 0, balance: 0,
+    demand: { R:0.7, C:0.1, I:0.35 },
+    speed: 1, warnedBroke: false
+  };
+  if (seedCity !== false) seedStart();
+  dirty = true;
+}
+
+function seedStart(){
+  const c = Math.floor(N / 2);
+  for (let i = -6; i <= 6; i++){
+    if (inBounds(c + i, c - 1)) map[idx(c + i, c - 1)].type = T.ROAD;
+    if (inBounds(c - 1, c + i)) map[idx(c - 1, c + i)].type = T.ROAD;
+  }
+  map[idx(c, c)].type = T.HALL;
+  map[idx(c, c)].level = 1;
+}
+
+/* =========================================================
+   SEÇÃO 6 — CENA THREE.JS
+   ========================================================= */
+const scene = new THREE.Scene();
+
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;              // sombras SEMPRE ligadas
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.5, 900);
+camera.position.set(N * 0.5 + 24, 28, N * 0.5 + 28);
+
+const SKY = {
+  day:   { top:0x2f6fb5, mid:0xa9cbe6, bot:0xe6e1cf, fog:0xbcd2e2, sun:0xfff2dd, sunI:1.35, hemiI:0.55, exp:1.05 },
+  night: { top:0x060b16, mid:0x142338, bot:0x25324a, fog:0x1a2434, sun:0x93b4e0, sunI:0.22, hemiI:0.22, exp:1.15 }
+};
+let night = false, skyBlend = 0;
+
+const skyUni = {
+  cTop: { value: new THREE.Color(SKY.day.top) },
+  cMid: { value: new THREE.Color(SKY.day.mid) },
+  cBot: { value: new THREE.Color(SKY.day.bot) }
+};
+const sky = new THREE.Mesh(
+  new THREE.SphereGeometry(420, 32, 20),
+  new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite:false, fog:false, uniforms: skyUni,
+    vertexShader:'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);} ',
+    fragmentShader:[
+      'uniform vec3 cTop, cMid, cBot; varying vec3 vP;',
+      'void main(){',
+      '  float h = normalize(vP).y;',
+      '  vec3 c = mix(cBot, cMid, smoothstep(-0.06, 0.22, h));',
+      '  c = mix(c, cTop, smoothstep(0.18, 0.75, h));',
+      '  gl_FragColor = vec4(c, 1.0);',
+      '}'
+    ].join('\n')
+  })
+);
+sky.frustumCulled = false;
+scene.add(sky);
+
+scene.fog = new THREE.Fog(SKY.day.fog, N * 1.1, N * 3.4);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(N / 2, 0, N / 2);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 6;
+controls.maxDistance = 130;
+controls.maxPolarAngle = Math.PI * 0.475;
+controls.mouseButtons = { LEFT:null, MIDDLE:THREE.MOUSE.PAN, RIGHT:THREE.MOUSE.ROTATE };
+controls.update();
+
+const sun = new THREE.DirectionalLight(SKY.day.sun, SKY.day.sunI);
+sun.position.set(N * 0.75, N * 1.05, N * 0.35);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.bias = -0.0006;
+sun.shadow.normalBias = 0.03;
+const S = N * 0.75;
+sun.shadow.camera.left = -S; sun.shadow.camera.right = S;
+sun.shadow.camera.top = S;   sun.shadow.camera.bottom = -S;
+sun.shadow.camera.near = 1;  sun.shadow.camera.far = N * 3;
+sun.target.position.set(N / 2, 0, N / 2);
+scene.add(sun, sun.target);
+
+const hemi = new THREE.HemisphereLight(0xbcd8ff, 0x53663c, SKY.day.hemiI);
+scene.add(hemi);
+
+function applySky(t){
+  const a = SKY.day, b = SKY.night;
+  const lerpC = (u, ca, cb) => u.value.setHex(ca).lerp(new THREE.Color(cb), t);
+  lerpC(skyUni.cTop, a.top, b.top);
+  lerpC(skyUni.cMid, a.mid, b.mid);
+  lerpC(skyUni.cBot, a.bot, b.bot);
+  scene.fog.color.setHex(a.fog).lerp(new THREE.Color(b.fog), t);
+  sun.color.setHex(a.sun).lerp(new THREE.Color(b.sun), t);
+  sun.intensity = a.sunI + (b.sunI - a.sunI) * t;
+  hemi.intensity = a.hemiI + (b.hemiI - a.hemiI) * t;
+  renderer.toneMappingExposure = a.exp + (b.exp - a.exp) * t;
+  winUniform.value = t;
+}
+
+/* =========================================================
+   SEÇÃO 7 — MATERIAIS, GEOMETRIAS E MESHES INSTANCIADOS
+   ========================================================= */
+const dummy = new THREE.Object3D();
+const tmpColor = new THREE.Color();
+const tmpColor2 = new THREE.Color();
+const WHITE = new THREE.Color(0xffffff);
+const BLACK = new THREE.Color(0x000000);
+const MAXI = N * N;
+const MAXB = N * N * 3;
+const MAXDET = N * N * 32;
+const MAXCYL = N * N * 8;
+
+const winUniform = { value: 0 };
+
+const G = {
+  pad    : new THREE.BoxGeometry(0.94, 0.05, 0.94),
+  asphalt: new THREE.BoxGeometry(1.0, 0.06, 1.0),
+  curb   : new THREE.BoxGeometry(1.0, 0.075, 0.16),
+  stripe : new THREE.BoxGeometry(0.34, 0.02, 0.06),
+  box    : new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0),
+  slab   : new THREE.BoxGeometry(1, 0.06, 1),
+  cone8  : new THREE.ConeGeometry(0.5, 1, 8).translate(0, 0.5, 0),
+  cone12 : new THREE.ConeGeometry(0.5, 1, 12).translate(0, 0.5, 0),
+  cyl    : new THREE.CylinderGeometry(0.3, 0.34, 1, 12).translate(0, 0.5, 0),
+  cylU   : new THREE.CylinderGeometry(0.5, 0.5, 1, 14).translate(0, 0.5, 0),
+  stack  : new THREE.CylinderGeometry(0.15, 0.2, 1, 14).translate(0, 0.5, 0),
+  sphere : new THREE.SphereGeometry(0.5, 12, 10),
+  dome   : new THREE.SphereGeometry(0.5, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.5),
+  torus  : new THREE.TorusGeometry(0.5, 0.06, 8, 20).rotateX(Math.PI / 2)
+};
+
+/* Telhado de duas águas */
+G.gable = (function(){
+  const tri = new THREE.Shape();
+  tri.moveTo(-0.5, 0); tri.lineTo(0.5, 0); tri.lineTo(0, 1); tri.lineTo(-0.5, 0);
+  const g = new THREE.ExtrudeGeometry(tri, { depth:1, bevelEnabled:false });
+  g.translate(0, 0, -0.5);
+  g.computeVertexNormals();
+  return g;
+})();
+
+/* Telhado de quatro águas */
+G.hip = new THREE.ConeGeometry(0.7071, 1, 4).rotateY(Math.PI / 4).translate(0, 0.5, 0);
+
+/* Moldura quadrada vazada */
+G.frame = (function(){
+  const outerS = 0.98, innerS = 0.86;
+  const s = new THREE.Shape();
+  const o = outerS / 2;
+  s.moveTo(-o, -o); s.lineTo(o, -o); s.lineTo(o, o); s.lineTo(-o, o); s.lineTo(-o, -o);
+  const h = new THREE.Path();
+  const i = innerS / 2;
+  h.moveTo(-i, -i); h.lineTo(-i, i); h.lineTo(i, i); h.lineTo(i, -i); h.lineTo(-i, -i);
+  s.holes.push(h);
+  const g = new THREE.ShapeGeometry(s);
+  g.rotateX(-Math.PI / 2);
+  return g;
+})();
+
+/* Disco plano (canteiro/lago do parque) */
+G.disc = new THREE.CircleGeometry(0.5, 20).rotateX(-Math.PI / 2);
+
+G.corner = new THREE.BoxGeometry(0.30, 0.03, 0.08);
+
+function mat(color, rough, metal){
+  return new THREE.MeshStandardMaterial({
+    color: color,
+    roughness: rough === undefined ? 0.85 : rough,
+    metalness: metal === undefined ? 0.0 : metal
+  });
+}
+
+function flatMaterial(opacity){
+  return new THREE.MeshBasicMaterial({
+    color: 0xffffff, toneMapped:false,
+    transparent: opacity < 1, opacity: opacity, depthWrite: opacity >= 1,
+    polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2
+  });
+}
+
+/* ---------- Material de fachada com janelas procedurais ---------- */
+function facadeMaterial(baseColor, opts){
+  opts = opts || {};
+  const m = mat(baseColor, opts.roughness || 0.72, opts.metalness || 0.04);
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uNight = winUniform;
+    sh.uniforms.uWinW  = { value: opts.winW || 0.30 };
+    sh.uniforms.uWinH  = { value: opts.winH || 0.34 };
+    sh.uniforms.uGlass = { value: opts.glass === undefined ? 0.42 : opts.glass };
+
+    sh.vertexShader =
+      'varying vec3 vLocPos;\nvarying vec3 vLocNrm;\nvarying vec3 vInstScl;\n' +
+      sh.vertexShader.replace('#include <begin_vertex>', [
+        '#include <begin_vertex>',
+        'vLocPos = position;',
+        'vLocNrm = normal;',
+        '#ifdef USE_INSTANCING',
+        '  vInstScl = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));',
+        '#else',
+        '  vInstScl = vec3(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz), length(modelMatrix[2].xyz));',
+        '#endif'
+      ].join('\n'));
+
+    sh.fragmentShader =
+      'varying vec3 vLocPos;\nvarying vec3 vLocNrm;\nvarying vec3 vInstScl;\n' +
+      'uniform float uNight; uniform float uWinW; uniform float uWinH; uniform float uGlass;\n' +
+      'float h21(vec2 p){ return fract(sin(dot(p, vec2(27.61, 57.23))) * 43758.5453); }\n' +
+      sh.fragmentShader
+        .replace('#include <color_fragment>', [
+          '#include <color_fragment>',
+          'float winLit = 0.0;',
+          'vec3 wp = vLocPos * vInstScl;',
+          'if (abs(vLocNrm.y) < 0.5) {',
+          '  float u = (abs(vLocNrm.x) > 0.5) ? wp.z : wp.x;',
+          '  float v = wp.y;',
+          '  vec2 sz = vec2(uWinW, uWinH);',
+          '  vec2 cell = floor(vec2(u, v) / sz);',
+          '  vec2 f = fract(vec2(u, v) / sz);',
+          '  float win = step(0.20, f.x) * step(f.x, 0.80) * step(0.26, f.y) * step(f.y, 0.82);',
+          '  win *= step(0.22, v);',
+          '  win *= step(0.06, vInstScl.y);',
+          '  float r = h21(cell + vec2(vInstScl.x * 13.1, vInstScl.z * 7.7));',
+          '  vec3 glass = mix(vec3(0.16, 0.20, 0.26), vec3(0.10, 0.13, 0.18), r);',
+          '  diffuseColor.rgb = mix(diffuseColor.rgb, glass, win * uGlass);',
+          '  float floorLine = smoothstep(0.94, 1.0, f.y) + smoothstep(0.06, 0.0, f.y);',
+          '  diffuseColor.rgb *= mix(1.0, 1.05, floorLine * step(0.22, v));',
+          '  diffuseColor.rgb *= mix(0.78, 1.0, smoothstep(0.0, 0.24, v));',
+          '  winLit = win * step(0.55, r) * uNight;',
+          '  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.88, 0.62), winLit * 0.55);',
+          '} else {',
+          '  diffuseColor.rgb *= (vLocNrm.y > 0.5) ? 1.06 : 0.92;',
+          '}'
+        ].join('\n'))
+        .replace('#include <emissivemap_fragment>', [
+          '#include <emissivemap_fragment>',
+          'totalEmissiveRadiance += vec3(1.0, 0.84, 0.55) * winLit * 0.75;'
+        ].join('\n'));
+  };
+  m.customProgramCacheKey = () => 'facade' + (opts.winW || 0.3) + '_' + (opts.winH || 0.34);
+  return m;
+}
+
+/* InstancedMesh já nasce com instanceColor alocado → shader compilado com
+   suporte a cor por instância desde o primeiro frame (sem "pisca"). */
+function makeInstanced(geo, material, count, shadow){
+  const m = new THREE.InstancedMesh(geo, material, count);
+  m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+
+  const colors = new Float32Array(count * 3);
+  colors.fill(1);
+  m.instanceColor = new THREE.InstancedBufferAttribute(colors, 3);
+  m.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  m.instanceColor.needsUpdate = true;
+
+  m.castShadow = !!shadow;
+  m.receiveShadow = true;
+  m.count = 0;
+  m.frustumCulled = false;
+  scene.add(m);
+  return m;
+}
+
+/* ---------- Terreno ---------- */
+const groundGeo = (function(){
+  const g = new THREE.BufferGeometry();
+  const pos = new Float32Array(N * N * 4 * 3);
+  const nor = new Float32Array(N * N * 4 * 3);
+  const col = new Float32Array(N * N * 4 * 3);
+  const ind = new Uint32Array(N * N * 6);
+  let p = 0, ii = 0, v = 0;
+  for (let z = 0; z < N; z++){
+    for (let x = 0; x < N; x++){
+      const y = CFG.GROUND_Y;
+      const corners = [[x, z], [x + 1, z], [x + 1, z + 1], [x, z + 1]];
+      for (const c of corners){
+        pos[p] = c[0]; pos[p + 1] = y; pos[p + 2] = c[1];
+        nor[p] = 0; nor[p + 1] = 1; nor[p + 2] = 0;
+        p += 3;
+      }
+      ind[ii++] = v; ind[ii++] = v + 2; ind[ii++] = v + 1;
+      ind[ii++] = v; ind[ii++] = v + 3; ind[ii++] = v + 2;
+      v += 4;
+    }
+  }
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setIndex(new THREE.BufferAttribute(ind, 1));
+  return g;
+})();
+
+const groundMesh = new THREE.Mesh(
+  groundGeo,
+  new THREE.MeshStandardMaterial({ vertexColors:true, roughness:1.0, metalness:0.0 })
+);
+groundMesh.receiveShadow = true;
+groundMesh.frustumCulled = false;
+scene.add(groundMesh);
+
+const cA = new THREE.Color(COL.grassA), cB = new THREE.Color(COL.grassB),
+      cD = new THREE.Color(COL.grassDry), cW = new THREE.Color(COL.water);
+function paintGround(){
+  const col = groundGeo.attributes.color.array;
+  let p = 0;
+  for (let z = 0; z < N; z++){
+    for (let x = 0; x < N; x++){
+      const t = map[idx(x, z)];
+      let c;
+      if (t.type === T.WATER) c = cW;
+      else {
+        const n = (Math.sin(x * 0.37) + Math.cos(z * 0.29) + Math.sin((x + z) * 0.13)) / 3;
+        c = cA.clone().lerp(cB, 0.5 + n * 0.5).lerp(cD, Math.max(0, t.seed - 0.7) * 0.8);
+        if (t.type !== T.EMPTY) c.multiplyScalar(0.9);
+        /* vista de zonas sempre ativa */
+        if (ZONE_COL[t.type] !== undefined && t.type !== T.ROAD){
+          c.lerp(new THREE.Color(ZONE_COL[t.type]), GROUND_TINT);
+        }
+      }
+      for (let k = 0; k < 4; k++){
+        col[p] = c.r; col[p + 1] = c.g; col[p + 2] = c.b; p += 3;
+      }
+    }
+  }
+  groundGeo.attributes.color.needsUpdate = true;
+}
+
+const outer = new THREE.Mesh(
+  new THREE.PlaneGeometry(1200, 1200),
+  new THREE.MeshStandardMaterial({ color:0x5d7f47, roughness:1 })
+);
+outer.rotation.x = -Math.PI / 2;
+outer.position.set(N / 2, CFG.GROUND_Y - 0.06, N / 2);
+scene.add(outer);
+
+/* --- Vias --- */
+const asphaltMesh = makeInstanced(G.asphalt, mat(COL.asphalt, 0.92), MAXI, false);
+const curbMesh    = makeInstanced(G.curb, mat(COL.sidewalk, 0.95), MAXI * 4, false);
+const stripeMesh  = makeInstanced(G.stripe, mat(COL.stripe, 0.7), MAXI * 2, false);
+
+/* --- Lotes zoneados --- */
+const padMesh    = makeInstanced(G.pad, mat(0xffffff, 0.95), MAXI, false);
+const frameMesh  = makeInstanced(G.frame, flatMaterial(1.0), MAXI, false);
+const cornerMesh = makeInstanced(G.corner, flatMaterial(1.0), MAXI * 8, false);
+frameMesh.renderOrder = 2;
+cornerMesh.renderOrder = 3;
+
+/* --- Corpos dos edifícios --- */
+const buildMesh = {
+  [T.RES]: makeInstanced(G.box, facadeMaterial(FACADE[T.RES], { winW:0.20, winH:0.24, glass:0.42 }), MAXB, true),
+  [T.COM]: makeInstanced(G.box, facadeMaterial(FACADE[T.COM], { winW:0.16, winH:0.20, glass:0.62, roughness:0.40, metalness:0.18 }), MAXB, true),
+  [T.IND]: makeInstanced(G.box, facadeMaterial(FACADE[T.IND], { winW:0.30, winH:0.30, glass:0.28 }), MAXB, true)
+};
+
+/* --- Telhados --- */
+const gableMesh = makeInstanced(G.gable, mat(0x9d4433, 0.88), MAXI * 2, true);
+const hipMesh   = makeInstanced(G.hip,   mat(0x9d4433, 0.88), MAXI, true);
+const capMesh   = makeInstanced(G.slab,  mat(DET.slab, 0.9), MAXB, true);
+
+/* --- Detalhes construtivos --- */
+const detailMesh = makeInstanced(G.box, mat(0xffffff, 0.8), MAXDET, true);
+const cylMesh    = makeInstanced(G.cylU, mat(0xffffff, 0.7, 0.15), MAXCYL, true);
+
+/* --- Vegetação em tiles vazios --- */
+const trunkMesh = makeInstanced(G.cyl, mat(0x6b4a2f, 1), MAXI, true);
+const crownMesh = makeInstanced(G.cone8, mat(0x37773a, 0.95), MAXI, true);
+
+/* --- Highlight do cursor --- */
+const hlMesh = makeInstanced(
+  new THREE.BoxGeometry(0.98, 0.1, 0.98),
+  new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.4, depthWrite:false, toneMapped:false }),
+  512, false
+);
+hlMesh.receiveShadow = false;
+hlMesh.renderOrder = 5;
+
+const gridHelper = new THREE.GridHelper(N, N, 0x000000, 0x000000);
+gridHelper.position.set(N / 2, CFG.GROUND_Y + 0.006, N / 2);
+gridHelper.material.opacity = 0.05;
+gridHelper.material.transparent = true;
+gridHelper.material.depthWrite = false;
+scene.add(gridHelper);
+
+/* =========================================================
+   SEÇÃO 7c — CONSTRUÇÕES ESPECIAIS (prefeitura, parque, usina)
+   ========================================================= */
+const matHall    = facadeMaterial(COL.hall, { winW:0.16, winH:0.22, glass:0.40 });
+const matGold    = mat(COL.gold, 0.32, 0.75);
+const matStone   = mat(0xd7cfbc, 0.9);
+const matStoneD  = mat(0xbcb4a2, 0.92);
+const matRoofH   = mat(0x6d7a86, 0.75, 0.15);
+const matDoor    = mat(0x5b4029, 0.8);
+const matFlag    = new THREE.MeshStandardMaterial({ color:0x2f7ff2, roughness:0.8, side:THREE.DoubleSide });
+
+const matLawn    = mat(0x74b455, 1);
+const matLawnD   = mat(0x62a049, 1);
+const matPath    = mat(0xd2c2a0, 1);
+const matTree    = mat(0x37773a, 0.95);
+const matTree2   = mat(0x4b8f3e, 0.95);
+const matTrunk   = mat(0x6b4a2f, 1);
+const matBench   = mat(0x9b6b43, 0.9);
+const matLamp    = mat(0x9aa0a6, 0.6, 0.4);
+const matGlow    = new THREE.MeshStandardMaterial({ color:0xffe9b0, roughness:0.4,
+                     emissive:0xffd98a, emissiveIntensity:0.6 });
+const matWater   = new THREE.MeshStandardMaterial({ color:0x8fc6de, roughness:0.25,
+                     metalness:0.1, transparent:true, opacity:0.8 });
+
+const matPlant   = mat(0xb9bcc0, 0.75, 0.25);
+const matPlantY  = mat(0xe0b23c, 0.7, 0.1);
+const matStack   = mat(0xe2e2e2, 0.8);
+const matYard    = mat(0x8a8d90, 1);
+
+const matEdgePark  = new THREE.MeshBasicMaterial({ color:ZONE_COL[T.PARK],  toneMapped:false });
+const matEdgePower = new THREE.MeshBasicMaterial({ color:ZONE_COL[T.POWER], toneMapped:false });
+const matEdgeHall  = new THREE.MeshBasicMaterial({ color:ZONE_COL[T.HALL],  toneMapped:false });
+
+function addMesh(parent, geo, material, px, py, pz, sx, sy, sz, ry){
+  const m = new THREE.Mesh(geo, material);
+  m.position.set(px, py, pz);
+  m.scale.set(sx, sy, sz);
+  if (ry) m.rotation.y = ry;
+  m.castShadow = true;
+  m.receiveShadow = true;
+  parent.add(m);
+  return m;
+}
+
+/* ---------- PREFEITURA (simples, porém legível) ----------
+   Praça elevada + escadaria frontal + corpo principal + pórtico com 6 colunas
+   e frontão + torre do relógio com cúpula dourada, lanternim e mastro. */
+function buildHall(g){
+  /* praça e base */
+  addMesh(g, G.slab, matStoneD, 0, 0.02, 0, 0.98, 1.0, 0.98);
+  addMesh(g, G.box,  matStone,  0, 0.03, 0, 0.90, 0.06, 0.90);
+
+  /* escadaria frontal (3 degraus) */
+  for (let i = 0; i < 3; i++){
+    addMesh(g, G.box, matStoneD, 0, 0.03 + i * 0.022, 0.40 - i * 0.035,
+            0.44 - i * 0.04, 0.022, 0.10 + i * 0.035);
+  }
+
+  /* corpo principal em U raso: bloco central + duas alas */
+  addMesh(g, G.box, matHall, 0, 0.09, -0.06, 0.62, 0.34, 0.46);
+  addMesh(g, G.box, matHall, -0.34, 0.09, -0.02, 0.22, 0.26, 0.38);
+  addMesh(g, G.box, matHall,  0.34, 0.09, -0.02, 0.22, 0.26, 0.38);
+
+  /* cornija das alas e do corpo */
+  addMesh(g, G.box, matStone, 0, 0.43, -0.06, 0.66, 0.03, 0.50);
+  addMesh(g, G.box, matStone, -0.34, 0.35, -0.02, 0.25, 0.025, 0.41);
+  addMesh(g, G.box, matStone,  0.34, 0.35, -0.02, 0.25, 0.025, 0.41);
+
+  /* telhado das alas (duas águas) */
+  addMesh(g, G.gable, matRoofH, -0.34, 0.375, -0.02, 0.41, 0.09, 0.25, Math.PI / 2);
+  addMesh(g, G.gable, matRoofH,  0.34, 0.375, -0.02, 0.41, 0.09, 0.25, Math.PI / 2);
+
+  /* pórtico: plataforma, 6 colunas, arquitrave e frontão */
+  addMesh(g, G.box, matStone, 0, 0.088, 0.24, 0.56, 0.02, 0.20);
+  for (let i = 0; i < 6; i++){
+    const px = -0.225 + i * 0.09;
+    addMesh(g, G.cylU, matStone, px, 0.105, 0.28, 0.035, 0.26, 0.035);
+    addMesh(g, G.box,  matStone, px, 0.098, 0.28, 0.055, 0.012, 0.055); // base
+    addMesh(g, G.box,  matStone, px, 0.362, 0.28, 0.055, 0.012, 0.055); // capitel
+  }
+  addMesh(g, G.box,   matStone,  0, 0.374, 0.28, 0.56, 0.03, 0.09);
+  addMesh(g, G.gable, matStone,  0, 0.404, 0.28, 0.56, 0.10, 0.09);
+  /* relógio/brasão no frontão */
+  addMesh(g, G.cylU, matGold, 0, 0.435, 0.325, 0.055, 0.012, 0.055, 0)
+    .rotation.set(Math.PI / 2, 0, 0);
+
+  /* porta principal */
+  addMesh(g, G.box, matDoor, 0, 0.10, 0.17, 0.11, 0.17, 0.012);
+
+  /* torre do relógio + cúpula */
+  addMesh(g, G.box,  matHall,  0, 0.46, -0.06, 0.26, 0.30, 0.26);
+  addMesh(g, G.box,  matStone, 0, 0.76, -0.06, 0.30, 0.025, 0.30);
+  /* mostradores do relógio (4 faces) */
+  const cf = [[0, 0.135], [0, -0.135], [0.135, 0], [-0.135, 0]];
+  for (const c of cf){
+    const m = addMesh(g, G.disc, matGold, c[0], 0.66, -0.06 + c[1], 0.10, 1, 0.10);
+    m.rotation.x = Math.PI / 2;
+    m.rotation.z = Math.atan2(c[0], c[1]);
+    m.position.y = 0.66;
+  }
+  addMesh(g, G.box,  matHall,  0, 0.785, -0.06, 0.20, 0.10, 0.20);
+  addMesh(g, G.dome, matGold,  0, 0.885, -0.06, 0.26, 0.20, 0.26);
+  addMesh(g, G.cylU, matGold,  0, 1.085, -0.06, 0.05, 0.05, 0.05);
+  addMesh(g, G.cylU, matStone, 0, 1.135, -0.06, 0.012, 0.16, 0.012);
+  const flag = addMesh(g, G.slab, matFlag, 0.055, 1.255, -0.06, 0.10, 1.2, 0.012);
+  flag.rotation.z = Math.PI / 2;
+  flag.rotation.y = Math.PI / 2;
+
+  /* jardineiras laterais */
+  addMesh(g, G.box, matLawnD, -0.36, 0.06, 0.34, 0.20, 0.035, 0.14);
+  addMesh(g, G.box, matLawnD,  0.36, 0.06, 0.34, 0.20, 0.035, 0.14);
+  for (const sx of [-1, 1]){
+    addMesh(g, G.cylU, matTrunk, sx * 0.36, 0.09, 0.34, 0.030, 0.09, 0.030);
+    addMesh(g, G.sphere, matTree2, sx * 0.36, 0.215, 0.34, 0.17, 0.17, 0.17);
+  }
+}
+
+/* ---------- PARQUE (simples, porém agradável) ----------
+   Gramado com borda, dois caminhos cruzados, praça central com coreto,
+   lago com bordas, bancos, postes e árvores de tamanhos variados. */
+function buildPark(g, tile){
+  const s = tile.seed;
+  const R = (k) => ((Math.sin(s * 91.7 + k * 47.3) * 43758.5453) % 1 + 1) % 1;
+
+  /* gramado com borda mais escura */
+  addMesh(g, G.slab, matLawnD, 0, 0.018, 0, 0.98, 1.1, 0.98);
+  addMesh(g, G.slab, matLawn,  0, 0.030, 0, 0.90, 1.1, 0.90);
+
+  /* caminhos cruzados */
+  addMesh(g, G.slab, matPath, 0, 0.040, 0, 0.98, 1.0, 0.14);
+  addMesh(g, G.slab, matPath, 0, 0.040, 0, 0.14, 1.0, 0.98);
+  /* praça circular no centro */
+  addMesh(g, G.disc, matPath, 0, 0.046, 0, 0.34, 1, 0.34);
+
+  if (R(1) > 0.45){
+    /* --- coreto no centro --- */
+    addMesh(g, G.cylU, matStone, 0, 0.048, 0, 0.30, 0.03, 0.30);
+    for (let i = 0; i < 6; i++){
+      const a = i * Math.PI / 3;
+      addMesh(g, G.cylU, matLamp, Math.cos(a) * 0.115, 0.078, Math.sin(a) * 0.115,
+              0.018, 0.13, 0.018);
+    }
+    addMesh(g, G.cone12, matRoofH, 0, 0.208, 0, 0.34, 0.10, 0.34);
+    addMesh(g, G.cylU, matGold, 0, 0.308, 0, 0.02, 0.05, 0.02);
+  } else {
+    /* --- chafariz no centro --- */
+    addMesh(g, G.cylU, matStone, 0, 0.048, 0, 0.30, 0.025, 0.30);
+    addMesh(g, G.disc, matWater, 0, 0.076, 0, 0.26, 1, 0.26);
+    addMesh(g, G.cylU, matStone, 0, 0.070, 0, 0.06, 0.06, 0.06);
+    addMesh(g, G.sphere, matWater, 0, 0.140, 0, 0.09, 0.09, 0.09);
+  }
+
+  /* lago em um dos quadrantes */
+  if (R(2) > 0.4){
+    const qx = R(3) > 0.5 ? 0.26 : -0.26;
+    const qz = R(4) > 0.5 ? 0.26 : -0.26;
+    addMesh(g, G.disc, matStoneD, qx, 0.042, qz, 0.34, 1, 0.28);
+    addMesh(g, G.disc, matWater,  qx, 0.050, qz, 0.28, 1, 0.22);
+  }
+
+  /* bancos ao longo do caminho */
+  for (let i = 0; i < 4; i++){
+    const along = (i % 2 === 0);
+    const sgn = i < 2 ? 1 : -1;
+    const bx = along ? sgn * 0.27 : 0.11 * (i === 1 ? 1 : -1);
+    const bz = along ? 0.11 * (i === 0 ? 1 : -1) : sgn * 0.27;
+    const b = addMesh(g, G.box, matBench, bx, 0.048, bz, along ? 0.16 : 0.05, 0.02, along ? 0.05 : 0.16);
+    addMesh(g, G.box, matBench, bx, 0.068, bz + (along ? 0.022 : 0),
+            along ? 0.16 : 0.012, 0.04, along ? 0.012 : 0.16);
+    b.receiveShadow = true;
+  }
+
+  /* postes de luz (acendem à noite pelo material emissivo) */
+  for (const p of [[-0.20, -0.20], [0.20, 0.20]]){
+    addMesh(g, G.cylU, matLamp, p[0], 0.046, p[1], 0.016, 0.20, 0.016);
+    addMesh(g, G.sphere, matGlow, p[0], 0.256, p[1], 0.05, 0.05, 0.05);
+  }
+
+  /* árvores nos cantos, tamanhos variados */
+  for (let i = 0; i < 5; i++){
+    const a = R(10 + i) * 6.283;
+    const rr = 0.30 + R(20 + i) * 0.10;
+    const px = Math.cos(a) * rr, pz = Math.sin(a) * rr;
+    if (Math.abs(px) < 0.10 && Math.abs(pz) < 0.10) continue;
+    const sc = 0.8 + R(30 + i) * 0.6;
+    addMesh(g, G.cylU, matTrunk, px, 0.04, pz, 0.035 * sc, 0.13 * sc, 0.035 * sc);
+    if (R(40 + i) > 0.5){
+      addMesh(g, G.sphere, matTree, px, 0.20 * sc + 0.04, pz, 0.24 * sc, 0.26 * sc, 0.24 * sc);
+      addMesh(g, G.sphere, matTree2, px + 0.04 * sc, 0.26 * sc + 0.04, pz - 0.03 * sc,
+              0.16 * sc, 0.16 * sc, 0.16 * sc);
+    } else {
+      addMesh(g, G.cone12, matTree, px, 0.13 * sc + 0.04, pz, 0.26 * sc, 0.34 * sc, 0.26 * sc);
+    }
+  }
+
+  /* arbustos de canteiro */
+  for (let i = 0; i < 3; i++){
+    const px = (R(50 + i) - 0.5) * 0.6, pz = (R(60 + i) - 0.5) * 0.6;
+    if (Math.abs(px) < 0.12 && Math.abs(pz) < 0.12) continue;
+    addMesh(g, G.sphere, matTree2, px, 0.06, pz, 0.10, 0.08, 0.10);
+  }
+}
+
+function buildPower(g){
+  addMesh(g, G.slab, matYard, 0, 0.02, 0, 0.98, 1, 0.98);
+  addMesh(g, G.box, matPlant, 0, 0.04, 0.12, 0.82, 0.50, 0.62);
+  addMesh(g, G.box, matPlantY, 0, 0.50, 0.12, 0.84, 0.08, 0.64);
+  for (let i = 0; i < 2; i++){
+    const px = i ? 0.24 : -0.24;
+    addMesh(g, G.stack, matStack, px, 0.04, -0.28, 1, 0.95, 1);
+    addMesh(g, G.cylU, matPlantY, px, 0.99, -0.28, 0.25, 0.06, 0.25);
+  }
+  addMesh(g, G.box, matLamp, 0.34, 0.04, -0.10, 0.14, 0.20, 0.14);
+}
+
+function buildSpecial(tile){
+  const g = new THREE.Group();
+  g.position.set(tile.x + 0.5, CFG.GROUND_Y, tile.z + 0.5);
+
+  const edgeMat = tile.type === T.PARK ? matEdgePark
+                : tile.type === T.POWER ? matEdgePower : matEdgeHall;
+  const edge = new THREE.Mesh(G.frame, edgeMat);
+  edge.position.y = 0.062;
+  edge.renderOrder = 2;
+  g.add(edge);
+
+  if (tile.type === T.HALL) buildHall(g);
+  else if (tile.type === T.PARK) buildPark(g, tile);
+  else if (tile.type === T.POWER) buildPower(g);
+
+  g.traverse(o => { if (o.isMesh && o !== edge) o.receiveShadow = true; });
+  return g;
+}
+
+const specialGroup = new THREE.Group();
+scene.add(specialGroup);
+
+/* =========================================================================
+   SEÇÃO 7b — GERADOR DE EDIFÍCIOS
+   ========================================================================= */
+function rnd(seed, k){ return ((Math.sin(seed * 127.1 + k * 311.7) * 43758.5453) % 1 + 1) % 1; }
+function pick(arr, seed, k){ return arr[Math.floor(rnd(seed, k) * arr.length) % arr.length]; }
+
+const CNT = { det:0, cyl:0, gab:0, hip:0, cap:0, body:{} };
+
+function makeEmitter(cx, cz, baseY, rot){
+  const cosr = Math.cos(rot), sinr = Math.sin(rot);
+  return {
+    box(ox, oy, oz, sx, sy, sz, colorHex, extraRot){
+      if (CNT.det >= MAXDET) return;
+      const wx = cx + ox * cosr + oz * sinr;
+      const wz = cz - ox * sinr + oz * cosr;
+      dummy.position.set(wx, baseY + oy, wz);
+      dummy.rotation.set(0, rot + (extraRot || 0), 0);
+      dummy.scale.set(sx, sy, sz);
+      dummy.updateMatrix();
+      detailMesh.setMatrixAt(CNT.det, dummy.matrix);
+      detailMesh.setColorAt(CNT.det, tmpColor2.setHex(colorHex));
+      CNT.det++;
+    },
+    cyl(ox, oy, oz, dia, hgt, colorHex){
+      if (CNT.cyl >= MAXCYL) return;
+      const wx = cx + ox * cosr + oz * sinr;
+      const wz = cz - ox * sinr + oz * cosr;
+      dummy.position.set(wx, baseY + oy, wz);
+      dummy.rotation.set(0, rot, 0);
+      dummy.scale.set(dia, hgt, dia);
+      dummy.updateMatrix();
+      cylMesh.setMatrixAt(CNT.cyl, dummy.matrix);
+      cylMesh.setColorAt(CNT.cyl, tmpColor2.setHex(colorHex));
+      CNT.cyl++;
+    },
+    body(type, ox, oy, oz, sx, sy, sz, color){
+      const m = buildMesh[type];
+      const i = CNT.body[type];
+      if (i >= MAXB) return;
+      const wx = cx + ox * cosr + oz * sinr;
+      const wz = cz - ox * sinr + oz * cosr;
+      dummy.position.set(wx, baseY + oy, wz);
+      dummy.rotation.set(0, rot, 0);
+      dummy.scale.set(sx, sy, sz);
+      dummy.updateMatrix();
+      m.setMatrixAt(i, dummy.matrix);
+      m.setColorAt(i, color);
+      CNT.body[type]++;
+    },
+    gable(ox, oy, oz, sx, sy, sz, colorHex, ridgeAlongX){
+      if (CNT.gab >= MAXI * 2) return;
+      const wx = cx + ox * cosr + oz * sinr;
+      const wz = cz - ox * sinr + oz * cosr;
+      dummy.position.set(wx, baseY + oy, wz);
+      dummy.rotation.set(0, rot + (ridgeAlongX ? Math.PI / 2 : 0), 0);
+      dummy.scale.set(sx, sy, sz);
+      dummy.updateMatrix();
+      gableMesh.setMatrixAt(CNT.gab, dummy.matrix);
+      gableMesh.setColorAt(CNT.gab, tmpColor2.setHex(colorHex));
+      CNT.gab++;
+    },
+    hip(ox, oy, oz, sx, sy, sz, colorHex){
+      if (CNT.hip >= MAXI) return;
+      const wx = cx + ox * cosr + oz * sinr;
+      const wz = cz - ox * sinr + oz * cosr;
+      dummy.position.set(wx, baseY + oy, wz);
+      dummy.rotation.set(0, rot, 0);
+      dummy.scale.set(sx, sy, sz);
+      dummy.updateMatrix();
+      hipMesh.setMatrixAt(CNT.hip, dummy.matrix);
+      hipMesh.setColorAt(CNT.hip, tmpColor2.setHex(colorHex));
+      CNT.hip++;
+    },
+    cap(ox, oy, oz, sx, sz, colorHex){
+      if (CNT.cap >= MAXB) return;
+      const wx = cx + ox * cosr + oz * sinr;
+      const wz = cz - ox * sinr + oz * cosr;
+      dummy.position.set(wx, baseY + oy, wz);
+      dummy.rotation.set(0, rot, 0);
+      dummy.scale.set(sx, 1, sz);
+      dummy.updateMatrix();
+      capMesh.setMatrixAt(CNT.cap, dummy.matrix);
+      capMesh.setColorAt(CNT.cap, tmpColor2.setHex(colorHex));
+      CNT.cap++;
+    }
+  };
+}
+
+const _fcZone = new THREE.Color();
+function facadeColor(type, seed, zoneHex, tint, lighten){
+  const base = (type === T.RES) ? pick(WALL_TINTS, seed, 3) : FACADE[type];
+  return new THREE.Color().setHex(base)
+    .offsetHSL((rnd(seed, 5) - 0.5) * 0.04, 0, (rnd(seed, 7) - 0.5) * 0.08 + (lighten || 0))
+    .lerp(_fcZone.setHex(zoneHex), tint);
+}
+
+/* ---------------- RESIDENCIAL ---------------- */
+function emitResidential(E, t, zoneHex, tint){
+  const s = t.seed;
+  const roof = pick(ROOF_COLORS, s, 1);
+  const wall = facadeColor(T.RES, s, zoneHex, tint);
+
+  if (t.level <= 2){
+    const twoFloors = t.level === 2;
+    const w = 0.40 + rnd(s, 11) * 0.10;
+    const d = 0.34 + rnd(s, 13) * 0.10;
+    const h = twoFloors ? 0.52 + rnd(s, 17) * 0.08 : 0.28 + rnd(s, 17) * 0.06;
+    const ox = -0.10 + rnd(s, 19) * 0.06;
+
+    E.body(T.RES, ox, 0.03, -0.02, w, h, d, wall);
+
+    const rh = 0.16 + rnd(s, 23) * 0.08;
+    if (twoFloors && rnd(s, 29) > 0.45){
+      E.hip(ox, 0.03 + h, -0.02, Math.max(w, d) * 1.20, rh, Math.max(w, d) * 1.20, roof);
+    } else {
+      const ridgeX = rnd(s, 31) > 0.5;
+      E.gable(ox, 0.03 + h, -0.02, (ridgeX ? d : w) * 1.18, rh, (ridgeX ? w : d) * 1.18, roof, ridgeX);
+    }
+
+    E.box(ox, 0.03, -0.02 + d / 2 + 0.004, 0.09, 0.15, 0.012, DET.door);
+    E.box(ox, 0.02, -0.02 + d / 2 + 0.05, 0.16, 0.03, 0.09, DET.concrete);
+    E.box(ox + w / 2 + 0.11, 0.03, 0.02, 0.20, 0.16, 0.24, 0xd7d2c8);
+    E.gable(ox + w / 2 + 0.11, 0.19, 0.02, 0.22, 0.07, 0.26, roof, true);
+    E.box(ox, 0.005, d / 2 + 0.17, 0.10, 0.02, 0.22, DET.path);
+    E.box(ox + w * 0.28, 0.03 + h, -0.02 - d * 0.18, 0.06, rh + 0.10, 0.06, 0x8a5a48);
+    E.box(-0.30, 0.0, 0.42, 0.30, 0.07, 0.05, DET.garden);
+    E.box( 0.18, 0.0, 0.42, 0.26, 0.07, 0.05, DET.garden);
+    E.cyl(ox - w / 2 - 0.10, 0.0, -0.26, 0.05, 0.12, 0x6b4a2f);
+    E.box(ox - w / 2 - 0.10, 0.11, -0.26, 0.16, 0.16, 0.16, 0x3f8a42);
+    E.box(ox, 0.03 + h - 0.015, -0.02, w * 1.10, 0.02, d * 1.10, 0xe9e4da);
+    return { topY: 0.03 + h + 0.24, w: w * 1.2, d: d * 1.2 };
+  }
+
+  const w = 0.52 + rnd(s, 11) * 0.14;
+  const d = 0.46 + rnd(s, 13) * 0.14;
+  const floors = t.level === 3 ? 4 + Math.floor(rnd(s, 15) * 2) : 7 + Math.floor(rnd(s, 15) * 4);
+  const fh = 0.17;
+  const h = floors * fh;
+
+  E.body(T.RES, 0, 0.03, 0, w, h, d, wall);
+  E.box(0, 0.02, 0, w * 1.06, 0.10, d * 1.06, DET.concrete);
+
+  const maxBal = Math.min(floors, 12);
+  for (let f = 1; f < maxBal; f++){
+    const y = 0.03 + f * fh;
+    E.box(0, y, d / 2 + 0.035, w * 0.78, 0.035, 0.07, DET.concrete);
+    E.box(0, y + 0.035, d / 2 + 0.065, w * 0.78, 0.055, 0.012, DET.rail);
+    if (t.level === 4 && f % 2 === 0){
+      E.box(w / 2 + 0.035, y, 0, 0.07, 0.035, d * 0.6, DET.concrete);
+      E.box(w / 2 + 0.065, y + 0.035, 0, 0.012, 0.055, d * 0.6, DET.rail);
+    }
+  }
+
+  let topY = 0.03 + h, topW = w, topD = d;
+
+  if (t.level === 4){
+    const w2 = w * 0.68, d2 = d * 0.68, h2 = fh * 2;
+    E.body(T.RES, 0, topY, 0, w2, h2, d2, facadeColor(T.RES, s, zoneHex, tint, 0.06));
+    E.box(0, topY, d2 / 2 + 0.03, w2 * 0.8, 0.03, 0.06, DET.concrete);
+    E.box(0, topY + 0.03, d2 / 2 + 0.06, w2 * 0.8, 0.05, 0.012, DET.rail);
+    topY += h2; topW = w2; topD = d2;
+  }
+
+  E.cap(0, topY, 0, topW * 1.07, topD * 1.07, DET.slab);
+  E.box(0, topY, 0, topW * 1.07, 0.05, topD * 1.07, DET.slab);
+  E.cyl(topW * 0.22, topY + 0.04, -topD * 0.20, 0.14, 0.13, DET.tank);
+  E.box(-topW * 0.20, topY + 0.04, topD * 0.16, 0.14, 0.09, 0.14, DET.concrete);
+  if (t.level === 4){
+    E.cyl(0, topY + 0.04, 0, 0.02, 0.22, DET.metal);
+    E.box(topW * 0.05, topY + 0.24, 0, 0.05, 0.02, 0.05, DET.stripeR);
+  }
+  return { topY: topY + 0.06, w: topW, d: topD };
+}
+
+/* ---------------- COMERCIAL ---------------- */
+function emitCommercial(E, t, zoneHex, tint){
+  const s = t.seed;
+  const wall = facadeColor(T.COM, s, zoneHex, tint);
+
+  if (t.level <= 2){
+    const w = 0.70 + rnd(s, 11) * 0.10;
+    const d = 0.58 + rnd(s, 13) * 0.10;
+    const h = t.level === 1 ? 0.26 + rnd(s, 17) * 0.05 : 0.50 + rnd(s, 17) * 0.08;
+    E.body(T.COM, 0, 0.03, 0, w, h, d, wall);
+    E.box(0, 0.05, d / 2 + 0.004, w * 0.88, 0.14, 0.012, DET.glass);
+    E.box(0, 0.21, d / 2 + 0.05, w * 0.90, 0.02, 0.11, DET.awning);
+    E.box(0, 0.03 + h, 0, w * 0.62, 0.06, 0.05, DET.sign);
+    E.box(0, 0.03 + h - 0.02, 0, w * 1.05, 0.03, d * 1.05, 0xeceff1);
+    E.box(-w * 0.34, 0.02, d / 2 + 0.12, 0.05, 0.14, 0.05, DET.metal);
+    E.cap(0, 0.03 + h + 0.06, 0, w * 1.02, d * 1.02, DET.slab);
+    return { topY: 0.03 + h + 0.12, w, d };
+  }
+
+  const pw = 0.80, pd = 0.70, ph = 0.22;
+  E.body(T.COM, 0, 0.03, 0, pw, ph, pd, facadeColor(T.COM, s, zoneHex, tint, -0.04));
+  E.box(0, 0.05, pd / 2 + 0.004, pw * 0.9, 0.13, 0.012, DET.glass);
+  E.box(0, 0.03 + ph, 0, pw * 1.06, 0.04, pd * 1.06, DET.concrete);
+  E.box(0, 0.20, pd / 2 + 0.05, pw * 0.92, 0.02, 0.10, DET.awning);
+
+  const w = 0.50 + rnd(s, 11) * 0.10;
+  const d = 0.44 + rnd(s, 13) * 0.10;
+  const fh = 0.16;
+  const floors = t.level === 3 ? 6 + Math.floor(rnd(s, 15) * 3) : 11 + Math.floor(rnd(s, 15) * 6);
+  const h = floors * fh;
+  const towerY = 0.03 + ph + 0.04;
+  E.body(T.COM, 0, towerY, 0, w, h, d, wall);
+
+  E.box(-w * 0.25, towerY, d / 2 + 0.006, 0.03, h, 0.012, 0xdfe6ea);
+  E.box( w * 0.25, towerY, d / 2 + 0.006, 0.03, h, 0.012, 0xdfe6ea);
+  E.box(0, towerY, d / 2 + 0.008, 0.02, h, 0.012, 0xcdd6dc);
+
+  let topY = towerY + h, topW = w, topD = d;
+
+  if (t.level === 4){
+    const w2 = w * 0.66, d2 = d * 0.66, h2 = fh * 3;
+    E.body(T.COM, 0, topY, 0, w2, h2, d2, facadeColor(T.COM, s, zoneHex, tint, 0.08));
+    topY += h2; topW = w2; topD = d2;
+  }
+
+  E.cap(0, topY, 0, topW * 1.08, topD * 1.08, DET.slab);
+  E.box(0, topY, 0, topW * 1.08, 0.05, topD * 1.08, DET.slab);
+  E.box(topW * 0.18, topY + 0.04, topD * 0.14, 0.14, 0.08, 0.14, DET.concrete);
+  E.cyl(0, topY + 0.04, 0, 0.022, t.level === 4 ? 0.34 : 0.20, DET.metal);
+  E.box(0, topY + (t.level === 4 ? 0.30 : 0.18), 0, 0.05, 0.03, 0.05, DET.stripeR);
+  return { topY: topY + 0.08, w: topW, d: topD };
+}
+
+/* ---------------- INDUSTRIAL ---------------- */
+function emitIndustrial(E, t, zoneHex, tint){
+  const s = t.seed;
+  const wall = facadeColor(T.IND, s, zoneHex, tint);
+
+  const w = 0.76 + rnd(s, 11) * 0.08;
+  const d = 0.62 + rnd(s, 13) * 0.10;
+  const h = 0.20 + t.level * 0.13;
+
+  E.box(0, 0.0, 0, 0.94, 0.03, 0.94, 0x8d9095);
+  E.body(T.IND, 0, 0.03, -0.04, w, h, d, wall);
+  E.gable(0, 0.03 + h, -0.04, d * 1.06, 0.10 + rnd(s, 17) * 0.05, w * 1.06, 0x77808a, true);
+  E.box(0, 0.03, -0.04 + d / 2 + 0.005, w * 0.34, h * 0.62, 0.012, 0x5f6a72);
+  E.box(0, 0.03 + h - 0.05, -0.04, w * 1.02, 0.035, d * 1.02, DET.band);
+  E.box(0, 0.03, d / 2 + 0.10, w * 0.5, 0.06, 0.14, DET.concrete);
+
+  if (t.level >= 2){
+    E.cyl(-w / 2 - 0.09, 0.03, 0.22, 0.16, 0.30 + t.level * 0.05, DET.tank);
+    E.box(-w / 2 - 0.09, 0.03 + 0.30 + t.level * 0.05, 0.22, 0.17, 0.03, 0.17, DET.metal);
+  }
+  if (t.level >= 3){
+    const ch = 0.42 + t.level * 0.10;
+    E.cyl(w / 2 - 0.06, 0.03 + h, -0.22, 0.10, ch, 0xe6e6e6);
+    E.cyl(w / 2 - 0.06, 0.03 + h + ch * 0.55, -0.22, 0.105, ch * 0.16, DET.stripeR);
+    E.cyl(w / 2 - 0.12, 0.03, 0.28, 0.20, 0.14, 0xb9c2c7);
+  }
+  if (t.level === 4){
+    E.body(T.IND, -0.02, 0.03 + h, -0.10, w * 0.5, 0.22, d * 0.5, facadeColor(T.IND, s, zoneHex, tint, 0.05));
+    E.box(-0.02, 0.03 + h + 0.22, -0.10, w * 0.54, 0.03, d * 0.54, DET.slab);
+    E.box(0.10, 0.03 + h * 0.6, 0.10, 0.04, 0.04, 0.5, DET.metal);
+  }
+  return { topY: 0.03 + h + 0.16, w, d };
+}
+
+function emitBuilding(t, cx, cz, baseY, zoneHex, tint){
+  const rot = Math.floor(rnd(t.seed, 2) * 4) * (Math.PI / 2);
+  const E = makeEmitter(cx, cz, baseY, rot);
+  if (t.type === T.RES) return emitResidential(E, t, zoneHex, tint);
+  if (t.type === T.COM) return emitCommercial(E, t, zoneHex, tint);
+  return emitIndustrial(E, t, zoneHex, tint);
+}
+
+/* ---------- Reconstrução das instâncias a partir do mapa ---------- */
+function isRoad(x, z){ const t = tileAt(x, z); return !!t && t.type === T.ROAD; }
+
+function rebuild(){
+  let ia = 0, icb = 0, ist = 0, ip = 0, ifr = 0, icn = 0, itr = 0;
+  CNT.det = 0; CNT.cyl = 0; CNT.gab = 0; CNT.hip = 0; CNT.cap = 0;
+  CNT.body = { [T.RES]:0, [T.COM]:0, [T.IND]:0 };
+
+  while (specialGroup.children.length){
+    specialGroup.remove(specialGroup.children[specialGroup.children.length - 1]);
+  }
+
+  const Y = CFG.GROUND_Y;
+  const tint = ZONE_TINT;
+
+  for (let z = 0; z < N; z++){
+    for (let x = 0; x < N; x++){
+      const t = map[idx(x, z)];
+      const cx = x + 0.5, cz = z + 0.5;
+
+      /* --- ESTRADAS --- */
+      if (t.type === T.ROAD){
+        const e = isRoad(x + 1, z), w = isRoad(x - 1, z);
+        const n = isRoad(x, z - 1), s = isRoad(x, z + 1);
+
+        dummy.position.set(cx, Y + 0.03, cz);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        asphaltMesh.setMatrixAt(ia, dummy.matrix);
+        asphaltMesh.setColorAt(ia, tmpColor.setHex(COL.asphalt));
+        ia++;
+
+        const edges = [
+          { on:!n, rotY:0,           ox:0,     oz:-0.42 },
+          { on:!s, rotY:0,           ox:0,     oz: 0.42 },
+          { on:!w, rotY:Math.PI / 2, ox:-0.42, oz:0     },
+          { on:!e, rotY:Math.PI / 2, ox: 0.42, oz:0     }
+        ];
+        for (const ed of edges){
+          if (!ed.on) continue;
+          dummy.position.set(cx + ed.ox, Y + 0.035, cz + ed.oz);
+          dummy.rotation.set(0, ed.rotY, 0);
+          dummy.scale.set(1, 1, 1);
+          dummy.updateMatrix();
+          curbMesh.setMatrixAt(icb, dummy.matrix);
+          curbMesh.setColorAt(icb, tmpColor.setHex(COL.sidewalk));
+          icb++;
+        }
+
+        const horiz = (e || w) && !(n || s);
+        const vert  = (n || s) && !(e || w);
+        if (horiz || vert){
+          for (let k = 0; k < 2; k++){
+            const off = (k === 0 ? -0.24 : 0.24);
+            dummy.position.set(cx + (horiz ? off : 0), Y + 0.068, cz + (vert ? off : 0));
+            dummy.rotation.set(0, vert ? Math.PI / 2 : 0, 0);
+            dummy.scale.set(1, 1, 1);
+            dummy.updateMatrix();
+            stripeMesh.setMatrixAt(ist, dummy.matrix);
+            stripeMesh.setColorAt(ist, tmpColor.setHex(COL.stripe));
+            ist++;
+          }
+        }
+        continue;
+      }
+
+      /* --- ZONAS --- */
+      if (ZONE_TYPES.indexOf(t.type) !== -1){
+        const zoneHex = ZONE_COL[t.type];
+        const built = t.level > 0;
+        const alert = !t.connected || !t.powered;
+
+        dummy.position.set(cx, Y + 0.02, cz);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        padMesh.setMatrixAt(ip, dummy.matrix);
+        tmpColor.setHex(zoneHex);
+        tmpColor.lerp(built ? BLACK : WHITE, built ? 0.14 : 0.14);
+        padMesh.setColorAt(ip, tmpColor);
+        ip++;
+
+        dummy.position.set(cx, Y + 0.062, cz);
+        dummy.updateMatrix();
+        frameMesh.setMatrixAt(ifr, dummy.matrix);
+        if (alert) tmpColor.setHex(ALERT_COL);
+        else { tmpColor.setHex(zoneHex); if (!built) tmpColor.lerp(WHITE, 0.18); }
+        frameMesh.setColorAt(ifr, tmpColor);
+        ifr++;
+
+        const pips = Math.max(1, t.level);
+        for (let c = 0; c < 4; c++){
+          const sx = (c === 0 || c === 3) ? -1 : 1;
+          const sz = (c < 2) ? -1 : 1;
+          for (let arm = 0; arm < 2; arm++){
+            dummy.rotation.set(0, arm ? Math.PI / 2 : 0, 0);
+            dummy.position.set(
+              cx + sx * (arm ? 0.455 : 0.33),
+              Y + 0.075,
+              cz + sz * (arm ? 0.33 : 0.455)
+            );
+            dummy.scale.set(1, 1, 1);
+            dummy.updateMatrix();
+            cornerMesh.setMatrixAt(icn, dummy.matrix);
+            tmpColor.setHex(zoneHex).lerp(WHITE, c < pips ? 0.45 : 0.0)
+                    .lerp(BLACK, c < pips ? 0.0 : 0.45);
+            cornerMesh.setColorAt(icn, tmpColor);
+            icn++;
+          }
+        }
+
+        if (built) emitBuilding(t, cx, cz, Y, zoneHex, tint);
+        continue;
+      }
+
+      /* --- vegetação em terreno livre --- */
+      if (t.type === T.EMPTY && t.seed > 0.90){
+        const ox = (t.seed * 17 % 1 - 0.5) * 0.4, oz = (t.seed * 29 % 1 - 0.5) * 0.4;
+        const sc = 0.5 + (t.seed * 11 % 1) * 0.5;
+        dummy.rotation.set(0, t.seed * 6.28, 0);
+        dummy.position.set(cx + ox, Y, cz + oz);
+        dummy.scale.set(0.13 * sc, 0.4 * sc, 0.13 * sc);
+        dummy.updateMatrix();
+        trunkMesh.setMatrixAt(itr, dummy.matrix);
+        trunkMesh.setColorAt(itr, tmpColor.setHex(0xffffff));
+        dummy.position.set(cx + ox, Y + 0.32 * sc, cz + oz);
+        dummy.scale.set(0.42 * sc, 0.85 * sc, 0.42 * sc);
+        dummy.updateMatrix();
+        crownMesh.setMatrixAt(itr, dummy.matrix);
+        crownMesh.setColorAt(itr, tmpColor.setHex(0xffffff));
+        itr++;
+        continue;
+      }
+
+      /* --- construções especiais --- */
+      if (t.type === T.HALL || t.type === T.PARK || t.type === T.POWER){
+        specialGroup.add(buildSpecial(t));
+      }
+    }
+  }
+
+  function fin(m, c){
+    m.count = c;
+    m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+  }
+  fin(asphaltMesh, ia); fin(curbMesh, icb); fin(stripeMesh, ist);
+  fin(padMesh, ip); fin(frameMesh, ifr); fin(cornerMesh, icn);
+  fin(trunkMesh, itr); fin(crownMesh, itr);
+  fin(detailMesh, CNT.det); fin(cylMesh, CNT.cyl);
+  fin(gableMesh, CNT.gab); fin(hipMesh, CNT.hip); fin(capMesh, CNT.cap);
+  for (const k of ZONE_TYPES) fin(buildMesh[k], CNT.body[k]);
+
+  paintGround();
+  dirty = false;
+}
+
+/* =========================================================
+   SEÇÃO 8 — RAYCASTING
+   ========================================================= */
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -CFG.GROUND_Y);
+const hitPoint = new THREE.Vector3();
+let hover = null;
+
+function updateHover(ev){
+  pointer.x = (ev.clientX / innerWidth) * 2 - 1;
+  pointer.y = -(ev.clientY / innerHeight) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  if (!raycaster.ray.intersectPlane(groundPlane, hitPoint)) { hover = null; return; }
+  const x = Math.floor(hitPoint.x), z = Math.floor(hitPoint.z);
+  hover = inBounds(x, z) ? { x, z } : null;
+}
+
+/* =========================================================
+   SEÇÃO 9 — FERRAMENTAS E CONSTRUÇÃO
+   ========================================================= */
+const TOOLS = [
+  { key:'1', type:T.RES,   mode:'area',   icon:'home-group' },
+  { key:'2', type:T.COM,   mode:'area',   icon:'store' },
+  { key:'3', type:T.IND,   mode:'area',   icon:'factory' },
+  { key:'4', type:T.ROAD,  mode:'line',   icon:'road-variant' },
+  { key:'5', type:T.PARK,  mode:'single', icon:'tree' },
+  { key:'6', type:T.POWER, mode:'single', icon:'transmission-tower' },
+  { key:'7', type:'DEMO',  mode:'area',   icon:'bulldozer' }
+];
+let tool = TOOLS[0];
+let drag = null;
+
+function affectedTiles(a, b){
+  if (!a) return [];
+  if (!b) b = a;
+  const out = [];
+  if (tool.mode === 'single') return [{ x:b.x, z:b.z }];
+
+  if (tool.mode === 'line'){
+    const dx = Math.abs(b.x - a.x), dz = Math.abs(b.z - a.z);
+    if (dx >= dz){
+      const s = Math.sign(b.x - a.x) || 1;
+      for (let x = a.x; ; x += s){ out.push({ x, z:a.z }); if (x === b.x) break; }
+    } else {
+      const s = Math.sign(b.z - a.z) || 1;
+      for (let z = a.z; ; z += s){ out.push({ x:a.x, z }); if (z === b.z) break; }
+    }
+    return out;
+  }
+  const x0 = Math.min(a.x, b.x), x1 = Math.max(a.x, b.x);
+  const z0 = Math.min(a.z, b.z), z1 = Math.max(a.z, b.z);
+  for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) out.push({ x, z });
+  return out;
+}
+
+function canPlace(t, type){
+  if (!t) return false;
+  if (t.type === T.HALL) return false;               // prefeitura é permanente
+  if (type === 'DEMO') return t.type !== T.EMPTY;
+  if (t.type === type && (type === T.ROAD || t.level === 0)) return false;
+  return true;
+}
+
+function costOf(tiles, type){
+  let c = 0;
+  for (const p of tiles){
+    const t = tileAt(p.x, p.z);
+    if (!canPlace(t, type)) continue;
+    c += (type === 'DEMO') ? DEMOLISH_COST : DEF[type].cost;
+  }
+  return c;
+}
+
+function applyTool(tiles){
+  const type = tool.type;
+  const total = costOf(tiles, type);
+  if (total === 0) return;
+  if (total > game.money){
+    toast('Saldo insuficiente: são necessários §' + Math.round(total), true, 'cash-remove');
+    return;
+  }
+  let n = 0;
+  for (const p of tiles){
+    const t = tileAt(p.x, p.z);
+    if (!canPlace(t, type)) continue;
+    if (type === 'DEMO'){ t.type = T.EMPTY; t.level = 0; }
+    else { t.type = type; t.level = 0; t.seed = Math.random(); }
+    n++;
+  }
+  game.money -= total;
+  dirty = true;
+  recomputeNetwork();
+  updateHUD();
+  const ico = type === 'DEMO' ? 'bulldozer' : DEF[type].icon;
+  toast((type === 'DEMO' ? 'Demolido' : DEF[type].name) + ' ×' + n + '  (−§' + Math.round(total) + ')', false, ico);
+}
+
+/* =========================================================
+   SEÇÃO 10 — SIMULAÇÃO / ECONOMIA
+   -----------------------------------------------------------
+   Modelo (1 tick = 1 mês):
+     · Capacidade  : cada nível de lote gera moradias ou empregos.
+     · Migração    : a população persegue min(moradias, atração por emprego).
+     · Ocupação    : empregos ÷ força de trabalho (50% da população).
+     · Impostos    : moradores (escalados pela ocupação) + empregos ocupados.
+     · Manutenção  : estradas, lotes (base + nível) e serviços.
+     · Demanda RCI : déficit entre o que a cidade quer e o que ela tem.
+     · Crescimento : lote sobe de nível se tem estrada, energia, demanda
+                     positiva e caixa positivo; decai se falta serviço ou
+                     se a demanda é fortemente negativa.
+   ========================================================= */
+function recomputeNetwork(){
+  /* 1) rede viária conectada à prefeitura (BFS) */
+  const roadOK = new Uint8Array(N * N);
+  const queue = [];
+  for (let z = 0; z < N; z++) for (let x = 0; x < N; x++){
+    if (map[idx(x, z)].type !== T.HALL) continue;
+    for (const d of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const n = tileAt(x + d[0], z + d[1]);
+      if (n && n.type === T.ROAD && !roadOK[idx(n.x, n.z)]){
+        roadOK[idx(n.x, n.z)] = 1; queue.push(n);
+      }
+    }
+  }
+  while (queue.length){
+    const t = queue.pop();
+    for (const d of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const n = tileAt(t.x + d[0], t.z + d[1]);
+      if (n && n.type === T.ROAD && !roadOK[idx(n.x, n.z)]){
+        roadOK[idx(n.x, n.z)] = 1; queue.push(n);
+      }
+    }
+  }
+
+  /* 2) cobertura elétrica (raio quadrado ao redor de cada usina) */
+  const plants = [];
+  for (let i = 0; i < map.length; i++) if (map[i].type === T.POWER) plants.push(map[i]);
+
+  for (let i = 0; i < map.length; i++){
+    const t = map[i];
+    t.connected = false;
+    if (ZONE_TYPES.indexOf(t.type) !== -1){
+      for (const d of [[1,0],[-1,0],[0,1],[0,-1]]){
+        const n = tileAt(t.x + d[0], t.z + d[1]);
+        if (n && n.type === T.ROAD && roadOK[idx(n.x, n.z)]) { t.connected = true; break; }
+      }
+    }
+    t.powered = false;
+    for (const p of plants){
+      if (Math.max(Math.abs(p.x - t.x), Math.abs(p.z - t.z)) <= CFG.POWER_RADIUS){ t.powered = true; break; }
+    }
+  }
+  dirty = true;
+}
+
+/* Bônus de qualidade de vida: parques próximos aceleram o crescimento. */
+function amenityBonus(t){
+  let b = 0;
+  const R = CFG.PARK_RADIUS;
+  for (let dz = -R; dz <= R; dz++){
+    for (let dx = -R; dx <= R; dx++){
+      const n = tileAt(t.x + dx, t.z + dz);
+      if (n && n.type === T.PARK){ b += 0.10; if (b >= 0.30) return 0.30; }
+    }
+  }
+  return b;
+}
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+function simulate(){
+  game.tick++;
+
+  /* ---------- 1. Censo: capacidade instalada e manutenção ---------- */
+  let homes = 0, comJobs = 0, indJobs = 0, upkeep = 0;
+
+  for (let i = 0; i < map.length; i++){
+    const t = map[i];
+    switch (t.type){
+      case T.ROAD:  upkeep += ECO.UP_ROAD;  break;
+      case T.HALL:  upkeep += ECO.UP_HALL;  break;
+      case T.PARK:  upkeep += ECO.UP_PARK;  break;
+      case T.POWER: upkeep += ECO.UP_POWER; break;
+      case T.RES: case T.COM: case T.IND: {
+        upkeep += ECO.UP_LOT_BASE + t.level * ECO.UP_LOT_LEVEL;
+        if (t.level > 0){
+          if (t.type === T.RES) homes   += t.level * ECO.HOMES_PER_LEVEL;
+          if (t.type === T.COM) comJobs += t.level * ECO.JOBS_COM_LEVEL;
+          if (t.type === T.IND) indJobs += t.level * ECO.JOBS_IND_LEVEL;
+        }
+        break;
+      }
+    }
+  }
+
+  const jobs = comJobs + indJobs;
+  game.homes = homes;
+  game.jobs = jobs;
+
+  /* ---------- 2. Migração ----------
+     A cidade atrai gente pelos empregos, mas só cabe quem tem moradia. */
+  const attraction = jobs * ECO.JOB_PULL + ECO.SEED_POP;
+  const target = Math.min(homes, attraction);
+  game.population += (target - game.population) * ECO.MIGRATION;
+  if (game.population < 0.5) game.population = 0;
+  const pop = game.population;
+
+  /* ---------- 3. Ocupação (empregos ocupados / força de trabalho) ---------- */
+  const workforce = pop * 0.5;
+  const filledJobs = Math.min(jobs, workforce);
+  game.employment = workforce > 0 ? clamp(filledJobs / workforce, 0, 1) : 1;
+
+  /* ---------- 4. Demanda RCI (déficit normalizado) ----------
+     R: faltam casas para quem os empregos atraem
+     C: faltam lojas para atender os moradores
+     I: faltam fábricas para abastecer moradores e comércio */
+  const d = game.demand;
+  const K = ECO.DEMAND_SCALE;
+  const wantCom = pop * ECO.SHOP_RATIO;
+  const wantInd = pop * ECO.IND_RATIO + comJobs * ECO.IND_SUPPLY;
+  d.R = clamp((attraction - homes) / K, -1, 1);
+  d.C = clamp((wantCom - comJobs) / K, -1, 1);
+  d.I = clamp((wantInd - indJobs) / K, -1, 1);
+
+  /* ---------- 5. Finanças ----------
+     Impostos residenciais caem quando há desemprego; empresas pagam pelos
+     empregos efetivamente ocupados. */
+  const jobFill = jobs > 0 ? clamp(filledJobs / jobs, 0, 1) : 0;
+  const resTax = pop * ECO.TAX_PER_RESIDENT * (0.55 + 0.45 * game.employment);
+  const comTax = comJobs * jobFill * ECO.TAX_PER_COM_JOB;
+  const indTax = indJobs * jobFill * ECO.TAX_PER_IND_JOB;
+
+  const revenue = resTax + comTax + indTax;
+  game.balance = revenue - upkeep;
+  game.money += game.balance;
+
+  const broke = game.money < 0;
+  if (game.money < ECO.DEBT_LIMIT) game.money = ECO.DEBT_LIMIT;
+  if (broke && !game.warnedBroke){
+    toast('Caixa negativo: a cidade parou de crescer', true, 'alert');
+    game.warnedBroke = true;
+  } else if (!broke) game.warnedBroke = false;
+
+  /* ---------- 6. Crescimento e decadência dos lotes ---------- */
+  for (let i = 0; i < map.length; i++){
+    const t = map[i];
+    if (ZONE_TYPES.indexOf(t.type) === -1) continue;
+
+    const dem = t.type === T.RES ? d.R : (t.type === T.COM ? d.C : d.I);
+    const serviced = t.connected && t.powered;
+
+    /* Sem estrada ou sem energia → o lote definha. */
+    if (!serviced){
+      if (t.level > 0 && Math.random() < 0.10){ t.level--; dirty = true; }
+      continue;
+    }
+    if (broke) continue;   // prefeitura endividada não licencia obras
+
+    if (dem > 0.05 && t.level < CFG.MAX_LEVEL){
+      const chance = 0.12 + dem * 0.38 + amenityBonus(t);
+      if (Math.random() < chance){ t.level++; dirty = true; }
+    } else if (dem < -0.30 && t.level > 0){
+      if (Math.random() < 0.07){ t.level--; dirty = true; }
+    }
+  }
+
+  updateHUD();
+}
+
+/* =========================================================
+   SEÇÃO 11 — INTERFACE
+   ========================================================= */
+const $ = s => document.querySelector(s);
+const hex = n => '#' + n.toString(16).padStart(6, '0');
+
+const toolbar = $('#toolbar');
+TOOLS.forEach((tl, i) => {
+  const b = document.createElement('div');
+  b.className = 'tool' + (i === 0 ? ' active' : '');
+  const isDemo = tl.type === 'DEMO';
+  const label = isDemo ? 'Demolir' : DEF[tl.type].name;
+  const color = isDemo ? '#e05252' : hex(DEF[tl.type].color);
+  const price = isDemo ? '§' + DEMOLISH_COST : '§' + DEF[tl.type].cost;
+  b.innerHTML =
+    '<span class="bar" style="background:' + color + '"></span>' +
+    '<span class="k">' + tl.key + '</span>' +
+    '<i class="ico mdi mdi-' + tl.icon + '" style="color:' + color + '"></i>' +
+    label + '<span class="price">' + price + '</span>';
+  b.onclick = () => selectTool(i);
+  toolbar.appendChild(b);
+  tl.el = b;
+});
+
+$('#lg-res').style.background   = hex(ZONE_COL[T.RES]);
+$('#lg-com').style.background   = hex(ZONE_COL[T.COM]);
+$('#lg-ind').style.background   = hex(ZONE_COL[T.IND]);
+$('#lg-park').style.background  = hex(ZONE_COL[T.PARK]);
+$('#lg-power').style.background = hex(ZONE_COL[T.POWER]);
+$('#lg-road').style.background  = hex(ZONE_COL[T.ROAD]);
+$('#legend-title').onclick = () => $('#legend').classList.toggle('min');
+
+function selectTool(i){
+  tool = TOOLS[i];
+  TOOLS.forEach(t => t.el.classList.toggle('active', t === tool));
+}
+
+function fmt(n){ return Math.round(n).toLocaleString('pt-BR'); }
+
+const MONTHS = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+
+function updateHUD(){
+  const m = $('#s-money');
+  m.textContent = '§' + fmt(game.money);
+  m.className = game.money >= 0 ? 'money-pos' : 'money-neg';
+  $('#s-pop').textContent = fmt(game.population);
+  $('#s-jobs').textContent = fmt(game.jobs);
+
+  const emp = $('#s-emp');
+  const pct = Math.round(game.employment * 100);
+  emp.textContent = pct + '%';
+  emp.className = pct >= 85 ? 'money-pos' : (pct >= 60 ? '' : 'money-neg');
+
+  const b = $('#s-bal');
+  b.textContent = (game.balance >= 0 ? '+§' : '−§') + fmt(Math.abs(game.balance));
+  b.className = game.balance >= 0 ? 'money-pos' : 'money-neg';
+
+  $('#s-time').textContent = MONTHS[game.tick % 12] + '/' + (1 + Math.floor(game.tick / 12));
+
+  for (const k of ['R', 'C', 'I']){
+    const v = game.demand[k];
+    const el = $('#f-' + k);
+    const h = Math.abs(v) * 50;
+    el.style.height = h + '%';
+    el.style.bottom = v >= 0 ? '50%' : (50 - h) + '%';
+    el.style.opacity = 0.45 + Math.abs(v) * 0.55;
+  }
+}
+
+let toastTimer = null;
+function toast(msg, err, icon){
+  const el = $('#toast');
+  el.innerHTML = '<i class="mdi mdi-' + (icon || 'information-outline') + '"></i><span></span>';
+  el.querySelector('span').textContent = msg;
+  el.className = 'show' + (err ? ' err' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = '', 1800);
+}
+
+const tip = $('#tip');
+function updateTip(ev){
+  if (!hover){ tip.style.display = 'none'; return; }
+  const t = tileAt(hover.x, hover.z);
+  const c = ZONE_COL[t.type];
+  const dot = (c !== undefined)
+    ? '<span class="dot" style="background:' + hex(c) + '"></span>' : '';
+  let s = dot + '<b>' + DEF[t.type].name + '</b> · (' + t.x + ',' + t.z + ')';
+  if (ZONE_TYPES.indexOf(t.type) !== -1){
+    const pips = '●'.repeat(t.level) + '○'.repeat(CFG.MAX_LEVEL - t.level);
+    s += '<br><span class="arch">' + ARCH_NAME[t.type][t.level] + '</span>';
+    s += '<br>Nível: <span class="pips" style="color:' + hex(c) + '">' + pips + '</span>';
+    s += '<br>Estrada: ' + (t.connected
+      ? '<span class="ok">conectada</span>' : '<span class="no">sem acesso</span>');
+    s += '<br>Energia: ' + (t.powered
+      ? '<span class="ok">ok</span>' : '<span class="no">sem energia</span>');
+    if (t.level > 0){
+      const cap = t.type === T.RES ? (t.level * ECO.HOMES_PER_LEVEL) + ' moradias'
+                : t.type === T.COM ? (t.level * ECO.JOBS_COM_LEVEL) + ' empregos'
+                                   : (t.level * ECO.JOBS_IND_LEVEL) + ' empregos';
+      s += '<br>Capacidade: ' + cap;
+    }
+  }
+  tip.innerHTML = s;
+  tip.style.display = 'block';
+  tip.style.left = Math.min(ev.clientX + 14, innerWidth - 230) + 'px';
+  tip.style.top  = (ev.clientY + 16) + 'px';
+}
+
+function updateHighlight(time){
+  if (!hover){ hlMesh.count = 0; return; }
+  const tiles = affectedTiles(drag ? drag.start : hover, hover).slice(0, 512);
+  const type = tool.type;
+  const ok = costOf(tiles, type) <= game.money;
+  let hlHex;
+  if (type === 'DEMO') hlHex = 0xff4d4d;
+  else if (!ok)        hlHex = 0xffa348;
+  else                 hlHex = ZONE_COL[type] !== undefined ? ZONE_COL[type] : 0xffffff;
+  hlMesh.material.color.setHex(hlHex);
+  hlMesh.material.opacity = 0.34 + Math.sin(time * 0.005) * 0.14;
+  let i = 0;
+  for (const p of tiles){
+    if (!inBounds(p.x, p.z)) continue;
+    dummy.position.set(p.x + 0.5, CFG.GROUND_Y + 0.09, p.z + 0.5);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, 1, 1);
+    dummy.updateMatrix();
+    hlMesh.setMatrixAt(i++, dummy.matrix);
+  }
+  hlMesh.count = i;
+  hlMesh.instanceMatrix.needsUpdate = true;
+}
+
+document.querySelectorAll('#speed .btn').forEach(b => {
+  b.onclick = () => {
+    game.speed = parseInt(b.dataset.speed, 10);
+    document.querySelectorAll('#speed .btn').forEach(o => o.classList.toggle('active', o === b));
+  };
+});
+function togglePause(){
+  const target = game.speed === 0 ? 1 : 0;
+  const b = document.querySelector('#speed .btn[data-speed="' + target + '"]');
+  if (b) b.click();
+  toast(target === 0 ? 'Simulação pausada' : 'Simulação retomada', false,
+        target === 0 ? 'pause' : 'play');
+}
+
+$('#help-title').onclick = () => $('#help').classList.toggle('min');
+
+function toggleNight(){
+  night = !night;
+  const b = $('#b-night');
+  b.innerHTML = night
+    ? '<i class="mdi mdi-weather-night"></i><span>Noite</span>'
+    : '<i class="mdi mdi-white-balance-sunny"></i><span>Dia</span>';
+  b.classList.toggle('active', night);
+}
+$('#b-night').onclick = toggleNight;
+
+/* =========================================================
+   SEÇÃO 12 — ENTRADA E LOOP
+   ========================================================= */
+const cv = renderer.domElement;
+cv.addEventListener('contextmenu', e => e.preventDefault());
+
+cv.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  updateHover(e);
+  if (!hover) return;
+  drag = { start:{ x:hover.x, z:hover.z } };
+});
+
+window.addEventListener('pointermove', e => {
+  updateHover(e);
+  updateTip(e);
+});
+
+window.addEventListener('pointerup', e => {
+  if (e.button !== 0 || !drag) return;
+  const end = hover || drag.start;
+  applyTool(affectedTiles(drag.start, end));
+  drag = null;
+});
+
+const keys = {};
+window.addEventListener('keydown', e => {
+  const k = e.key;
+  const t = TOOLS.findIndex(x => x.key === k);
+  if (t !== -1) { selectTool(t); return; }
+  if (k === ' ') { e.preventDefault(); togglePause(); }
+  if (k === 'n' || k === 'N') toggleNight();
+  if (k === 'Escape') { drag = null; }
+  if (['w','a','s','d','W','A','S','D'].indexOf(k) !== -1) keys[k.toLowerCase()] = true;
+});
+window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+function panCamera(dt){
+  const sp = 22 * dt * (camera.position.y / 25);
+  let fx = 0, fz = 0;
+  if (keys.w) fz -= 1; if (keys.s) fz += 1;
+  if (keys.a) fx -= 1; if (keys.d) fx += 1;
+  if (!fx && !fz) return;
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
+  const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+  const mv = new THREE.Vector3()
+    .addScaledVector(dir, -fz * sp)
+    .addScaledVector(right, fx * sp);
+  camera.position.add(mv);
+  controls.target.add(mv);
+}
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+let last = performance.now(), acc = 0;
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt = Math.min((now - last) / 1000, 0.1);
+  last = now;
+
+  panCamera(dt);
+  controls.update();
+  sky.position.copy(camera.position);
+
+  const targetBlend = night ? 1 : 0;
+  if (Math.abs(skyBlend - targetBlend) > 0.001){
+    skyBlend += (targetBlend - skyBlend) * Math.min(1, dt * 2.2);
+    applySky(skyBlend);
+  }
+
+  if (game.speed > 0){
+    acc += dt * 1000 * game.speed;
+    while (acc >= CFG.TICK_MS){ acc -= CFG.TICK_MS; simulate(); }
+  }
+
+  if (dirty) rebuild();
+  updateHighlight(now);
+  renderer.render(scene, camera);
+}
+
+/* =========================================================
+   SEÇÃO 13 — PERSISTÊNCIA
+   ========================================================= */
+const SAVE_KEY = 'citybuilder3d.save.v2';
+
+$('#b-save').onclick = () => {
+  const data = {
+    n: N,
+    money: game.money, pop: game.population, tick: game.tick,
+    tiles: map.map(t => [t.type, t.level, Math.round(t.seed * 1000)])
+  };
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    toast('Cidade salva no navegador', false, 'content-save-check');
+  } catch (err){ toast('Não foi possível salvar', true, 'alert'); }
+};
+
+$('#b-load').onclick = () => {
+  const raw = localStorage.getItem(SAVE_KEY);
+  if (!raw) return toast('Nenhum save encontrado', true, 'folder-alert');
+  try {
+    const d = JSON.parse(raw);
+    if (d.n !== N) return toast('Save de outro tamanho de mapa', true, 'alert');
+    newGame(false);
+    d.tiles.forEach((v, i) => {
+      map[i].type = v[0]; map[i].level = v[1]; map[i].seed = v[2] / 1000;
+    });
+    game.money = d.money; game.population = d.pop; game.tick = d.tick;
+    recomputeNetwork(); updateHUD(); dirty = true;
+    toast('Cidade carregada', false, 'folder-open');
+  } catch (err){ toast('Save corrompido', true, 'alert'); }
+};
+
+$('#b-new').onclick = () => {
+  if (!confirm('Iniciar uma nova cidade? O progresso não salvo será perdido.')) return;
+  newGame(true); recomputeNetwork(); updateHUD();
+  toast('Nova cidade fundada', false, 'city-variant-outline');
+};
+
+/* =========================================================
+   INICIALIZAÇÃO
+   ========================================================= */
+newGame(true);
+recomputeNetwork();
+applySky(0);
+rebuild();
+updateHUD();
+document.getElementById('loader').style.display = 'none';
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
