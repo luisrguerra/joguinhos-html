@@ -543,17 +543,33 @@ var CSGX = (function(){
 /* =========================================================================
    CITY BUILDER 3D — arquivo único, sem build, sem servidor, sem texturas.
 
-   REVISÃO v11 — TRÁFEGO DE CARROS
-     · Novo módulo TRAFFIC (seção 7d): grafo viário derivado do mapa,
-       veículos instanciados percorrendo a mão direita da via, curvas
-       suaves em cruzamentos (Bézier quadrática), escolha de rota com
-       preferência por seguir em frente, espaçamento entre veículos e
-       frota dimensionada pela população e pelos empregos.
-     · Faróis e lanternas acendem junto com as janelas no fim da tarde.
+   REVISÃO v12 — CORREÇÃO DE Z-FIGHTING ("modelos piscando")
+     O cintilar vinha de superfícies exatamente coplanares disputando o
+     mesmo valor de profundidade. Correções aplicadas:
 
-   Mantido da v10: céu procedural com ciclo dia/noite, usina low-poly,
-   prefeitura neoclássica, parque, sólidos CSG das fachadas, jogabilidade
-   (estrada + energia), sombras, vista de zonas e economia.
+     1. Camada de profundidade explícita (LAYER) para tudo que é plano e
+        fica sobre o terreno: grid, pad da zona, moldura, pips do nível.
+        Cada elemento tem uma cota própria, com folga suficiente.
+     2. Precisão do depth buffer: near 0.5 → 1.0 e far 900 → 700, o que
+        praticamente dobra a resolução útil de Z na faixa em que a cidade
+        realmente é vista.
+     3. Lajes duplicadas removidas: E.cap() e o bloco de cobertura tinham
+        exatamente as mesmas dimensões (1.07 e 1.08), gerando faces
+        laterais coincidentes no topo de cada torre.
+     4. Telhados (gable/hip) passam a afundar ROOF_SINK no corpo, em vez de
+        apoiar a face inferior do beiral exatamente sobre o topo da parede.
+     5. Meio-fio deslocado para 0.425: antes sua face externa coincidia
+        com a face lateral do asfalto, exatamente em ±0.5.
+     6. Base do galpão industrial reduzida (0.94 → 0.90) e elevada, para
+        não coincidir com o pad da zona, que também media 0.94.
+     7. Veículos elevados 0.004 acima do asfalto, e realce do cursor
+        virou uma placa fina com depthWrite desligado.
+     8. Sombras: normalBias maior e bias menor, eliminando o "shadow acne"
+        que também aparecia como cintilação em superfícies grandes.
+
+   Mantido da v11: tráfego de carros, céu procedural com ciclo dia/noite,
+   usina low-poly, prefeitura neoclássica, parque, sólidos CSG das
+   fachadas, jogabilidade (estrada + energia), sombras e economia.
 
    Organização:
      4. Configuração e constantes
@@ -599,6 +615,25 @@ const CFG = {
   DAY_SECONDS: 300,   // duração de um ciclo completo (24 h) em 1×
   START_HOUR: 8.5     // hora do dia ao fundar a cidade
 };
+
+/* ---------------------------------------------------------
+   CAMADAS DE PROFUNDIDADE (correção de z-fighting)
+   Todo elemento plano que se sobrepõe ao terreno tem aqui uma
+   cota exclusiva. A separação mínima (6 mm no espaço do jogo)
+   é muito maior que a resolução do depth buffer nessa faixa,
+   então nada mais "pisca" quando a câmera se move.
+   --------------------------------------------------------- */
+const LAYER = {
+  GRID   : 0.008,   // grade de referência
+  PAD    : 0.020,   // pad da zona (bloco de 0.05 de altura)
+  ROAD   : 0.030,   // asfalto (bloco de 0.06 de altura)
+  STRIPE : 0.070,   // faixa central
+  FRAME  : 0.066,   // moldura da zona (plano)
+  CORNER : 0.082,   // pips de nível (blocos pequenos)
+  EDGE   : 0.070,   // moldura das construções especiais
+  HILITE : 0.120    // realce do cursor
+};
+const ROOF_SINK = 0.006;   // quanto o telhado afunda no corpo do edifício
 
 const T = { EMPTY:0, ROAD:1, RES:2, COM:3, IND:4, HALL:5, PARK:6, POWER:7, WATER:8 };
 
@@ -734,7 +769,12 @@ function seedStart(){
    ========================================================= */
 const scene = new THREE.Scene();
 
-const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+const renderer = new THREE.WebGLRenderer({
+  antialias:true,
+  powerPreference:'high-performance',
+  stencil:false,
+  depth:true
+});
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputEncoding = THREE.sRGBEncoding;
@@ -742,9 +782,12 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.sortObjects = true;
 document.body.appendChild(renderer.domElement);
 
-const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.5, 900);
+/* near/far ajustados: com near=1 e far=700 a precisão de Z na faixa
+   de trabalho (6 a 130 unidades) é muito maior que com near=0.5/far=900. */
+const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 1.0, 700);
 camera.position.set(N * 0.5 + 24, 28, N * 0.5 + 28);
 
 /* ---------------------------------------------------------------------
@@ -874,12 +917,12 @@ const SKY_FRAG = [
 const sky = new THREE.Mesh(
   new THREE.SphereGeometry(420, 48, 32),
   new THREE.ShaderMaterial({
-    side: THREE.BackSide, depthWrite:false, fog:false,
+    side: THREE.BackSide, depthWrite:false, depthTest:false, fog:false,
     uniforms: skyU, vertexShader: SKY_VERT, fragmentShader: SKY_FRAG
   })
 );
 sky.frustumCulled = false;
-sky.renderOrder = -1;
+sky.renderOrder = -1000;
 scene.add(sky);
 
 scene.fog = new THREE.Fog(0xbcd2e2, N * 1.1, N * 3.4);
@@ -898,8 +941,10 @@ const sun = new THREE.DirectionalLight(0xfff6e6, 1.4);
 sun.position.set(N * 0.75, N * 1.05, N * 0.35);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.bias = -0.0006;
-sun.shadow.normalBias = 0.03;
+/* bias menor + normalBias maior: elimina o "shadow acne" que também
+   se manifestava como cintilação em telhados e no asfalto. */
+sun.shadow.bias = -0.00025;
+sun.shadow.normalBias = 0.06;
 const S = N * 0.75;
 sun.shadow.camera.left = -S; sun.shadow.camera.right = S;
 sun.shadow.camera.top = S;   sun.shadow.camera.bottom = -S;
@@ -1058,7 +1103,9 @@ const MAXTUBE = N * N * 4;
 
 const G = {
   pad    : new THREE.BoxGeometry(0.94, 0.05, 0.94),
-  asphalt: new THREE.BoxGeometry(1.0, 0.06, 1.0),
+  /* asfalto 0.996: evita que a face lateral coincida exatamente com o
+     meio-fio e com o tile vizinho em ±0.5 */
+  asphalt: new THREE.BoxGeometry(0.996, 0.06, 0.996),
   curb   : new THREE.BoxGeometry(1.0, 0.075, 0.16),
   stripe : new THREE.BoxGeometry(0.34, 0.02, 0.06),
   box    : new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0),
@@ -1120,6 +1167,10 @@ G.disc = new THREE.CircleGeometry(0.5, 20).rotateX(-Math.PI / 2);
 G.discLo = new THREE.CircleGeometry(0.5, 10).rotateX(-Math.PI / 2);
 
 G.corner = new THREE.BoxGeometry(0.30, 0.03, 0.08);
+
+/* placa fina do realce do cursor (não é mais um cubo alto que atravessava
+   moldura, pips e edifícios) */
+G.hilite = new THREE.PlaneGeometry(0.98, 0.98).rotateX(-Math.PI / 2);
 
 /* =========================================================
    SEÇÃO 7a — SÓLIDOS CSG (booleanos, calculados uma única vez)
@@ -1279,11 +1330,18 @@ function mat(color, rough, metal){
   });
 }
 
-function flatMaterial(opacity){
+/* Materiais planos das sobreposições do terreno.
+   polygonOffset por camada: quanto maior a "ordem", mais o polígono é
+   puxado na direção da câmera, garantindo desempate estável mesmo em
+   ângulos rasantes. */
+function flatMaterial(opacity, order){
+  const o = order === undefined ? 1 : order;
   return new THREE.MeshBasicMaterial({
     color: 0xffffff, toneMapped:false,
     transparent: opacity < 1, opacity: opacity, depthWrite: opacity >= 1,
-    polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2
+    polygonOffset:true,
+    polygonOffsetFactor: -2 * o,
+    polygonOffsetUnits: -4 * o
   });
 }
 
@@ -1398,10 +1456,16 @@ const groundGeo = (function(){
 
 const groundMesh = new THREE.Mesh(
   groundGeo,
-  new THREE.MeshStandardMaterial({ vertexColors:true, roughness:1.0, metalness:0.0 })
+  new THREE.MeshStandardMaterial({
+    vertexColors:true, roughness:1.0, metalness:0.0,
+    /* empurra o terreno levemente para trás: ele é a base de todas as
+       sobreposições planas e nunca deve ganhar o desempate */
+    polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:2
+  })
 );
 groundMesh.receiveShadow = true;
 groundMesh.frustumCulled = false;
+groundMesh.renderOrder = 0;
 scene.add(groundMesh);
 
 const cA = new THREE.Color(COL.grassA), cB = new THREE.Color(COL.grassB),
@@ -1435,7 +1499,7 @@ const outer = new THREE.Mesh(
   new THREE.MeshStandardMaterial({ color:0x5d7f47, roughness:1 })
 );
 outer.rotation.x = -Math.PI / 2;
-outer.position.set(N / 2, CFG.GROUND_Y - 0.06, N / 2);
+outer.position.set(N / 2, CFG.GROUND_Y - 0.08, N / 2);
 scene.add(outer);
 
 /* --- Vias --- */
@@ -1445,8 +1509,8 @@ const stripeMesh  = makeInstanced(G.stripe, mat(COL.stripe, 0.7), MAXI * 2, fals
 
 /* --- Lotes zoneados --- */
 const padMesh    = makeInstanced(G.pad, mat(0xffffff, 0.95), MAXI, false);
-const frameMesh  = makeInstanced(G.frame, flatMaterial(1.0), MAXI, false);
-const cornerMesh = makeInstanced(G.corner, flatMaterial(1.0), MAXI * 8, false);
+const frameMesh  = makeInstanced(G.frame, flatMaterial(1.0, 2), MAXI, false);
+const cornerMesh = makeInstanced(G.corner, flatMaterial(1.0, 3), MAXI * 8, false);
 frameMesh.renderOrder = 2;
 cornerMesh.renderOrder = 3;
 
@@ -1471,20 +1535,28 @@ const tubeMesh   = makeInstanced(CSGGEO.tube, mat(0xffffff, 0.65, 0.20), MAXTUBE
 const trunkMesh = makeInstanced(G.cyl, mat(0x6b4a2f, 1), MAXI, true);
 const crownMesh = makeInstanced(G.cone8, mat(0x37773a, 0.95), MAXI, true);
 
-/* --- Highlight do cursor --- */
+/* --- Highlight do cursor: placa fina, sem escrita de profundidade --- */
 const hlMesh = makeInstanced(
-  new THREE.BoxGeometry(0.98, 0.1, 0.98),
-  new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.4, depthWrite:false, toneMapped:false }),
+  G.hilite,
+  new THREE.MeshBasicMaterial({
+    color:0xffffff, transparent:true, opacity:0.4,
+    depthWrite:false, depthTest:true, toneMapped:false, side:THREE.DoubleSide,
+    polygonOffset:true, polygonOffsetFactor:-8, polygonOffsetUnits:-16
+  }),
   512, false
 );
 hlMesh.receiveShadow = false;
-hlMesh.renderOrder = 5;
+hlMesh.renderOrder = 6;
 
 const gridHelper = new THREE.GridHelper(N, N, 0x000000, 0x000000);
-gridHelper.position.set(N / 2, CFG.GROUND_Y + 0.006, N / 2);
+gridHelper.position.set(N / 2, CFG.GROUND_Y + LAYER.GRID, N / 2);
 gridHelper.material.opacity = 0.05;
 gridHelper.material.transparent = true;
 gridHelper.material.depthWrite = false;
+gridHelper.material.polygonOffset = true;
+gridHelper.material.polygonOffsetFactor = -1;
+gridHelper.material.polygonOffsetUnits = -2;
+gridHelper.renderOrder = 1;
 scene.add(gridHelper);
 
 /* =========================================================
@@ -1509,7 +1581,10 @@ const matLamp    = mat(0x9aa0a6, 0.6, 0.4);
 const matGlow    = new THREE.MeshStandardMaterial({ color:0xffe9b0, roughness:0.4,
                      emissive:0xffd98a, emissiveIntensity:0.6 });
 const matWater   = new THREE.MeshStandardMaterial({ color:0x8fc6de, roughness:0.25,
-                     metalness:0.1, transparent:true, opacity:0.8 });
+                     metalness:0.1, transparent:true, opacity:0.8, depthWrite:false });
+matWater.polygonOffset = true;
+matWater.polygonOffsetFactor = -3;
+matWater.polygonOffsetUnits = -6;
 
 /* as luminárias do parque acendem conforme a noite cai */
 skyHooks.glow = matGlow;
@@ -1524,9 +1599,15 @@ const matSteel   = mat(0x8f959b, 0.55, 0.55);   // cercas, torre, estruturas
 const matVapor   = new THREE.MeshStandardMaterial({ color:0xeef3f6, roughness:1,
                      transparent:true, opacity:0.6, depthWrite:false });
 
-const matEdgePark  = new THREE.MeshBasicMaterial({ color:ZONE_COL[T.PARK],  toneMapped:false });
-const matEdgePower = new THREE.MeshBasicMaterial({ color:ZONE_COL[T.POWER], toneMapped:false });
-const matEdgeHall  = new THREE.MeshBasicMaterial({ color:ZONE_COL[T.HALL],  toneMapped:false });
+function edgeMaterial(hex){
+  return new THREE.MeshBasicMaterial({
+    color:hex, toneMapped:false,
+    polygonOffset:true, polygonOffsetFactor:-4, polygonOffsetUnits:-8
+  });
+}
+const matEdgePark  = edgeMaterial(ZONE_COL[T.PARK]);
+const matEdgePower = edgeMaterial(ZONE_COL[T.POWER]);
+const matEdgeHall  = edgeMaterial(ZONE_COL[T.HALL]);
 
 function addMesh(parent, geo, material, px, py, pz, sx, sy, sz, ry){
   const m = new THREE.Mesh(geo, material);
@@ -1550,55 +1631,55 @@ let hallLogged = false;
 
 function buildHall(g){
   /* --- 1. Estereóbata e crepidoma --- */
-  addMesh(g, G.slab, matStoneD, 0, 0.02, 0, 0.98, 1.0, 0.98);
-  addMesh(g, G.box,  matStone,  0, 0.03, -0.02, 0.90, 0.05, 0.78);
-  addMesh(g, G.box,  matStoneD, 0, 0.030, 0.435, 0.46, 0.026, 0.07);
-  addMesh(g, G.box,  matStoneD, 0, 0.030, 0.375, 0.42, 0.052, 0.07);
+  addMesh(g, G.slab, matStoneD, 0, 0.020, 0, 0.98, 0.9, 0.98);
+  addMesh(g, G.box,  matStone,  0, 0.046, -0.02, 0.90, 0.05, 0.78);
+  addMesh(g, G.box,  matStoneD, 0, 0.046, 0.435, 0.46, 0.026, 0.07);
+  addMesh(g, G.box,  matStoneD, 0, 0.046, 0.370, 0.42, 0.052, 0.068);
 
   /* --- 2. Corpo central e alas simétricas --- */
-  addMesh(g, G.box, matHall, 0, 0.08, -0.08, 0.56, 0.29, 0.38);
-  addMesh(g, G.box, matHall, -0.345, 0.08, -0.05, 0.20, 0.22, 0.32);
-  addMesh(g, G.box, matHall,  0.345, 0.08, -0.05, 0.20, 0.22, 0.32);
+  addMesh(g, G.box, matHall, 0, 0.094, -0.08, 0.56, 0.29, 0.38);
+  addMesh(g, G.box, matHall, -0.345, 0.094, -0.05, 0.20, 0.22, 0.32);
+  addMesh(g, G.box, matHall,  0.345, 0.094, -0.05, 0.20, 0.22, 0.32);
 
-  addMesh(g, G.box, matStone, 0, 0.370, -0.08, 0.60, 0.030, 0.42);
-  addMesh(g, G.box, matStone, -0.345, 0.300, -0.05, 0.235, 0.026, 0.35);
-  addMesh(g, G.box, matStone,  0.345, 0.300, -0.05, 0.235, 0.026, 0.35);
+  addMesh(g, G.box, matStone, 0, 0.384, -0.08, 0.60, 0.030, 0.42);
+  addMesh(g, G.box, matStone, -0.345, 0.314, -0.05, 0.235, 0.026, 0.35);
+  addMesh(g, G.box, matStone,  0.345, 0.314, -0.05, 0.235, 0.026, 0.35);
 
-  addMesh(g, G.box, matStoneD, -0.345, 0.326, -0.05, 0.225, 0.018, 0.34);
-  addMesh(g, G.box, matStoneD,  0.345, 0.326, -0.05, 0.225, 0.018, 0.34);
+  addMesh(g, G.box, matStoneD, -0.345, 0.340, -0.05, 0.225, 0.018, 0.34);
+  addMesh(g, G.box, matStoneD,  0.345, 0.340, -0.05, 0.225, 0.018, 0.34);
 
   /* --- 3. Pórtico hexástilo (sólido CSG) --- */
-  addCSG(g, CSGGEO.colonnade, matStone, 0, 0.060, 0.16);
+  addCSG(g, CSGGEO.colonnade, matStone, 0, 0.074, 0.16);
 
   /* --- 4. Frontão e tímpano --- */
-  addMesh(g, G.pedi, matStone, 0, 0.401, 0.16, 0.68, 0.130, 0.17);
-  const oculo = addMesh(g, G.discLo, matGold, 0, 0.452, 0.248, 0.052, 1, 0.052);
+  addMesh(g, G.pedi, matStone, 0, 0.414, 0.16, 0.68, 0.130, 0.17);
+  const oculo = addMesh(g, G.discLo, matGold, 0, 0.466, 0.250, 0.052, 1, 0.052);
   oculo.rotation.x = Math.PI / 2;
 
-  addMesh(g, G.box, matDoor, 0, 0.080, 0.104, 0.10, 0.17, 0.012);
+  addMesh(g, G.box, matDoor, 0, 0.094, 0.101, 0.10, 0.17, 0.012);
 
   /* --- 5. Rotunda: ático, tambor, cúpula e lanternim --- */
-  addMesh(g, G.box,    matStone, 0, 0.400, -0.10, 0.34, 0.035, 0.34);
-  addMesh(g, G.cylLo,  matHall,  0, 0.435, -0.10, 0.28, 0.110, 0.28);
-  addMesh(g, G.box,    matStone, 0, 0.545, -0.10, 0.30, 0.016, 0.30);
-  addMesh(g, G.domeLo, matGold,  0, 0.561, -0.10, 0.29, 0.190, 0.29);
-  addMesh(g, G.cylLo,  matStone, 0, 0.735, -0.10, 0.085, 0.050, 0.085);
-  addMesh(g, G.domeLo, matGold,  0, 0.785, -0.10, 0.095, 0.040, 0.095);
-  addMesh(g, G.box,    matStone, 0, 0.822, -0.10, 0.012, 0.130, 0.012);
-  const flag = addMesh(g, G.slab, matFlag, 0.05, 0.925, -0.10, 0.09, 1.2, 0.012);
+  addMesh(g, G.box,    matStone, 0, 0.414, -0.10, 0.34, 0.035, 0.34);
+  addMesh(g, G.cylLo,  matHall,  0, 0.449, -0.10, 0.28, 0.110, 0.28);
+  addMesh(g, G.box,    matStone, 0, 0.559, -0.10, 0.30, 0.016, 0.30);
+  addMesh(g, G.domeLo, matGold,  0, 0.573, -0.10, 0.29, 0.190, 0.29);
+  addMesh(g, G.cylLo,  matStone, 0, 0.747, -0.10, 0.085, 0.050, 0.085);
+  addMesh(g, G.domeLo, matGold,  0, 0.795, -0.10, 0.095, 0.040, 0.095);
+  addMesh(g, G.box,    matStone, 0, 0.834, -0.10, 0.012, 0.130, 0.012);
+  const flag = addMesh(g, G.slab, matFlag, 0.05, 0.937, -0.10, 0.09, 1.2, 0.012);
   flag.rotation.z = Math.PI / 2;
   flag.rotation.y = Math.PI / 2;
 
   /* --- 6. Jardineiras cônicas ladeando a escadaria --- */
   for (const sx of [-1, 1]){
-    addMesh(g, G.box,   matLawnD, sx * 0.375, 0.080, 0.27, 0.15, 0.028, 0.15);
-    addMesh(g, G.cone8, matTree2, sx * 0.375, 0.108, 0.27, 0.13, 0.17, 0.13);
+    addMesh(g, G.box,   matLawnD, sx * 0.375, 0.094, 0.27, 0.15, 0.028, 0.15);
+    addMesh(g, G.cone8, matTree2, sx * 0.375, 0.120, 0.27, 0.13, 0.17, 0.13);
   }
 
   /* --- luminárias externas: acendem à noite --- */
   for (const sx of [-1, 1]){
-    addMesh(g, G.cylU, matLamp, sx * 0.24, 0.055, 0.40, 0.020, 0.16, 0.020);
-    addMesh(g, G.sphere, matGlow, sx * 0.24, 0.222, 0.40, 0.05, 0.05, 0.05);
+    addMesh(g, G.cylU, matLamp, sx * 0.24, 0.051, 0.40, 0.020, 0.16, 0.020);
+    addMesh(g, G.sphere, matGlow, sx * 0.24, 0.218, 0.40, 0.05, 0.05, 0.05);
   }
 
   if (!hallLogged){
@@ -1608,38 +1689,45 @@ function buildHall(g){
   }
 }
 
-/* ---------- PARQUE ---------- */
+/* ---------------------------------------------------------------------
+   PARQUE
+   Cotas revisadas: gramado, caminhos e discos ficam em camadas distintas,
+   de modo que nenhum plano fique dentro do volume de outra laje.
+   --------------------------------------------------------------------- */
 function buildPark(g, tile){
   const s = tile.seed;
   const R = (k) => ((Math.sin(s * 91.7 + k * 47.3) * 43758.5453) % 1 + 1) % 1;
 
-  addMesh(g, G.slab, matLawnD, 0, 0.018, 0, 0.98, 1.1, 0.98);
-  addMesh(g, G.slab, matLawn,  0, 0.030, 0, 0.90, 1.1, 0.90);
+  const GRASS = 0.046;   // topo do gramado
+  const PATHY = 0.066;   // topo dos caminhos
 
-  addMesh(g, G.slab, matPath, 0, 0.040, 0, 0.98, 1.0, 0.14);
-  addMesh(g, G.slab, matPath, 0, 0.040, 0, 0.14, 1.0, 0.98);
-  addMesh(g, G.disc, matPath, 0, 0.046, 0, 0.34, 1, 0.34);
+  addMesh(g, G.slab, matLawnD, 0, 0.010, 0, 0.98, 0.60, 0.98);   // -0.008 .. 0.028
+  addMesh(g, G.slab, matLawn,  0, 0.034, 0, 0.90, 0.40, 0.90);   //  0.022 .. 0.046
+
+  addMesh(g, G.slab, matPath, 0, 0.057, 0, 0.98, 0.30, 0.14);    //  0.048 .. 0.066
+  addMesh(g, G.slab, matPath, 0, 0.057, 0, 0.14, 0.30, 0.98);
+  addMesh(g, G.disc, matPath, 0, 0.072, 0, 0.34, 1, 0.34);       // acima dos caminhos
 
   if (R(1) > 0.45){
-    addMesh(g, G.cylU, matStone, 0, 0.048, 0, 0.30, 0.03, 0.30);
+    addMesh(g, G.cylU, matStone, 0, 0.074, 0, 0.30, 0.03, 0.30);
     for (let i = 0; i < 6; i++){
       const a = i * Math.PI / 3;
-      addMesh(g, G.cylU, matLamp, Math.cos(a) * 0.115, 0.078, Math.sin(a) * 0.115,
+      addMesh(g, G.cylU, matLamp, Math.cos(a) * 0.115, 0.104, Math.sin(a) * 0.115,
               0.018, 0.13, 0.018);
     }
-    addCSG(g, CSGGEO.kioskRoof, matRoofH, 0, 0.208, 0);
+    addCSG(g, CSGGEO.kioskRoof, matRoofH, 0, 0.234, 0);
   } else {
-    addCSG(g, CSGGEO.basin, matStone, 0, 0.048, 0);
-    addMesh(g, G.disc, matWater, 0, 0.088, 0, 0.245, 1, 0.245);
-    addMesh(g, G.cylU, matStone, 0, 0.070, 0, 0.06, 0.06, 0.06);
-    addMesh(g, G.sphere, matWater, 0, 0.140, 0, 0.09, 0.09, 0.09);
+    addCSG(g, CSGGEO.basin, matStone, 0, 0.074, 0);
+    addMesh(g, G.disc, matWater, 0, 0.116, 0, 0.245, 1, 0.245);
+    addMesh(g, G.cylU, matStone, 0, 0.096, 0, 0.06, 0.06, 0.06);
+    addMesh(g, G.sphere, matWater, 0, 0.166, 0, 0.09, 0.09, 0.09);
   }
 
   if (R(2) > 0.4){
     const qx = R(3) > 0.5 ? 0.26 : -0.26;
     const qz = R(4) > 0.5 ? 0.26 : -0.26;
-    addMesh(g, G.disc, matStoneD, qx, 0.042, qz, 0.34, 1, 0.28);
-    addMesh(g, G.disc, matWater,  qx, 0.050, qz, 0.28, 1, 0.22);
+    addMesh(g, G.disc, matStoneD, qx, GRASS + 0.004, qz, 0.34, 1, 0.28);
+    addMesh(g, G.disc, matWater,  qx, GRASS + 0.012, qz, 0.28, 1, 0.22);
   }
 
   const seats = [
@@ -1648,11 +1736,11 @@ function buildPark(g, tile){
     [ 0.11, -0.27, Math.PI / 2],
     [-0.11,  0.27, -Math.PI / 2]
   ];
-  for (const b of seats) addCSG(g, CSGGEO.bench, matBench, b[0], 0.040, b[1], b[2]);
+  for (const b of seats) addCSG(g, CSGGEO.bench, matBench, b[0], GRASS + 0.001, b[1], b[2]);
 
   for (const p of [[-0.20, -0.20], [0.20, 0.20]]){
-    addMesh(g, G.cylU, matLamp, p[0], 0.046, p[1], 0.016, 0.20, 0.016);
-    addMesh(g, G.sphere, matGlow, p[0], 0.256, p[1], 0.05, 0.05, 0.05);
+    addMesh(g, G.cylU, matLamp, p[0], GRASS, p[1], 0.016, 0.20, 0.016);
+    addMesh(g, G.sphere, matGlow, p[0], GRASS + 0.210, p[1], 0.05, 0.05, 0.05);
   }
 
   for (let i = 0; i < 5; i++){
@@ -1661,20 +1749,20 @@ function buildPark(g, tile){
     const px = Math.cos(a) * rr, pz = Math.sin(a) * rr;
     if (Math.abs(px) < 0.10 && Math.abs(pz) < 0.10) continue;
     const sc = 0.8 + R(30 + i) * 0.6;
-    addMesh(g, G.cylU, matTrunk, px, 0.04, pz, 0.035 * sc, 0.13 * sc, 0.035 * sc);
+    addMesh(g, G.cylU, matTrunk, px, GRASS - 0.006, pz, 0.035 * sc, 0.13 * sc, 0.035 * sc);
     if (R(40 + i) > 0.5){
-      addMesh(g, G.sphere, matTree, px, 0.20 * sc + 0.04, pz, 0.24 * sc, 0.26 * sc, 0.24 * sc);
-      addMesh(g, G.sphere, matTree2, px + 0.04 * sc, 0.26 * sc + 0.04, pz - 0.03 * sc,
+      addMesh(g, G.sphere, matTree, px, 0.20 * sc + GRASS, pz, 0.24 * sc, 0.26 * sc, 0.24 * sc);
+      addMesh(g, G.sphere, matTree2, px + 0.04 * sc, 0.26 * sc + GRASS, pz - 0.03 * sc,
               0.16 * sc, 0.16 * sc, 0.16 * sc);
     } else {
-      addMesh(g, G.cone12, matTree, px, 0.13 * sc + 0.04, pz, 0.26 * sc, 0.34 * sc, 0.26 * sc);
+      addMesh(g, G.cone12, matTree, px, 0.13 * sc + GRASS, pz, 0.26 * sc, 0.34 * sc, 0.26 * sc);
     }
   }
 
   for (let i = 0; i < 3; i++){
     const px = (R(50 + i) - 0.5) * 0.6, pz = (R(60 + i) - 0.5) * 0.6;
     if (Math.abs(px) < 0.12 && Math.abs(pz) < 0.12) continue;
-    addMesh(g, G.sphere, matTree2, px, 0.06, pz, 0.10, 0.08, 0.10);
+    addMesh(g, G.sphere, matTree2, px, GRASS + 0.020, pz, 0.10, 0.08, 0.10);
   }
 }
 
@@ -1684,12 +1772,12 @@ function buildPark(g, tile){
 let powerLogged = false;
 
 function buildPower(g){
-  const Y = 0.03;                       /* cota do piso do pátio */
+  const Y = 0.052;                      /* cota do piso do pátio (topo da laje) */
 
   /* --- 1. Pátio, via de serviço e portão --- */
-  addMesh(g, G.slab, matYard, 0, 0.020, 0, 0.98, 1.0, 0.98);
-  addMesh(g, G.slab, matPath, 0, 0.034, 0.36, 0.88, 1.0, 0.16);
-  addMesh(g, G.box,  matPlantY, 0, Y, 0.455, 0.30, 0.012, 0.030);   // soleira do portão
+  addMesh(g, G.slab, matYard, 0, 0.022, 0, 0.98, 1.0, 0.98);      // -0.008 .. 0.052
+  addMesh(g, G.slab, matPath, 0, 0.062, 0.36, 0.88, 0.30, 0.16);  //  0.053 .. 0.071
+  addMesh(g, G.box,  matPlantY, 0, Y, 0.455, 0.30, 0.012, 0.030); // soleira do portão
   addMesh(g, G.box,  matSteel, -0.20, Y, 0.455, 0.020, 0.075, 0.020);
   addMesh(g, G.box,  matSteel,  0.20, Y, 0.455, 0.020, 0.075, 0.020);
 
@@ -1702,27 +1790,29 @@ function buildPower(g){
     const v2 = addMesh(g, G.sphLo, matVapor, p[0] + 0.05, Y + 0.66, p[1] - 0.03, 0.18, 0.14, 0.18);
     v1.castShadow = v2.castShadow = false;
     v1.receiveShadow = v2.receiveShadow = false;
+    v1.renderOrder = 4; v2.renderOrder = 5;
   }
 
   /* --- 3. Casa de máquinas --- */
   addMesh(g, G.box,   matPlant,  -0.04, Y, 0.10, 0.60, 0.24, 0.34);
-  addMesh(g, G.gable, matRoofH,  -0.04, Y + 0.24, 0.10, 0.36, 0.11, 0.63, Math.PI / 2);
-  addMesh(g, G.box,   matPlantY, -0.04, Y + 0.215, 0.10, 0.61, 0.022, 0.35);   // faixa
-  addMesh(g, G.box,   matStack,  -0.04, Y + 0.055, 0.272, 0.44, 0.045, 0.006); // janela de fita
-  addMesh(g, G.box,   matStack,  -0.04, Y + 0.145, 0.272, 0.44, 0.045, 0.006);
-  addMesh(g, G.box,   matDoor,   -0.19, Y, 0.272, 0.11, 0.13, 0.008);          // portão
+  /* o telhado afunda ROOF_SINK na parede: sem faces coincidentes */
+  addMesh(g, G.gable, matRoofH,  -0.04, Y + 0.24 - ROOF_SINK, 0.10, 0.36, 0.11, 0.63, Math.PI / 2);
+  addMesh(g, G.box,   matPlantY, -0.04, Y + 0.212, 0.10, 0.61, 0.022, 0.352);  // faixa
+  addMesh(g, G.box,   matStack,  -0.04, Y + 0.055, 0.2705, 0.44, 0.045, 0.006);
+  addMesh(g, G.box,   matStack,  -0.04, Y + 0.145, 0.2705, 0.44, 0.045, 0.006);
+  addMesh(g, G.box,   matDoor,   -0.19, Y, 0.2705, 0.11, 0.13, 0.008);         // portão
 
   /* --- 4. Chaminé com balizagem --- */
   addMesh(g, CSGGEO.tube, matStack,  0.33, Y, 0.04, 0.115, 0.60, 0.115);
-  addMesh(g, G.cylU,      matRedBand, 0.33, Y + 0.46, 0.04, 0.125, 0.055, 0.125);
-  addMesh(g, G.cylU,      matRedBand, 0.33, Y + 0.30, 0.04, 0.125, 0.045, 0.125);
-  addMesh(g, G.sphere,    matGlow,    0.33, Y + 0.615, 0.04, 0.045, 0.045, 0.045); // luz de topo
+  addMesh(g, G.cylU,      matRedBand, 0.33, Y + 0.46, 0.04, 0.126, 0.055, 0.126);
+  addMesh(g, G.cylU,      matRedBand, 0.33, Y + 0.30, 0.04, 0.126, 0.045, 0.126);
+  addMesh(g, G.sphere,    matGlow,    0.33, Y + 0.618, 0.04, 0.045, 0.045, 0.045);
 
   /* --- 5. Subestação: transformadores e torre de transmissão --- */
   for (const px of [-0.31, -0.14]){
     addCSG(g, CSGGEO.transformer, matSteel, px, Y, -0.05);
     for (const bx of [-0.030, 0.030]){
-      addMesh(g, G.cylU, matStack, px + bx, Y + 0.139, -0.05, 0.020, 0.045, 0.020); // buchas
+      addMesh(g, G.cylU, matStack, px + bx, Y + 0.137, -0.05, 0.020, 0.045, 0.020); // buchas
     }
   }
   addMesh(g, G.box,  matSteel, 0.36, Y, -0.30, 0.030, 0.34, 0.030);  // mastro
@@ -1731,9 +1821,9 @@ function buildPower(g){
   addMesh(g, G.box,  matSteel, 0.36, Y + 0.04, -0.30, 0.13, 0.014, 0.014, Math.PI / 4);
 
   /* --- 6. Cerca perimetral (três lados) --- */
-  addMesh(g, G.box, matSteel, 0,     Y, -0.455, 0.92, 0.070, 0.012);
-  addMesh(g, G.box, matSteel, -0.455, Y, 0,     0.012, 0.070, 0.92);
-  addMesh(g, G.box, matSteel,  0.455, Y, 0,     0.012, 0.070, 0.92);
+  addMesh(g, G.box, matSteel, 0,      Y, -0.455, 0.92, 0.070, 0.012);
+  addMesh(g, G.box, matSteel, -0.455, Y, 0,      0.012, 0.070, 0.92);
+  addMesh(g, G.box, matSteel,  0.455, Y, 0,      0.012, 0.070, 0.92);
 
   if (!powerLogged){
     powerLogged = true;
@@ -1760,7 +1850,7 @@ function buildSpecial(tile){
   const edgeMat = tile.type === T.PARK ? matEdgePark
                 : tile.type === T.POWER ? matEdgePower : matEdgeHall;
   const edge = new THREE.Mesh(G.frame, edgeMat);
-  edge.position.y = 0.062;
+  edge.position.y = LAYER.EDGE;
   edge.renderOrder = 2;
   g.add(edge);
 
@@ -1837,11 +1927,12 @@ function makeEmitter(cx, cz, baseY, rot){
       m.setColorAt(i, color);
       CNT.body[type]++;
     },
+    /* telhados: sempre afundados ROOF_SINK no corpo (anti z-fighting) */
     gable(ox, oy, oz, sx, sy, sz, colorHex, ridgeAlongX){
       if (CNT.gab >= MAXI * 2) return;
       const wx = cx + ox * cosr + oz * sinr;
       const wz = cz - ox * sinr + oz * cosr;
-      dummy.position.set(wx, baseY + oy, wz);
+      dummy.position.set(wx, baseY + oy - ROOF_SINK, wz);
       dummy.rotation.set(0, rot + (ridgeAlongX ? Math.PI / 2 : 0), 0);
       dummy.scale.set(sx, sy, sz);
       dummy.updateMatrix();
@@ -1853,7 +1944,7 @@ function makeEmitter(cx, cz, baseY, rot){
       if (CNT.hip >= MAXI) return;
       const wx = cx + ox * cosr + oz * sinr;
       const wz = cz - ox * sinr + oz * cosr;
-      dummy.position.set(wx, baseY + oy, wz);
+      dummy.position.set(wx, baseY + oy - ROOF_SINK, wz);
       dummy.rotation.set(0, rot, 0);
       dummy.scale.set(sx, sy, sz);
       dummy.updateMatrix();
@@ -1897,26 +1988,26 @@ function emitResidential(E, t, zoneHex, tint){
     const h = twoFloors ? 0.52 + rnd(s, 17) * 0.08 : 0.28 + rnd(s, 17) * 0.06;
     const ox = -0.10 + rnd(s, 19) * 0.06;
 
-    E.body(T.RES, ox, 0.03, -0.02, w, h, d, wall);
+    E.body(T.RES, ox, 0.05, -0.02, w, h, d, wall);
 
     const rh = 0.16 + rnd(s, 23) * 0.08;
     if (twoFloors && rnd(s, 29) > 0.45){
-      E.hip(ox, 0.03 + h, -0.02, Math.max(w, d) * 1.20, rh, Math.max(w, d) * 1.20, roof);
+      E.hip(ox, 0.05 + h, -0.02, Math.max(w, d) * 1.20, rh, Math.max(w, d) * 1.20, roof);
     } else {
       const ridgeX = rnd(s, 31) > 0.5;
-      E.gable(ox, 0.03 + h, -0.02, (ridgeX ? d : w) * 1.18, rh, (ridgeX ? w : d) * 1.18, roof, ridgeX);
+      E.gable(ox, 0.05 + h, -0.02, (ridgeX ? d : w) * 1.18, rh, (ridgeX ? w : d) * 1.18, roof, ridgeX);
     }
 
-    E.box(ox, 0.02, -0.02 + d / 2 + 0.05, 0.16, 0.03, 0.09, DET.concrete);
-    E.box(ox + w / 2 + 0.11, 0.03, 0.02, 0.20, 0.16, 0.24, 0xd7d2c8);
-    E.gable(ox + w / 2 + 0.11, 0.19, 0.02, 0.22, 0.07, 0.26, roof, true);
-    E.box(ox, 0.005, d / 2 + 0.17, 0.10, 0.02, 0.22, DET.path);
-    E.box(ox + w * 0.28, 0.03 + h, -0.02 - d * 0.18, 0.06, rh + 0.10, 0.06, 0x8a5a48);
-    E.box(-0.30, 0.0, 0.42, 0.30, 0.07, 0.05, DET.garden);
-    E.box( 0.18, 0.0, 0.42, 0.26, 0.07, 0.05, DET.garden);
-    E.cyl(ox - w / 2 - 0.10, 0.0, -0.26, 0.05, 0.12, 0x6b4a2f);
-    E.box(ox - w / 2 - 0.10, 0.11, -0.26, 0.16, 0.16, 0.16, 0x3f8a42);
-    return { topY: 0.03 + h + 0.24, w: w * 1.2, d: d * 1.2 };
+    E.box(ox, 0.048, -0.02 + d / 2 + 0.05, 0.16, 0.03, 0.09, DET.concrete);
+    E.box(ox + w / 2 + 0.11, 0.05, 0.02, 0.20, 0.16, 0.24, 0xd7d2c8);
+    E.gable(ox + w / 2 + 0.11, 0.21, 0.02, 0.22, 0.07, 0.26, roof, true);
+    E.box(ox, 0.049, d / 2 + 0.17, 0.10, 0.02, 0.22, DET.path);
+    E.box(ox + w * 0.28, 0.05 + h, -0.02 - d * 0.18, 0.06, rh + 0.10, 0.06, 0x8a5a48);
+    E.box(-0.30, 0.048, 0.42, 0.30, 0.07, 0.05, DET.garden);
+    E.box( 0.18, 0.048, 0.42, 0.26, 0.07, 0.05, DET.garden);
+    E.cyl(ox - w / 2 - 0.10, 0.048, -0.26, 0.05, 0.12, 0x6b4a2f);
+    E.box(ox - w / 2 - 0.10, 0.158, -0.26, 0.16, 0.16, 0.16, 0x3f8a42);
+    return { topY: 0.05 + h + 0.24, w: w * 1.2, d: d * 1.2 };
   }
 
   const w = 0.52 + rnd(s, 11) * 0.14;
@@ -1925,12 +2016,12 @@ function emitResidential(E, t, zoneHex, tint){
   const fh = 0.17;
   const h = floors * fh;
 
-  E.body(T.RES, 0, 0.03, 0, w, h, d, wall);
-  E.box(0, 0.02, 0, w * 1.06, 0.10, d * 1.06, DET.concrete);
+  E.body(T.RES, 0, 0.05, 0, w, h, d, wall);
+  E.box(0, 0.046, 0, w * 1.06, 0.06, d * 1.06, DET.concrete);
 
   const maxBal = Math.min(floors, 12);
   for (let f = 1; f < maxBal; f++){
-    const y = 0.03 + f * fh;
+    const y = 0.05 + f * fh;
     E.box(0, y, d / 2 + 0.035, w * 0.78, 0.035, 0.07, DET.concrete);
     E.box(0, y + 0.035, d / 2 + 0.065, w * 0.78, 0.055, 0.012, DET.rail);
     if (t.level === 4 && f % 2 === 0){
@@ -1939,7 +2030,7 @@ function emitResidential(E, t, zoneHex, tint){
     }
   }
 
-  let topY = 0.03 + h, topW = w, topD = d;
+  let topY = 0.05 + h, topW = w, topD = d;
 
   if (t.level === 4){
     const w2 = w * 0.68, d2 = d * 0.68, h2 = fh * 2;
@@ -1949,15 +2040,17 @@ function emitResidential(E, t, zoneHex, tint){
     topY += h2; topW = w2; topD = d2;
   }
 
+  /* laje de cobertura + platibanda: dimensões DIFERENTES (1.07 e 1.02),
+     antes ambas mediam 1.07 e as faces laterais coincidiam */
   E.cap(0, topY, 0, topW * 1.07, topD * 1.07, DET.slab);
-  E.box(0, topY, 0, topW * 1.07, 0.05, topD * 1.07, DET.slab);
-  E.tube(topW * 0.22, topY + 0.04, -topD * 0.20, 0.15, 0.14, DET.tank);   // caixa d'água
-  E.box(-topW * 0.20, topY + 0.04, topD * 0.16, 0.14, 0.09, 0.14, DET.concrete);
+  E.box(0, topY + 0.03, 0, topW * 1.02, 0.045, topD * 1.02, DET.slab);
+  E.tube(topW * 0.22, topY + 0.07, -topD * 0.20, 0.15, 0.14, DET.tank);   // caixa d'água
+  E.box(-topW * 0.20, topY + 0.07, topD * 0.16, 0.14, 0.09, 0.14, DET.concrete);
   if (t.level === 4){
-    E.cyl(0, topY + 0.04, 0, 0.02, 0.22, DET.metal);
-    E.box(topW * 0.05, topY + 0.24, 0, 0.05, 0.02, 0.05, DET.stripeR);
+    E.cyl(0, topY + 0.07, 0, 0.02, 0.22, DET.metal);
+    E.box(topW * 0.05, topY + 0.27, 0, 0.05, 0.02, 0.05, DET.stripeR);
   }
-  return { topY: topY + 0.06, w: topW, d: topD };
+  return { topY: topY + 0.09, w: topW, d: topD };
 }
 
 /* ---------------- COMERCIAL ---------------- */
@@ -1969,33 +2062,33 @@ function emitCommercial(E, t, zoneHex, tint){
     const w = 0.70 + rnd(s, 11) * 0.10;
     const d = 0.58 + rnd(s, 13) * 0.10;
     const h = t.level === 1 ? 0.26 + rnd(s, 17) * 0.05 : 0.50 + rnd(s, 17) * 0.08;
-    E.body(T.COM, 0, 0.03, 0, w, h, d, wall);
-    E.box(0, 0.05, d / 2 + 0.004, w * 0.88, 0.14, 0.012, DET.glass);
-    E.box(0, 0.21, d / 2 + 0.05, w * 0.90, 0.02, 0.11, DET.awning);
-    E.box(0, 0.03 + h, 0, w * 0.62, 0.06, 0.05, DET.sign);
-    E.box(0, 0.03 + h - 0.02, 0, w * 1.05, 0.03, d * 1.05, 0xeceff1);
-    E.box(-w * 0.34, 0.02, d / 2 + 0.12, 0.05, 0.14, 0.05, DET.metal);
-    E.cap(0, 0.03 + h + 0.06, 0, w * 1.02, d * 1.02, DET.slab);
-    return { topY: 0.03 + h + 0.12, w, d };
+    E.body(T.COM, 0, 0.05, 0, w, h, d, wall);
+    E.box(0, 0.07, d / 2 + 0.006, w * 0.88, 0.14, 0.012, DET.glass);
+    E.box(0, 0.23, d / 2 + 0.05, w * 0.90, 0.02, 0.11, DET.awning);
+    E.box(0, 0.05 + h, 0, w * 0.62, 0.06, 0.05, DET.sign);
+    E.box(0, 0.05 + h - 0.02, 0, w * 1.05, 0.03, d * 1.05, 0xeceff1);
+    E.box(-w * 0.34, 0.048, d / 2 + 0.12, 0.05, 0.14, 0.05, DET.metal);
+    E.cap(0, 0.05 + h + 0.07, 0, w * 1.00, d * 1.00, DET.slab);
+    return { topY: 0.05 + h + 0.13, w, d };
   }
 
   const pw = 0.80, pd = 0.70, ph = 0.22;
-  E.body(T.COM, 0, 0.03, 0, pw, ph, pd, facadeColor(T.COM, s, zoneHex, tint, -0.04));
-  E.box(0, 0.05, pd / 2 + 0.004, pw * 0.9, 0.13, 0.012, DET.glass);
-  E.box(0, 0.03 + ph, 0, pw * 1.06, 0.04, pd * 1.06, DET.concrete);
-  E.box(0, 0.20, pd / 2 + 0.05, pw * 0.92, 0.02, 0.10, DET.awning);
+  E.body(T.COM, 0, 0.05, 0, pw, ph, pd, facadeColor(T.COM, s, zoneHex, tint, -0.04));
+  E.box(0, 0.07, pd / 2 + 0.006, pw * 0.9, 0.13, 0.012, DET.glass);
+  E.box(0, 0.05 + ph, 0, pw * 1.06, 0.04, pd * 1.06, DET.concrete);
+  E.box(0, 0.22, pd / 2 + 0.05, pw * 0.92, 0.02, 0.10, DET.awning);
 
   const w = 0.50 + rnd(s, 11) * 0.10;
   const d = 0.44 + rnd(s, 13) * 0.10;
   const fh = 0.16;
   const floors = t.level === 3 ? 6 + Math.floor(rnd(s, 15) * 3) : 11 + Math.floor(rnd(s, 15) * 6);
   const h = floors * fh;
-  const towerY = 0.03 + ph + 0.04;
+  const towerY = 0.05 + ph + 0.04;
   E.body(T.COM, 0, towerY, 0, w, h, d, wall);
 
-  E.box(-w * 0.25, towerY, d / 2 + 0.006, 0.03, h, 0.012, 0xdfe6ea);
-  E.box( w * 0.25, towerY, d / 2 + 0.006, 0.03, h, 0.012, 0xdfe6ea);
-  E.box(0, towerY, d / 2 + 0.008, 0.02, h, 0.012, 0xcdd6dc);
+  E.box(-w * 0.25, towerY, d / 2 + 0.008, 0.03, h, 0.012, 0xdfe6ea);
+  E.box( w * 0.25, towerY, d / 2 + 0.008, 0.03, h, 0.012, 0xdfe6ea);
+  E.box(0, towerY, d / 2 + 0.012, 0.02, h, 0.012, 0xcdd6dc);
 
   let topY = towerY + h, topW = w, topD = d;
 
@@ -2006,11 +2099,11 @@ function emitCommercial(E, t, zoneHex, tint){
   }
 
   E.cap(0, topY, 0, topW * 1.08, topD * 1.08, DET.slab);
-  E.box(0, topY, 0, topW * 1.08, 0.05, topD * 1.08, DET.slab);
-  E.tube(topW * 0.20, topY + 0.04, topD * 0.16, 0.16, 0.10, DET.tank);
-  E.cyl(0, topY + 0.04, 0, 0.022, t.level === 4 ? 0.34 : 0.20, DET.metal);
-  E.box(0, topY + (t.level === 4 ? 0.30 : 0.18), 0, 0.05, 0.03, 0.05, DET.stripeR);
-  return { topY: topY + 0.08, w: topW, d: topD };
+  E.box(0, topY + 0.03, 0, topW * 1.03, 0.045, topD * 1.03, DET.slab);
+  E.tube(topW * 0.20, topY + 0.07, topD * 0.16, 0.16, 0.10, DET.tank);
+  E.cyl(0, topY + 0.07, 0, 0.022, t.level === 4 ? 0.34 : 0.20, DET.metal);
+  E.box(0, topY + (t.level === 4 ? 0.33 : 0.21), 0, 0.05, 0.03, 0.05, DET.stripeR);
+  return { topY: topY + 0.11, w: topW, d: topD };
 }
 
 /* ---------------- INDUSTRIAL ---------------- */
@@ -2022,28 +2115,29 @@ function emitIndustrial(E, t, zoneHex, tint){
   const d = 0.62 + rnd(s, 13) * 0.10;
   const h = 0.20 + t.level * 0.13;
 
-  E.box(0, 0.0, 0, 0.94, 0.03, 0.94, 0x8d9095);
-  E.body(T.IND, 0, 0.03, -0.04, w, h, d, wall);
-  E.gable(0, 0.03 + h, -0.04, d * 1.06, 0.10 + rnd(s, 17) * 0.05, w * 1.06, 0x77808a, true);
-  E.box(0, 0.03 + h - 0.05, -0.04, w * 1.02, 0.035, d * 1.02, DET.band);
-  E.box(0, 0.03, d / 2 + 0.10, w * 0.5, 0.06, 0.14, DET.concrete);
+  /* pátio: 0.90 (o pad da zona mede 0.94) e assentado acima dele */
+  E.box(0, 0.046, 0, 0.90, 0.03, 0.90, 0x8d9095);
+  E.body(T.IND, 0, 0.070, -0.04, w, h, d, wall);
+  E.gable(0, 0.070 + h, -0.04, d * 1.06, 0.10 + rnd(s, 17) * 0.05, w * 1.06, 0x77808a, true);
+  E.box(0, 0.070 + h - 0.05, -0.04, w * 1.02, 0.035, d * 1.02, DET.band);
+  E.box(0, 0.070, d / 2 + 0.10, w * 0.5, 0.06, 0.14, DET.concrete);
 
   if (t.level >= 2){
-    E.tube(-w / 2 - 0.09, 0.03, 0.22, 0.17, 0.30 + t.level * 0.05, DET.tank);
-    E.box(-w / 2 - 0.09, 0.03 + 0.30 + t.level * 0.05, 0.22, 0.17, 0.02, 0.17, DET.metal);
+    E.tube(-w / 2 - 0.09, 0.070, 0.22, 0.17, 0.30 + t.level * 0.05, DET.tank);
+    E.box(-w / 2 - 0.09, 0.070 + 0.30 + t.level * 0.05, 0.22, 0.165, 0.02, 0.165, DET.metal);
   }
   if (t.level >= 3){
     const ch = 0.42 + t.level * 0.10;
-    E.tube(w / 2 - 0.06, 0.03 + h, -0.22, 0.11, ch, 0xe6e6e6);       // chaminé oca
-    E.cyl(w / 2 - 0.06, 0.03 + h + ch * 0.55, -0.22, 0.115, ch * 0.16, DET.stripeR);
-    E.cyl(w / 2 - 0.12, 0.03, 0.28, 0.20, 0.14, 0xb9c2c7);
+    E.tube(w / 2 - 0.06, 0.070 + h, -0.22, 0.11, ch, 0xe6e6e6);       // chaminé oca
+    E.cyl(w / 2 - 0.06, 0.070 + h + ch * 0.55, -0.22, 0.118, ch * 0.16, DET.stripeR);
+    E.cyl(w / 2 - 0.12, 0.070, 0.28, 0.20, 0.14, 0xb9c2c7);
   }
   if (t.level === 4){
-    E.body(T.IND, -0.02, 0.03 + h, -0.10, w * 0.5, 0.22, d * 0.5, facadeColor(T.IND, s, zoneHex, tint, 0.05));
-    E.box(-0.02, 0.03 + h + 0.22, -0.10, w * 0.54, 0.03, d * 0.54, DET.slab);
-    E.box(0.10, 0.03 + h * 0.6, 0.10, 0.04, 0.04, 0.5, DET.metal);
+    E.body(T.IND, -0.02, 0.070 + h, -0.10, w * 0.5, 0.22, d * 0.5, facadeColor(T.IND, s, zoneHex, tint, 0.05));
+    E.box(-0.02, 0.070 + h + 0.22, -0.10, w * 0.54, 0.03, d * 0.54, DET.slab);
+    E.box(0.10, 0.070 + h * 0.6, 0.10, 0.04, 0.04, 0.5, DET.metal);
   }
-  return { topY: 0.03 + h + 0.16, w, d };
+  return { topY: 0.070 + h + 0.16, w, d };
 }
 
 function emitBuilding(t, cx, cz, baseY, zoneHex, tint){
@@ -2079,7 +2173,7 @@ function rebuild(){
         const e = isRoad(x + 1, z), w = isRoad(x - 1, z);
         const n = isRoad(x, z - 1), s = isRoad(x, z + 1);
 
-        dummy.position.set(cx, Y + 0.03, cz);
+        dummy.position.set(cx, Y + LAYER.ROAD, cz);
         dummy.rotation.set(0, 0, 0);
         dummy.scale.set(1, 1, 1);
         dummy.updateMatrix();
@@ -2087,15 +2181,17 @@ function rebuild(){
         asphaltMesh.setColorAt(ia, tmpColor.setHex(COL.asphalt));
         ia++;
 
+        /* meio-fio deslocado para 0.425: a face externa fica em 0.505,
+           fora da face lateral do asfalto (0.498) */
         const edges = [
-          { on:!n, rotY:0,           ox:0,     oz:-0.42 },
-          { on:!s, rotY:0,           ox:0,     oz: 0.42 },
-          { on:!w, rotY:Math.PI / 2, ox:-0.42, oz:0     },
-          { on:!e, rotY:Math.PI / 2, ox: 0.42, oz:0     }
+          { on:!n, rotY:0,           ox:0,      oz:-0.425 },
+          { on:!s, rotY:0,           ox:0,      oz: 0.425 },
+          { on:!w, rotY:Math.PI / 2, ox:-0.425, oz:0      },
+          { on:!e, rotY:Math.PI / 2, ox: 0.425, oz:0      }
         ];
         for (const ed of edges){
           if (!ed.on) continue;
-          dummy.position.set(cx + ed.ox, Y + 0.035, cz + ed.oz);
+          dummy.position.set(cx + ed.ox, Y + 0.038, cz + ed.oz);
           dummy.rotation.set(0, ed.rotY, 0);
           dummy.scale.set(1, 1, 1);
           dummy.updateMatrix();
@@ -2109,7 +2205,7 @@ function rebuild(){
         if (horiz || vert){
           for (let k = 0; k < 2; k++){
             const off = (k === 0 ? -0.24 : 0.24);
-            dummy.position.set(cx + (horiz ? off : 0), Y + 0.068, cz + (vert ? off : 0));
+            dummy.position.set(cx + (horiz ? off : 0), Y + LAYER.STRIPE, cz + (vert ? off : 0));
             dummy.rotation.set(0, vert ? Math.PI / 2 : 0, 0);
             dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
@@ -2127,17 +2223,17 @@ function rebuild(){
         const built = t.level > 0;
         const alert = !t.connected || !t.powered;
 
-        dummy.position.set(cx, Y + 0.02, cz);
+        dummy.position.set(cx, Y + LAYER.PAD, cz);
         dummy.rotation.set(0, 0, 0);
         dummy.scale.set(1, 1, 1);
         dummy.updateMatrix();
         padMesh.setMatrixAt(ip, dummy.matrix);
         tmpColor.setHex(zoneHex);
-        tmpColor.lerp(built ? BLACK : WHITE, built ? 0.14 : 0.14);
+        tmpColor.lerp(built ? BLACK : WHITE, 0.14);
         padMesh.setColorAt(ip, tmpColor);
         ip++;
 
-        dummy.position.set(cx, Y + 0.062, cz);
+        dummy.position.set(cx, Y + LAYER.FRAME, cz);
         dummy.updateMatrix();
         frameMesh.setMatrixAt(ifr, dummy.matrix);
         if (alert) tmpColor.setHex(ALERT_COL);
@@ -2153,7 +2249,7 @@ function rebuild(){
             dummy.rotation.set(0, arm ? Math.PI / 2 : 0, 0);
             dummy.position.set(
               cx + sx * (arm ? 0.455 : 0.33),
-              Y + 0.075,
+              Y + LAYER.CORNER,
               cz + sz * (arm ? 0.33 : 0.455)
             );
             dummy.scale.set(1, 1, 1);
@@ -2222,17 +2318,20 @@ function rebuild(){
        ligações são os quatro vizinhos ortogonais que também sejam estrada.
      · Cada veículo atravessa um tile por vez com uma Bézier quadrática que
        liga a borda de entrada à borda de saída, mantendo o deslocamento
-       lateral da mão direita (trânsito brasileiro). Em cruzamentos o ponto
-       de controle é a interseção das duas retas, o que produz curvas
-       suaves sem cortar a esquina.
-     · A rota é decidida na chegada ao tile: prefere seguir em frente,
-       evita retornar pelo mesmo lado e só faz retorno em rua sem saída.
+       lateral da mão direita (trânsito brasileiro).
+     · A rota é decidida na chegada ao tile: prefere seguir em frente e só
+       faz retorno em rua sem saída.
      · Há espaçamento entre veículos: cada carro observa quem está à frente
        na mesma faixa (tile + sentido) e no tile seguinte, e desacelera.
-     · A frota é dimensionada pela população, pelos empregos e pelo tamanho
-       da malha viária; os veículos aparecem e somem gradualmente.
      · Faróis e lanternas usam materiais registrados em skyHooks, portanto
        acendem junto com as janelas quando o sol se põe.
+
+   Correção de z-fighting nesta seção:
+     · ROAD_Y agora fica 4 mm acima do topo real do asfalto (antes os
+       veículos apoiavam exatamente sobre ele).
+     · Faróis e lanternas foram empurrados para fora da carroceria
+       (0.505 L em vez de 0.49 L), pois a folga anterior de 2 milésimos
+       era pequena demais para o depth buffer em vistas afastadas.
    ========================================================================= */
 const TRAFFIC = (function(){
 
@@ -2240,7 +2339,7 @@ const TRAFFIC = (function(){
   const DIRS   = [[1,0],[0,1],[-1,0],[0,-1]];   // 0:+X  1:+Z  2:−X  3:−Z
   const LANE   = 0.205;                          // deslocamento da mão direita
   const MAXCARS = 240;
-  const ROAD_Y = CFG.GROUND_Y + 0.06;            // topo do asfalto
+  const ROAD_Y = CFG.GROUND_Y + 0.064;           // topo do asfalto + folga
   const GAP_SLOW = 0.34, GAP_STOP = 0.17;        // distâncias de segurança
 
   const CAR_COLORS = [
@@ -2500,7 +2599,7 @@ const TRAFFIC = (function(){
         const oz = -c.L * 0.22;
         dummy.position.set(px + _fwd[0] * oz, baseY + c.h * 0.72, pz + _fwd[1] * oz);
         dummy.rotation.set(0, yaw, 0);
-        dummy.scale.set(c.w * 1.02, c.h * 0.85, c.L * 0.52);
+        dummy.scale.set(c.w * 1.04, c.h * 0.85, c.L * 0.52);
         dummy.updateMatrix();
         mCargo.setMatrixAt(ic, dummy.matrix);
         mCargo.setColorAt(ic, tmpColor2.setHex(c.cargo));
@@ -2525,15 +2624,15 @@ const TRAFFIC = (function(){
         }
       }
 
-      /* faróis e lanternas */
+      /* faróis e lanternas: projetados para fora da carroceria */
       for (let s = -1; s <= 1; s += 2){
         const ox = s * c.w * 0.30;
-        const ozF = c.L * 0.49, ozR = -c.L * 0.49;
+        const ozF = c.L * 0.505, ozR = -c.L * 0.505;
         const y = baseY + c.h * 0.42;
 
         dummy.position.set(px + _rgt[0] * ox + _fwd[0] * ozF, y, pz + _rgt[1] * ox + _fwd[1] * ozF);
         dummy.rotation.set(0, yaw, 0);
-        dummy.scale.set(0.036, 0.026, 0.016);
+        dummy.scale.set(0.036, 0.026, 0.018);
         dummy.updateMatrix();
         mHead.setMatrixAt(ih, dummy.matrix);
         mHead.setColorAt(ih, tmpColor2.setHex(0xffffff));
@@ -2541,7 +2640,7 @@ const TRAFFIC = (function(){
 
         dummy.position.set(px + _rgt[0] * ox + _fwd[0] * ozR, y, pz + _rgt[1] * ox + _fwd[1] * ozR);
         dummy.rotation.set(0, yaw, 0);
-        dummy.scale.set(0.034, 0.024, 0.014);
+        dummy.scale.set(0.034, 0.024, 0.016);
         dummy.updateMatrix();
         mTail.setMatrixAt(it, dummy.matrix);
         mTail.setColorAt(it, tmpColor2.setHex(c.v < 0.05 ? 0xffffff : 0xcfcfcf));
@@ -2938,7 +3037,7 @@ function updateHighlight(time){
   let i = 0;
   for (const p of tiles){
     if (!inBounds(p.x, p.z)) continue;
-    dummy.position.set(p.x + 0.5, CFG.GROUND_Y + 0.09, p.z + 0.5);
+    dummy.position.set(p.x + 0.5, CFG.GROUND_Y + LAYER.HILITE, p.z + 0.5);
     dummy.rotation.set(0, 0, 0);
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
@@ -3067,6 +3166,7 @@ function panCamera(dt){
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
 });
 
@@ -3147,7 +3247,7 @@ updateSky(CFG.START_HOUR / 24);
 rebuild();
 updateHUD();
 document.getElementById('loader').style.display = 'none';
-toast('Tráfego de carros ativo · a frota cresce com a cidade', false, 'car-multiple');
+toast('Correção de z-fighting aplicada · modelos estáveis', false, 'layers-triple');
 requestAnimationFrame(loop);
 </script>
 </body>
