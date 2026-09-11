@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>City Builder 3D — v7 (modelos 3D com CSG · ícones MDI)</title>
+<title>City Builder 3D</title>
 
 <!-- =========================================================
      SEÇÃO 1 — ÍCONES (Material Design Icons) E ESTILO
@@ -72,6 +72,13 @@
   .btn:hover{border-color:var(--accent)}
   .btn.active{background:#1c2c42;border-color:var(--accent)}
 
+  /* ---- Seletor de iluminação (dia · noite · automático) ---- */
+  #sky-ctl{display:flex;align-items:center;gap:6px}
+  #b-sky{min-width:118px;justify-content:center}
+  #b-sky .lbl{font-variant-numeric:tabular-nums}
+  #sky-clock{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums;
+    display:flex;align-items:center;gap:4px;min-width:52px;justify-content:flex-end}
+
   /* ---- Legenda de zonas ---- */
   #legend{background:var(--panel);border:1px solid var(--border);border-radius:10px;
     padding:9px 11px;font-size:11.5px;line-height:1.5;min-width:206px;
@@ -139,6 +146,7 @@
     <div class="stat"><b id="s-emp">100%</b><span><i class="mdi mdi-chart-donut"></i>Ocupação</span></div>
     <div class="stat"><b id="s-bal">§0</b><span><i class="mdi mdi-scale-balance"></i>Balanço/mês</span></div>
     <div class="stat"><b id="s-time">Ano 1</b><span><i class="mdi mdi-calendar-clock"></i>Data</span></div>
+    <div class="stat"><b id="s-cars">0</b><span><i class="mdi mdi-car-multiple"></i>Tráfego</span></div>
   </div>
   <div class="card" id="rci">
     <div class="rci-col"><div class="rci-bar"><div class="rci-mid"></div><div class="rci-fill" id="f-R" style="background:var(--res)"></div></div><small><i class="mdi mdi-home"></i></small></div>
@@ -157,7 +165,12 @@
     <button class="btn" id="b-save"><i class="mdi mdi-content-save"></i>Salvar</button>
     <button class="btn" id="b-load"><i class="mdi mdi-folder-open"></i>Carregar</button>
     <button class="btn" id="b-new"><i class="mdi mdi-city-variant-outline"></i>Nova</button>
-    <button class="btn" id="b-night"><i class="mdi mdi-white-balance-sunny"></i><span>Dia</span></button>
+  </div>
+  <div class="card row" id="sky-ctl">
+    <button class="btn active" id="b-sky" title="Alternar iluminação: Dia · Noite · Automático (N)">
+      <i class="mdi mdi-sun-clock"></i><span class="lbl">Automático</span>
+    </button>
+    <span id="sky-clock"><i class="mdi mdi-clock-outline"></i><span id="sky-hh">00:00</span></span>
   </div>
 
   <div id="legend">
@@ -173,7 +186,8 @@
         <i class="mdi mdi-information-outline"></i>
         Todo lote precisa de <b>estrada</b> e <b>energia</b>.<br>
         Moldura vermelha = falta um dos dois.<br>
-        Nível ●●●● = quanto o lote já cresceu.
+        Nível ●●●● = quanto o lote já cresceu.<br>
+        <i class="mdi mdi-car"></i> O tráfego cresce com a população.
       </div>
     </div>
   </div>
@@ -190,7 +204,7 @@
     <i class="mdi mdi-rotate-3d-variant"></i> <b>Direito:</b> girar câmera<br>
     <i class="mdi mdi-magnify"></i> <b>Scroll:</b> zoom · <b>WASD:</b> mover<br>
     <i class="mdi mdi-numeric"></i> <b>1–7:</b> ferramentas<br>
-    <i class="mdi mdi-pause"></i> <b>Espaço:</b> pausar · <b>N:</b> dia/noite
+    <i class="mdi mdi-pause"></i> <b>Espaço:</b> pausar · <b>N:</b> dia / noite / auto
   </div>
 </div>
 
@@ -525,39 +539,51 @@ var CSGX = (function(){
   };
 })();
 </script>
-
 <script>
 /* =========================================================================
    CITY BUILDER 3D — arquivo único, sem build, sem servidor, sem texturas.
 
-   REVISÃO v7 — MODELOS 3D COM CSG
-     · Biblioteca csg.js (BSP booleano) embutida + ponte CSG ↔ Three.js.
-     · Todos os volumes principais passaram a ser sólidos booleanos:
-         · fachadas com portas/janelas SUBTRAÍDAS (relevo real, não pintado);
-         · chaminés e caixas d'água tubulares (cilindro − cilindro);
-         · torre de resfriamento da usina (perfil em ampulheta, oca);
-         · torre do relógio da prefeitura com mostradores rebaixados;
-         · arcadas do pórtico (paredes − arcos);
-         · coreto vazado e chafariz em anel no parque;
-         · bancos com ripas vazadas.
-     · As operações booleanas rodam UMA vez na inicialização e o resultado é
-       reutilizado por InstancedMesh — custo zero por quadro.
+   REVISÃO v12 — CORREÇÃO DE Z-FIGHTING ("modelos piscando")
+     O cintilar vinha de superfícies exatamente coplanares disputando o
+     mesmo valor de profundidade. Correções aplicadas:
 
-   Mantido da v6: jogabilidade simples (estrada + energia), sombras sempre
-   ativas, vista de zonas sempre ativa, ícones MDI e a economia da Seção 10.
+     1. Camada de profundidade explícita (LAYER) para tudo que é plano e
+        fica sobre o terreno: grid, pad da zona, moldura, pips do nível.
+        Cada elemento tem uma cota própria, com folga suficiente.
+     2. Precisão do depth buffer: near 0.5 → 1.0 e far 900 → 700, o que
+        praticamente dobra a resolução útil de Z na faixa em que a cidade
+        realmente é vista.
+     3. Lajes duplicadas removidas: E.cap() e o bloco de cobertura tinham
+        exatamente as mesmas dimensões (1.07 e 1.08), gerando faces
+        laterais coincidentes no topo de cada torre.
+     4. Telhados (gable/hip) passam a afundar ROOF_SINK no corpo, em vez de
+        apoiar a face inferior do beiral exatamente sobre o topo da parede.
+     5. Meio-fio deslocado para 0.425: antes sua face externa coincidia
+        com a face lateral do asfalto, exatamente em ±0.5.
+     6. Base do galpão industrial reduzida (0.94 → 0.90) e elevada, para
+        não coincidir com o pad da zona, que também media 0.94.
+     7. Veículos elevados 0.004 acima do asfalto, e realce do cursor
+        virou uma placa fina com depthWrite desligado.
+     8. Sombras: normalBias maior e bias menor, eliminando o "shadow acne"
+        que também aparecia como cintilação em superfícies grandes.
+
+   Mantido da v11: tráfego de carros, céu procedural com ciclo dia/noite,
+   usina low-poly, prefeitura neoclássica, parque, sólidos CSG das
+   fachadas, jogabilidade (estrada + energia), sombras e economia.
 
    Organização:
      4. Configuração e constantes
      5. Estado do jogo (mapa em grid)
-     6. Cena Three.js (céu, câmera, luzes)
+     6. Cena Three.js (CÉU PROCEDURAL, câmera, luzes, ciclo do dia)
      7. Materiais e geometrias
      7a. SÓLIDOS CSG (booleanos)
      7b. Gerador de edifícios
      7c. Construções especiais (prefeitura, parque, usina)
+     7d. TRÁFEGO DE CARROS
      8. Raycasting / seleção de tiles
      9. Ferramentas e construção
     10. Simulação (economia)
-    11. Interface (HUD, toolbar, legenda, tooltip)
+    11. Interface (HUD, toolbar, legenda, tooltip, seletor de céu)
     12. Entrada e loop de render
     13. Persistência
    ========================================================================= */
@@ -584,8 +610,30 @@ const CFG = {
   MAX_LEVEL: 4,
   POWER_RADIUS: 11,
   PARK_RADIUS: 5,
-  GROUND_Y: 0.20
+  GROUND_Y: 0.20,
+
+  DAY_SECONDS: 300,   // duração de um ciclo completo (24 h) em 1×
+  START_HOUR: 8.5     // hora do dia ao fundar a cidade
 };
+
+/* ---------------------------------------------------------
+   CAMADAS DE PROFUNDIDADE (correção de z-fighting)
+   Todo elemento plano que se sobrepõe ao terreno tem aqui uma
+   cota exclusiva. A separação mínima (6 mm no espaço do jogo)
+   é muito maior que a resolução do depth buffer nessa faixa,
+   então nada mais "pisca" quando a câmera se move.
+   --------------------------------------------------------- */
+const LAYER = {
+  GRID   : 0.008,   // grade de referência
+  PAD    : 0.020,   // pad da zona (bloco de 0.05 de altura)
+  ROAD   : 0.030,   // asfalto (bloco de 0.06 de altura)
+  STRIPE : 0.070,   // faixa central
+  FRAME  : 0.066,   // moldura da zona (plano)
+  CORNER : 0.082,   // pips de nível (blocos pequenos)
+  EDGE   : 0.070,   // moldura das construções especiais
+  HILITE : 0.120    // realce do cursor
+};
+const ROOF_SINK = 0.006;   // quanto o telhado afunda no corpo do edifício
 
 const T = { EMPTY:0, ROAD:1, RES:2, COM:3, IND:4, HALL:5, PARK:6, POWER:7, WATER:8 };
 
@@ -721,7 +769,12 @@ function seedStart(){
    ========================================================= */
 const scene = new THREE.Scene();
 
-const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+const renderer = new THREE.WebGLRenderer({
+  antialias:true,
+  powerPreference:'high-performance',
+  stencil:false,
+  depth:true
+});
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputEncoding = THREE.sRGBEncoding;
@@ -729,42 +782,150 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.sortObjects = true;
 document.body.appendChild(renderer.domElement);
 
-const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.5, 900);
+/* near/far ajustados: com near=1 e far=700 a precisão de Z na faixa
+   de trabalho (6 a 130 unidades) é muito maior que com near=0.5/far=900. */
+const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 1.0, 700);
 camera.position.set(N * 0.5 + 24, 28, N * 0.5 + 28);
 
-const SKY = {
-  day:   { top:0x2f6fb5, mid:0xa9cbe6, bot:0xe6e1cf, fog:0xbcd2e2, sun:0xfff2dd, sunI:1.35, hemiI:0.55, exp:1.05 },
-  night: { top:0x060b16, mid:0x142338, bot:0x25324a, fog:0x1a2434, sun:0x93b4e0, sunI:0.22, hemiI:0.22, exp:1.15 }
-};
-let night = false, skyBlend = 0;
+/* ---------------------------------------------------------------------
+   6a — CÉU PROCEDURAL
+   --------------------------------------------------------------------- */
+const winUniform = { value: 0 };          // 0 = dia, 1 = noite (janelas acesas)
 
-const skyUni = {
-  cTop: { value: new THREE.Color(SKY.day.top) },
-  cMid: { value: new THREE.Color(SKY.day.mid) },
-  cBot: { value: new THREE.Color(SKY.day.bot) }
+const skyU = {
+  uTop     : { value: new THREE.Color(0x1f5fae) },
+  uMid     : { value: new THREE.Color(0xa9cbe6) },
+  uBot     : { value: new THREE.Color(0xe9e4d2) },
+  uSunDir  : { value: new THREE.Vector3(0, 1, 0) },
+  uSunCol  : { value: new THREE.Color(0xfff6e6) },
+  uGlowCol : { value: new THREE.Color(0xffd9a0) },
+  uGlowI   : { value: 0.45 },
+  uSunVis  : { value: 1.0 },
+  uMoonVis : { value: 0.0 },
+  uStars   : { value: 0.0 },
+  uCloudCol: { value: new THREE.Color(0xffffff) },
+  uCloudI  : { value: 0.75 },
+  uCloudCov: { value: 0.52 },
+  uTime    : { value: 0.0 }
 };
+
+const SKY_VERT = [
+  'varying vec3 vDir;',
+  'void main(){',
+  '  vDir = position;',
+  '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);',
+  '}'
+].join('\n');
+
+const SKY_FRAG = [
+  'precision highp float;',
+  'varying vec3 vDir;',
+  'uniform vec3 uTop, uMid, uBot, uSunDir, uSunCol, uGlowCol, uCloudCol;',
+  'uniform float uGlowI, uSunVis, uMoonVis, uStars, uCloudI, uCloudCov, uTime;',
+
+  /* --- ruídos --- */
+  'float h21(vec2 p){',
+  '  vec3 p3 = fract(vec3(p.xyx) * 0.1031);',
+  '  p3 += dot(p3, p3.yzx + 33.33);',
+  '  return fract((p3.x + p3.y) * p3.z);',
+  '}',
+  'float h31(vec3 p){',
+  '  p = fract(p * vec3(0.1031, 0.1030, 0.0973));',
+  '  p += dot(p, p.yxz + 33.33);',
+  '  return fract((p.x + p.y) * p.z);',
+  '}',
+  'float vnoise(vec2 p){',
+  '  vec2 i = floor(p), f = fract(p);',
+  '  f = f * f * (3.0 - 2.0 * f);',
+  '  float a = h21(i), b = h21(i + vec2(1.0, 0.0));',
+  '  float c = h21(i + vec2(0.0, 1.0)), d = h21(i + vec2(1.0, 1.0));',
+  '  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);',
+  '}',
+  'float fbm(vec2 p){',
+  '  float v = 0.0, a = 0.5;',
+  '  for (int i = 0; i < 4; i++){ v += a * vnoise(p); p = p * 2.03 + 11.7; a *= 0.5; }',
+  '  return v;',
+  '}',
+  'vec3 rotY(vec3 v, float a){',
+  '  float c = cos(a), s = sin(a);',
+  '  return vec3(c * v.x + s * v.z, v.y, -s * v.x + c * v.z);',
+  '}',
+
+  'void main(){',
+  '  vec3 d = normalize(vDir);',
+  '  float h = d.y;',
+
+  /* --- gradiente base --- */
+  '  vec3 col = mix(uBot, uMid, smoothstep(-0.07, 0.26, h));',
+  '  col = mix(col, uTop, smoothstep(0.16, 0.80, h));',
+
+  /* --- estrelas + Via Láctea (somente com o céu escuro) --- */
+  '  if (uStars > 0.002){',
+  '    vec3 sd = rotY(d, uTime * 0.004);',
+  '    vec3 cell = floor(sd * 150.0);',
+  '    vec3 fp   = fract(sd * 150.0) - 0.5;',
+  '    float r   = h31(cell);',
+  '    float on  = step(0.9735, r);',
+  '    float tw  = 0.55 + 0.45 * sin(uTime * 2.4 + r * 90.0);',
+  '    float st  = on * pow(max(0.0, 1.0 - length(fp) * 2.3), 9.0) * tw;',
+  '    float fade = smoothstep(-0.03, 0.20, h);',
+  '    col += mix(vec3(1.0, 0.96, 0.90), vec3(0.78, 0.86, 1.0), fract(r * 7.3)) * st * uStars * fade * 1.6;',
+  '    float band = exp(-pow(abs(dot(sd, normalize(vec3(0.62, 0.34, -0.71)))) * 3.1, 2.0));',
+  '    float mw = band * (0.35 + 0.65 * fbm(sd.xz * 3.0 + sd.y * 2.0));',
+  '    col += vec3(0.10, 0.12, 0.20) * mw * uStars * fade * 0.9;',
+  '  }',
+
+  /* --- nuvens em fBm, à deriva --- */
+  '  if (uCloudI > 0.002 && h > 0.005){',
+  '    vec2 cuv = d.xz / (h + 0.16) * 0.85 + vec2(uTime * 0.010, uTime * 0.004);',
+  '    float n  = fbm(cuv) * 0.65 + fbm(cuv * 2.7 + 5.0) * 0.35;',
+  '    float cov = smoothstep(uCloudCov, uCloudCov + 0.26, n);',
+  '    float shp = smoothstep(uCloudCov + 0.10, uCloudCov + 0.34, n);',
+  '    cov *= smoothstep(0.01, 0.20, h);',
+  '    vec3 lit = mix(uCloudCol * 0.72, uCloudCol, shp);',
+  '    lit = mix(lit, uGlowCol, pow(max(dot(d, uSunDir), 0.0), 5.0) * 0.45);',
+  '    col = mix(col, lit, cov * uCloudI);',
+  '  }',
+
+  /* --- halo e disco do sol --- */
+  '  float cs = dot(d, uSunDir);',
+  '  float glow = pow(max(cs, 0.0), 5.0) * 0.30 + pow(max(cs, 0.0), 48.0) * 0.85;',
+  '  col += uGlowCol * glow * uGlowI;',
+  '  float sunDisk = smoothstep(0.99900, 0.99945, cs);',
+  '  col = mix(col, uSunCol * 1.25, sunDisk * uSunVis);',
+
+  /* --- lua: disco com crateras e brilho suave --- */
+  '  if (uMoonVis > 0.002){',
+  '    vec3 md = -uSunDir;',
+  '    float cm = dot(d, md);',
+  '    col += vec3(0.62, 0.70, 0.92) * pow(max(cm, 0.0), 220.0) * 0.55 * uMoonVis;',
+  '    float disk = smoothstep(0.99930, 0.99962, cm);',
+  '    vec3 tang = normalize(d - md * cm);',
+  '    float cr = 0.86 + 0.14 * vnoise(tang.xz * 260.0 + tang.y * 130.0);',
+  '    col = mix(col, vec3(0.95, 0.95, 0.90) * cr, disk * uMoonVis);',
+  '  }',
+
+  /* --- leve granulação para evitar banding no gradiente --- */
+  '  col += (h21(gl_FragCoord.xy) - 0.5) * 0.006;',
+  '  gl_FragColor = vec4(col, 1.0);',
+  '}'
+].join('\n');
+
 const sky = new THREE.Mesh(
-  new THREE.SphereGeometry(420, 32, 20),
+  new THREE.SphereGeometry(420, 48, 32),
   new THREE.ShaderMaterial({
-    side: THREE.BackSide, depthWrite:false, fog:false, uniforms: skyUni,
-    vertexShader:'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);} ',
-    fragmentShader:[
-      'uniform vec3 cTop, cMid, cBot; varying vec3 vP;',
-      'void main(){',
-      '  float h = normalize(vP).y;',
-      '  vec3 c = mix(cBot, cMid, smoothstep(-0.06, 0.22, h));',
-      '  c = mix(c, cTop, smoothstep(0.18, 0.75, h));',
-      '  gl_FragColor = vec4(c, 1.0);',
-      '}'
-    ].join('\n')
+    side: THREE.BackSide, depthWrite:false, depthTest:false, fog:false,
+    uniforms: skyU, vertexShader: SKY_VERT, fragmentShader: SKY_FRAG
   })
 );
 sky.frustumCulled = false;
+sky.renderOrder = -1000;
 scene.add(sky);
 
-scene.fog = new THREE.Fog(SKY.day.fog, N * 1.1, N * 3.4);
+scene.fog = new THREE.Fog(0xbcd2e2, N * 1.1, N * 3.4);
 
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.target.set(N / 2, 0, N / 2);
@@ -776,34 +937,154 @@ controls.maxPolarAngle = Math.PI * 0.475;
 controls.mouseButtons = { LEFT:null, MIDDLE:THREE.MOUSE.PAN, RIGHT:THREE.MOUSE.ROTATE };
 controls.update();
 
-const sun = new THREE.DirectionalLight(SKY.day.sun, SKY.day.sunI);
+const sun = new THREE.DirectionalLight(0xfff6e6, 1.4);
 sun.position.set(N * 0.75, N * 1.05, N * 0.35);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.bias = -0.0006;
-sun.shadow.normalBias = 0.03;
+/* bias menor + normalBias maior: elimina o "shadow acne" que também
+   se manifestava como cintilação em telhados e no asfalto. */
+sun.shadow.bias = -0.00025;
+sun.shadow.normalBias = 0.06;
 const S = N * 0.75;
 sun.shadow.camera.left = -S; sun.shadow.camera.right = S;
 sun.shadow.camera.top = S;   sun.shadow.camera.bottom = -S;
-sun.shadow.camera.near = 1;  sun.shadow.camera.far = N * 3;
+sun.shadow.camera.near = 1;  sun.shadow.camera.far = N * 3.2;
 sun.target.position.set(N / 2, 0, N / 2);
 scene.add(sun, sun.target);
 
-const hemi = new THREE.HemisphereLight(0xbcd8ff, 0x53663c, SKY.day.hemiI);
+const hemi = new THREE.HemisphereLight(0xbcd8ff, 0x53663c, 0.6);
 scene.add(hemi);
 
-function applySky(t){
-  const a = SKY.day, b = SKY.night;
-  const lerpC = (u, ca, cb) => u.value.setHex(ca).lerp(new THREE.Color(cb), t);
-  lerpC(skyUni.cTop, a.top, b.top);
-  lerpC(skyUni.cMid, a.mid, b.mid);
-  lerpC(skyUni.cBot, a.bot, b.bot);
-  scene.fog.color.setHex(a.fog).lerp(new THREE.Color(b.fog), t);
-  sun.color.setHex(a.sun).lerp(new THREE.Color(b.sun), t);
-  sun.intensity = a.sunI + (b.sunI - a.sunI) * t;
-  hemi.intensity = a.hemiI + (b.hemiI - a.hemiI) * t;
-  renderer.toneMappingExposure = a.exp + (b.exp - a.exp) * t;
-  winUniform.value = t;
+/* ---------------------------------------------------------------------
+   6b — PALETA CONTÍNUA POR ALTURA DO SOL
+   --------------------------------------------------------------------- */
+const SKY_KEYS = [
+  { e:-1.00, top:0x03060f, mid:0x0a1226, bot:0x141f38, fog:0x101a2e,
+    sun:0xc9d8ff, sunI:0.16, glow:0x2a3a63, glowI:0.20,
+    hSky:0x24365c, hGnd:0x101a26, hI:0.24, exp:1.22,
+    cloud:0x1d273f, cloudI:0.42, cov:0.60, stars:1.0 },
+
+  { e:-0.28, top:0x061029, mid:0x14203f, bot:0x2a2f4d, fog:0x1d2440,
+    sun:0xa9c0f0, sunI:0.18, glow:0x4a4470, glowI:0.30,
+    hSky:0x32456e, hGnd:0x16202c, hI:0.28, exp:1.20,
+    cloud:0x2b3350, cloudI:0.48, cov:0.58, stars:0.85 },
+
+  { e:-0.10, top:0x1b2f60, mid:0x4b4577, bot:0x9a5a63, fog:0x5a4c68,
+    sun:0xff9d6d, sunI:0.28, glow:0xff8a55, glowI:0.75,
+    hSky:0x6b6f9a, hGnd:0x38343a, hI:0.36, exp:1.16,
+    cloud:0x8a6a80, cloudI:0.62, cov:0.54, stars:0.35 },
+
+  { e:-0.01, top:0x2b5c98, mid:0xa5809b, bot:0xe9a878, fog:0xc79a86,
+    sun:0xffb47a, sunI:0.62, glow:0xffa257, glowI:0.95,
+    hSky:0xa8b6d8, hGnd:0x5c5140, hI:0.46, exp:1.10,
+    cloud:0xf0bfa2, cloudI:0.72, cov:0.50, stars:0.10 },
+
+  { e:0.10, top:0x2a63a8, mid:0xb9cfe0, bot:0xf0dcc2, fog:0xd7cdbe,
+    sun:0xffe3bd, sunI:1.10, glow:0xffd9a8, glowI:0.60,
+    hSky:0xbcd2f0, hGnd:0x5e6a44, hI:0.54, exp:1.06,
+    cloud:0xfdf1e6, cloudI:0.76, cov:0.50, stars:0.0 },
+
+  { e:0.38, top:0x2261ae, mid:0xa9cbe6, bot:0xe7e2d0, fog:0xc3d6e4,
+    sun:0xfff2dd, sunI:1.35, glow:0xffe9c8, glowI:0.42,
+    hSky:0xbcd8ff, hGnd:0x53663c, hI:0.58, exp:1.04,
+    cloud:0xffffff, cloudI:0.78, cov:0.52, stars:0.0 },
+
+  { e:1.00, top:0x1a58a8, mid:0x9dc6e8, bot:0xe9e6d6, fog:0xbcd2e2,
+    sun:0xfffaf0, sunI:1.50, glow:0xfff2dd, glowI:0.34,
+    hSky:0xcfe3ff, hGnd:0x56693e, hI:0.62, exp:1.00,
+    cloud:0xffffff, cloudI:0.80, cov:0.55, stars:0.0 }
+];
+
+/* ---- estado do ciclo ---------------------------------------------- */
+const SKY_MODES = [
+  { id:'day',   label:'Dia',        icon:'white-balance-sunny', t:0.5000 },
+  { id:'night', label:'Noite',      icon:'weather-night',       t:0.0000 },
+  { id:'auto',  label:'Automático', icon:'sun-clock',           t:null  }
+];
+let skyModeIdx = 2;                        // começa em Automático
+let dayT = CFG.START_HOUR / 24;            // 0 = meia-noite, 0.5 = meio-dia
+let sunElev = 1;
+
+const skyHooks = { glow:null, carHead:null, carTail:null };  // materiais noturnos
+const _c1 = new THREE.Color(), _c2 = new THREE.Color();
+const _sunDir = new THREE.Vector3();
+
+/* direção do sol para um instante do dia (0..1) */
+function sunDirection(t, out){
+  const ang = (t - 0.25) * Math.PI * 2;         // 0.25 = nascente, 0.75 = poente
+  const tilt = 0.28;                            // inclinação da eclíptica (norte)
+  const cy = Math.cos(ang), sy = Math.sin(ang);
+  out.set(cy * 0.94, sy, cy * -0.24 + tilt * 0.55);
+  return out.normalize();
+}
+
+function lerpKeys(e){
+  let a = SKY_KEYS[0], b = SKY_KEYS[SKY_KEYS.length - 1], k = 0;
+  for (let i = 0; i < SKY_KEYS.length - 1; i++){
+    if (e >= SKY_KEYS[i].e && e <= SKY_KEYS[i + 1].e){
+      a = SKY_KEYS[i]; b = SKY_KEYS[i + 1];
+      k = (e - a.e) / (b.e - a.e);
+      break;
+    }
+    if (e < SKY_KEYS[0].e){ a = b = SKY_KEYS[0]; k = 0; break; }
+    if (e > SKY_KEYS[SKY_KEYS.length - 1].e){ a = b = SKY_KEYS[SKY_KEYS.length - 1]; k = 0; break; }
+  }
+  k = k * k * (3 - 2 * k);                       // suavização
+  return { a, b, k };
+}
+
+const smoothstep = (a, b, x) => {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+/* Atualiza céu, névoa, luzes e janelas acesas para o instante do dia. */
+function updateSky(t){
+  dayT = ((t % 1) + 1) % 1;
+  sunDirection(dayT, _sunDir);
+  const e = sunElev = _sunDir.y;
+
+  const { a, b, k } = lerpKeys(e);
+  const mixC = (uniformColor, ka, kb) => uniformColor.setHex(ka).lerp(_c2.setHex(kb), k);
+  const mixN = (na, nb) => na + (nb - na) * k;
+
+  mixC(skyU.uTop.value, a.top, b.top);
+  mixC(skyU.uMid.value, a.mid, b.mid);
+  mixC(skyU.uBot.value, a.bot, b.bot);
+  mixC(skyU.uGlowCol.value, a.glow, b.glow);
+  mixC(skyU.uCloudCol.value, a.cloud, b.cloud);
+  mixC(skyU.uSunCol.value, a.sun, b.sun);
+  skyU.uGlowI.value   = mixN(a.glowI, b.glowI);
+  skyU.uCloudI.value  = mixN(a.cloudI, b.cloudI);
+  skyU.uCloudCov.value= mixN(a.cov, b.cov);
+  skyU.uStars.value   = mixN(a.stars, b.stars);
+  skyU.uSunDir.value.copy(_sunDir);
+  skyU.uSunVis.value  = smoothstep(-0.055, 0.015, e);
+  skyU.uMoonVis.value = 1 - smoothstep(-0.09, 0.06, e);
+
+  scene.fog.color.setHex(a.fog).lerp(_c2.setHex(b.fog), k);
+
+  /* luz principal: sol acima do horizonte, luar abaixo dele */
+  const moonlit = e < -0.02;
+  const dir = moonlit ? _sunDir.clone().negate() : _sunDir;
+  const dist = N * 1.35;
+  sun.position.set(N / 2 + dir.x * dist, Math.max(dir.y, 0.12) * dist, N / 2 + dir.z * dist);
+  sun.color.setHex(a.sun).lerp(_c2.setHex(b.sun), k);
+  sun.intensity = mixN(a.sunI, b.sunI);
+
+  hemi.color.setHex(a.hSky).lerp(_c2.setHex(b.hSky), k);
+  hemi.groundColor.setHex(a.hGnd).lerp(_c2.setHex(b.hGnd), k);
+  hemi.intensity = mixN(a.hI, b.hI);
+
+  renderer.toneMappingExposure = mixN(a.exp, b.exp);
+
+  /* janelas, postes e faróis acendem no fim da tarde */
+  const nightF = 1 - smoothstep(-0.14, 0.08, e);
+  winUniform.value = nightF;
+  if (skyHooks.glow)    skyHooks.glow.emissiveIntensity    = 0.15 + nightF * 2.1;
+  if (skyHooks.carHead) skyHooks.carHead.emissiveIntensity = 0.05 + nightF * 2.6;
+  if (skyHooks.carTail) skyHooks.carTail.emissiveIntensity = 0.20 + nightF * 1.9;
+  updateSkyClock();
 }
 
 /* =========================================================
@@ -820,11 +1101,11 @@ const MAXDET = N * N * 32;
 const MAXCYL = N * N * 8;
 const MAXTUBE = N * N * 4;
 
-const winUniform = { value: 0 };
-
 const G = {
   pad    : new THREE.BoxGeometry(0.94, 0.05, 0.94),
-  asphalt: new THREE.BoxGeometry(1.0, 0.06, 1.0),
+  /* asfalto 0.996: evita que a face lateral coincida exatamente com o
+     meio-fio e com o tile vizinho em ±0.5 */
+  asphalt: new THREE.BoxGeometry(0.996, 0.06, 0.996),
   curb   : new THREE.BoxGeometry(1.0, 0.075, 0.16),
   stripe : new THREE.BoxGeometry(0.34, 0.02, 0.06),
   box    : new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0),
@@ -838,6 +1119,19 @@ const G = {
   dome   : new THREE.SphereGeometry(0.5, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.5),
   torus  : new THREE.TorusGeometry(0.5, 0.06, 8, 20).rotateX(Math.PI / 2)
 };
+
+/* ---- primitivas de BAIXA resolução (prefeitura e usina) ---- */
+G.cylLo  = new THREE.CylinderGeometry(0.5, 0.5, 1, 8).translate(0, 0.5, 0);   // 8 lados
+G.domeLo = new THREE.SphereGeometry(0.5, 8, 2, 0, Math.PI * 2, 0, Math.PI * 0.5);
+G.sphLo  = new THREE.SphereGeometry(0.5, 8, 5);                               // vapor
+G.pedi   = (function(){                                                       // frontão: 8 triângulos
+  const tri = new THREE.Shape();
+  tri.moveTo(-0.5, 0); tri.lineTo(0.5, 0); tri.lineTo(0, 1); tri.lineTo(-0.5, 0);
+  const g = new THREE.ExtrudeGeometry(tri, { depth:1, bevelEnabled:false });
+  g.translate(0, 0, -0.5);
+  g.computeVertexNormals();
+  return g;
+})();
 
 /* Telhado de duas águas */
 G.gable = (function(){
@@ -869,15 +1163,17 @@ G.frame = (function(){
 
 /* Disco plano (canteiro/lago do parque) */
 G.disc = new THREE.CircleGeometry(0.5, 20).rotateX(-Math.PI / 2);
+/* Disco de baixa resolução (óculo do frontão / relógio) */
+G.discLo = new THREE.CircleGeometry(0.5, 10).rotateX(-Math.PI / 2);
 
 G.corner = new THREE.BoxGeometry(0.30, 0.03, 0.08);
 
+/* placa fina do realce do cursor (não é mais um cubo alto que atravessava
+   moldura, pips e edifícios) */
+G.hilite = new THREE.PlaneGeometry(0.98, 0.98).rotateX(-Math.PI / 2);
+
 /* =========================================================
    SEÇÃO 7a — SÓLIDOS CSG (booleanos, calculados uma única vez)
-   -----------------------------------------------------------
-   Convenção herdada da v6: toda geometria de corpo ocupa a caixa
-   unitária 1×1×1 com a BASE em y = 0, para que as chamadas de
-   escala existentes continuem válidas.
    ========================================================= */
 const CSGGEO = (function(){
   const t0 = performance.now();
@@ -886,11 +1182,7 @@ const CSGGEO = (function(){
   /* ---- Fachada residencial: embasamento, cornija, porta e janelas ---- */
   function shellRes(){
     let s = B(1, 1, 1, 0, 0.5, 0);
-    /* Sem volumes salientes: a caixa continua com 12 faces de partida,
-       o que mantém a malha final leve mesmo com os recortes. */
     s = s.subtract(B(0.24, 0.28, 0.16, 0, 0.16, 0.46));  // porta recuada
-    /* janelas apenas nas duas fachadas principais: mantém a contagem
-       de triângulos baixa (a malha é reutilizada por milhares de lotes) */
     s = s.subtract(B(0.66, 0.16, 0.09, 0, 0.55,  0.475));
     s = s.subtract(B(0.66, 0.16, 0.09, 0, 0.55, -0.475));
     s = s.subtract(B(0.09, 0.16, 0.66,  0.475, 0.55, 0));
@@ -901,13 +1193,12 @@ const CSGGEO = (function(){
   /* ---- Fachada comercial: montantes verticais e marquise ---- */
   function shellCom(){
     let s = B(1, 1, 1, 0, 0.5, 0);
-    /* sulcos verticais contínuos (um por face) */
     s = s.subtract(B(0.10, 0.86, 0.05, 0, 0.53,  0.49));
     s = s.subtract(B(0.10, 0.86, 0.05, 0, 0.53, -0.49));
     s = s.subtract(B(0.05, 0.86, 0.10,  0.49, 0.53, 0));
     s = s.subtract(B(0.05, 0.86, 0.10, -0.49, 0.53, 0));
     s = s.subtract(B(0.62, 0.16, 0.12, 0, 0.10, 0.47));  // vitrine recuada
-    s = s.subtract(B(1.02, 0.028, 0.04, 0, 0.95, 0.50));  // friso de coroamento
+    s = s.subtract(B(1.02, 0.028, 0.04, 0, 0.95, 0.50)); // friso de coroamento
     s = s.subtract(B(0.04, 0.028, 1.02, 0.50, 0.95, 0));
     return CSGX.normalize(s);
   }
@@ -936,16 +1227,23 @@ const CSGGEO = (function(){
     g.translate(0, 0, -0.53);
     g.computeVertexNormals();
     let s = CSGX.from(g);
-    s = s.union(B(1.10, 0.06, 1.12, 0, 0.02, 0));         // beiral
+    s = s.union(B(1.10, 0.06, 1.12, 0, 0.02, 0));          // beiral
     s = s.union(C(0.05, 0.05, 1.12, 10, 0, 0.96, 0, 'z')); // cumeeira
     return CSGX.normalize(s);
   }
 
-  /* -----------------------------------------------------------------
-     Peças das construções especiais: aqui os sólidos são gerados JÁ no
-     tamanho final (1 unidade = 1 tile), portanto não passam pelo
-     normalize() e são posicionados com escala 1.
-     ----------------------------------------------------------------- */
+  /* ---- PREFEITURA · pórtico hexástilo ---- */
+  function colonnade(){
+    let s = B(0.58, 0.28, 0.10, 0, 0.16, 0);                  // bloco das colunas
+    for (let i = 0; i < 5; i++){
+      const c = -0.20 + i * 0.10;
+      s = s.subtract(B(0.062, 0.23, 0.16, c, 0.160, 0));      // intercolúnio
+    }
+    s = s.union(B(0.64, 0.020, 0.14, 0, 0.030, 0));           // estilóbata
+    s = s.union(B(0.62, 0.030, 0.13, 0, 0.305, 0));           // arquitrave/friso
+    s = s.union(B(0.66, 0.022, 0.15, 0, 0.330, 0));           // cornija
+    return CSGX.to(s);
+  }
 
   /* ---- Bacia do chafariz: anel (cilindro − cilindro) ---- */
   function basin(){
@@ -963,36 +1261,24 @@ const CSGGEO = (function(){
     return CSGX.to(s);
   }
 
-  /* ---- Arcada do pórtico: parede com quatro arcos plenos vazados ---- */
-  function arcade(){
-    let s = B(0.56, 0.30, 0.09, 0, 0.15, 0);
-    for (const c of [-0.195, -0.065, 0.065, 0.195]){
-      s = s.subtract(B(0.085, 0.16, 0.20, c, 0.090, 0));            // vão reto
-      s = s.subtract(C(0.0425, 0.0425, 0.20, 16, c, 0.17, 0, 'z')); // arco
-    }
-    s = s.union(B(0.60, 0.028, 0.13, 0, 0.294, 0));                 // arquitrave
-    s = s.union(B(0.60, 0.026, 0.13, 0, 0.012, 0));                 // estilóbata
-    return CSGX.to(s);
-  }
-
-  /* ---- Torre do relógio: mostradores rebaixados nas quatro faces ---- */
-  function clockTower(){
-    let s = B(0.26, 0.30, 0.26, 0, 0.15, 0);
-    for (const f of [[0, 0.13, 'z'], [0, -0.13, 'z'], [0.13, 0, 'x'], [-0.13, 0, 'x']]){
-      const x = f[2] === 'x' ? f[0] : 0, z = f[2] === 'x' ? 0 : f[1];
-      s = s.subtract(C(0.055, 0.055, 0.03, 20, x, 0.205, z, f[2]));
-    }
-    s = s.union(B(0.30, 0.024, 0.30, 0, 0.300, 0));   // coroamento
-    s = s.union(B(0.29, 0.024, 0.29, 0, 0.011, 0));   // base
-    return CSGX.to(s);
-  }
-
-  /* ---- Torre de resfriamento: perfil em ampulheta, oca no topo ---- */
+  /* ---- USINA · torre de resfriamento ---- */
   function coolTower(){
-    let s = C(0.145, 0.225, 0.30, 24, 0, 0.15, 0);
-    s = s.union(C(0.200, 0.145, 0.22, 24, 0, 0.41, 0));
-    s = s.subtract(C(0.170, 0.115, 0.26, 24, 0, 0.43, 0));  // chaminé oca
-    s = s.union(C(0.235, 0.235, 0.024, 24, 0, 0.011, 0));   // sapata
+    let s = C(0.130, 0.215, 0.30, 12, 0, 0.15, 0);           // tronco inferior
+    s = s.union(C(0.185, 0.130, 0.20, 12, 0, 0.40, 0));      // tronco superior
+    s = s.subtract(C(0.155, 0.105, 0.24, 12, 0, 0.42, 0));   // boca oca
+    s = s.union(C(0.230, 0.230, 0.022, 12, 0, 0.011, 0));    // sapata
+    return CSGX.to(s);
+  }
+
+  /* ---- USINA · transformador ---- */
+  function transformer(){
+    let s = B(0.13, 0.11, 0.10, 0, 0.065, 0);
+    for (let i = 0; i < 3; i++){
+      const c = -0.032 + i * 0.032;
+      s = s.subtract(B(0.012, 0.07, 0.14, c, 0.062, 0));     // aletas
+    }
+    s = s.union(B(0.16, 0.016, 0.13, 0, 0.008, 0));          // base
+    s = s.union(B(0.10, 0.014, 0.08, 0, 0.125, 0));          // tampa
     return CSGX.to(s);
   }
 
@@ -1008,11 +1294,26 @@ const CSGGEO = (function(){
     return CSGX.to(s);
   }
 
+  /* ---- CARRO · carroceria com para-brisas e caixas de roda vazadas ---- */
+  function carBody(){
+    let s = B(1, 0.62, 1.9, 0, 0.31, 0);                     // volume base
+    s = s.subtract(B(1.06, 0.30, 0.42,  0, 0.10,  0.62));    // caixa de roda diant.
+    s = s.subtract(B(1.06, 0.30, 0.42,  0, 0.10, -0.62));    // caixa de roda tras.
+    s = s.subtract(B(0.62, 0.14, 0.10,  0, 0.42,  0.95));    // recuo do capô
+    s = s.subtract(B(0.62, 0.12, 0.10,  0, 0.42, -0.95));    // recuo da tampa
+    s = s.union(B(0.86, 0.42, 0.98, 0, 0.72, -0.06));        // cabine
+    s = s.subtract(B(0.92, 0.22, 0.06,  0, 0.78,  0.42));    // para-brisa
+    s = s.subtract(B(0.92, 0.22, 0.06,  0, 0.78, -0.55));    // vidro traseiro
+    s = s.subtract(B(0.06, 0.22, 0.62,  0.44, 0.78, -0.06)); // janelas laterais
+    s = s.subtract(B(0.06, 0.22, 0.62, -0.44, 0.78, -0.06));
+    return CSGX.normalize(s);
+  }
+
   const out = {
     shellRes: shellRes(), shellCom: shellCom(), shellInd: shellInd(),
     tube: tube(), gable: gable(), basin: basin(), kioskRoof: kioskRoof(),
-    arcade: arcade(), clockTower: clockTower(), coolTower: coolTower(),
-    bench: bench()
+    colonnade: colonnade(), coolTower: coolTower(), transformer: transformer(),
+    bench: bench(), carBody: carBody()
   };
   out.buildMs = Math.round(performance.now() - t0);
   return out;
@@ -1029,11 +1330,18 @@ function mat(color, rough, metal){
   });
 }
 
-function flatMaterial(opacity){
+/* Materiais planos das sobreposições do terreno.
+   polygonOffset por camada: quanto maior a "ordem", mais o polígono é
+   puxado na direção da câmera, garantindo desempate estável mesmo em
+   ângulos rasantes. */
+function flatMaterial(opacity, order){
+  const o = order === undefined ? 1 : order;
   return new THREE.MeshBasicMaterial({
     color: 0xffffff, toneMapped:false,
     transparent: opacity < 1, opacity: opacity, depthWrite: opacity >= 1,
-    polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-2
+    polygonOffset:true,
+    polygonOffsetFactor: -2 * o,
+    polygonOffsetUnits: -4 * o
   });
 }
 
@@ -1092,7 +1400,7 @@ function facadeMaterial(baseColor, opts){
         ].join('\n'))
         .replace('#include <emissivemap_fragment>', [
           '#include <emissivemap_fragment>',
-          'totalEmissiveRadiance += vec3(1.0, 0.84, 0.55) * winLit * 0.75;'
+          'totalEmissiveRadiance += vec3(1.0, 0.84, 0.55) * winLit * 0.85;'
         ].join('\n'));
   };
   m.customProgramCacheKey = () => 'facade' + (opts.winW || 0.3) + '_' + (opts.winH || 0.34);
@@ -1148,10 +1456,16 @@ const groundGeo = (function(){
 
 const groundMesh = new THREE.Mesh(
   groundGeo,
-  new THREE.MeshStandardMaterial({ vertexColors:true, roughness:1.0, metalness:0.0 })
+  new THREE.MeshStandardMaterial({
+    vertexColors:true, roughness:1.0, metalness:0.0,
+    /* empurra o terreno levemente para trás: ele é a base de todas as
+       sobreposições planas e nunca deve ganhar o desempate */
+    polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:2
+  })
 );
 groundMesh.receiveShadow = true;
 groundMesh.frustumCulled = false;
+groundMesh.renderOrder = 0;
 scene.add(groundMesh);
 
 const cA = new THREE.Color(COL.grassA), cB = new THREE.Color(COL.grassB),
@@ -1185,7 +1499,7 @@ const outer = new THREE.Mesh(
   new THREE.MeshStandardMaterial({ color:0x5d7f47, roughness:1 })
 );
 outer.rotation.x = -Math.PI / 2;
-outer.position.set(N / 2, CFG.GROUND_Y - 0.06, N / 2);
+outer.position.set(N / 2, CFG.GROUND_Y - 0.08, N / 2);
 scene.add(outer);
 
 /* --- Vias --- */
@@ -1195,8 +1509,8 @@ const stripeMesh  = makeInstanced(G.stripe, mat(COL.stripe, 0.7), MAXI * 2, fals
 
 /* --- Lotes zoneados --- */
 const padMesh    = makeInstanced(G.pad, mat(0xffffff, 0.95), MAXI, false);
-const frameMesh  = makeInstanced(G.frame, flatMaterial(1.0), MAXI, false);
-const cornerMesh = makeInstanced(G.corner, flatMaterial(1.0), MAXI * 8, false);
+const frameMesh  = makeInstanced(G.frame, flatMaterial(1.0, 2), MAXI, false);
+const cornerMesh = makeInstanced(G.corner, flatMaterial(1.0, 3), MAXI * 8, false);
 frameMesh.renderOrder = 2;
 cornerMesh.renderOrder = 3;
 
@@ -1221,25 +1535,32 @@ const tubeMesh   = makeInstanced(CSGGEO.tube, mat(0xffffff, 0.65, 0.20), MAXTUBE
 const trunkMesh = makeInstanced(G.cyl, mat(0x6b4a2f, 1), MAXI, true);
 const crownMesh = makeInstanced(G.cone8, mat(0x37773a, 0.95), MAXI, true);
 
-/* --- Highlight do cursor --- */
+/* --- Highlight do cursor: placa fina, sem escrita de profundidade --- */
 const hlMesh = makeInstanced(
-  new THREE.BoxGeometry(0.98, 0.1, 0.98),
-  new THREE.MeshBasicMaterial({ color:0xffffff, transparent:true, opacity:0.4, depthWrite:false, toneMapped:false }),
+  G.hilite,
+  new THREE.MeshBasicMaterial({
+    color:0xffffff, transparent:true, opacity:0.4,
+    depthWrite:false, depthTest:true, toneMapped:false, side:THREE.DoubleSide,
+    polygonOffset:true, polygonOffsetFactor:-8, polygonOffsetUnits:-16
+  }),
   512, false
 );
 hlMesh.receiveShadow = false;
-hlMesh.renderOrder = 5;
+hlMesh.renderOrder = 6;
 
 const gridHelper = new THREE.GridHelper(N, N, 0x000000, 0x000000);
-gridHelper.position.set(N / 2, CFG.GROUND_Y + 0.006, N / 2);
+gridHelper.position.set(N / 2, CFG.GROUND_Y + LAYER.GRID, N / 2);
 gridHelper.material.opacity = 0.05;
 gridHelper.material.transparent = true;
 gridHelper.material.depthWrite = false;
+gridHelper.material.polygonOffset = true;
+gridHelper.material.polygonOffsetFactor = -1;
+gridHelper.material.polygonOffsetUnits = -2;
+gridHelper.renderOrder = 1;
 scene.add(gridHelper);
 
 /* =========================================================
    SEÇÃO 7c — CONSTRUÇÕES ESPECIAIS (prefeitura, parque, usina)
-   Todas usam os sólidos booleanos da Seção 7a.
    ========================================================= */
 const matHall    = facadeMaterial(COL.hall, { winW:0.16, winH:0.22, glass:0.40 });
 const matGold    = mat(COL.gold, 0.32, 0.75);
@@ -1260,16 +1581,33 @@ const matLamp    = mat(0x9aa0a6, 0.6, 0.4);
 const matGlow    = new THREE.MeshStandardMaterial({ color:0xffe9b0, roughness:0.4,
                      emissive:0xffd98a, emissiveIntensity:0.6 });
 const matWater   = new THREE.MeshStandardMaterial({ color:0x8fc6de, roughness:0.25,
-                     metalness:0.1, transparent:true, opacity:0.8 });
+                     metalness:0.1, transparent:true, opacity:0.8, depthWrite:false });
+matWater.polygonOffset = true;
+matWater.polygonOffsetFactor = -3;
+matWater.polygonOffsetUnits = -6;
 
-const matPlant   = mat(0xb9bcc0, 0.75, 0.25);
-const matPlantY  = mat(0xe0b23c, 0.7, 0.1);
-const matStack   = mat(0xe2e2e2, 0.8);
-const matYard    = mat(0x8a8d90, 1);
+/* as luminárias do parque acendem conforme a noite cai */
+skyHooks.glow = matGlow;
 
-const matEdgePark  = new THREE.MeshBasicMaterial({ color:ZONE_COL[T.PARK],  toneMapped:false });
-const matEdgePower = new THREE.MeshBasicMaterial({ color:ZONE_COL[T.POWER], toneMapped:false });
-const matEdgeHall  = new THREE.MeshBasicMaterial({ color:ZONE_COL[T.HALL],  toneMapped:false });
+/* ---- materiais exclusivos da usina ---- */
+const matPlant   = mat(0xb9bcc0, 0.75, 0.25);   // casa de máquinas
+const matPlantY  = mat(0xe0b23c, 0.7, 0.1);     // faixa de sinalização
+const matStack   = mat(0xe2e2e2, 0.8);          // torres e chaminé
+const matYard    = mat(0x8a8d90, 1);            // pátio pavimentado
+const matRedBand = mat(0xd94f3a, 0.8);          // balizagem
+const matSteel   = mat(0x8f959b, 0.55, 0.55);   // cercas, torre, estruturas
+const matVapor   = new THREE.MeshStandardMaterial({ color:0xeef3f6, roughness:1,
+                     transparent:true, opacity:0.6, depthWrite:false });
+
+function edgeMaterial(hex){
+  return new THREE.MeshBasicMaterial({
+    color:hex, toneMapped:false,
+    polygonOffset:true, polygonOffsetFactor:-4, polygonOffsetUnits:-8
+  });
+}
+const matEdgePark  = edgeMaterial(ZONE_COL[T.PARK]);
+const matEdgePower = edgeMaterial(ZONE_COL[T.POWER]);
+const matEdgeHall  = edgeMaterial(ZONE_COL[T.HALL]);
 
 function addMesh(parent, geo, material, px, py, pz, sx, sy, sz, ry){
   const m = new THREE.Mesh(geo, material);
@@ -1286,120 +1624,123 @@ function addCSG(parent, geo, material, px, py, pz, ry){
   return addMesh(parent, geo, material, px, py, pz, 1, 1, 1, ry);
 }
 
-/* ---------- PREFEITURA ----------
-   Praça elevada + escadaria + corpo em U + pórtico com arcada booleana
-   (paredes menos arcos plenos) + torre do relógio com mostradores
-   rebaixados por subtração + cúpula dourada. */
+/* ---------------------------------------------------------------------
+   PREFEITURA — NEOCLÁSSICA (low-poly)
+   --------------------------------------------------------------------- */
+let hallLogged = false;
+
 function buildHall(g){
-  addMesh(g, G.slab, matStoneD, 0, 0.02, 0, 0.98, 1.0, 0.98);
-  addMesh(g, G.box,  matStone,  0, 0.03, 0, 0.90, 0.06, 0.90);
+  /* --- 1. Estereóbata e crepidoma --- */
+  addMesh(g, G.slab, matStoneD, 0, 0.020, 0, 0.98, 0.9, 0.98);
+  addMesh(g, G.box,  matStone,  0, 0.046, -0.02, 0.90, 0.05, 0.78);
+  addMesh(g, G.box,  matStoneD, 0, 0.046, 0.435, 0.46, 0.026, 0.07);
+  addMesh(g, G.box,  matStoneD, 0, 0.046, 0.370, 0.42, 0.052, 0.068);
 
-  for (let i = 0; i < 3; i++){
-    addMesh(g, G.box, matStoneD, 0, 0.03 + i * 0.022, 0.40 - i * 0.035,
-            0.44 - i * 0.04, 0.022, 0.10 + i * 0.035);
-  }
+  /* --- 2. Corpo central e alas simétricas --- */
+  addMesh(g, G.box, matHall, 0, 0.094, -0.08, 0.56, 0.29, 0.38);
+  addMesh(g, G.box, matHall, -0.345, 0.094, -0.05, 0.20, 0.22, 0.32);
+  addMesh(g, G.box, matHall,  0.345, 0.094, -0.05, 0.20, 0.22, 0.32);
 
-  /* corpo principal + alas */
-  addMesh(g, G.box, matHall, 0, 0.09, -0.06, 0.62, 0.34, 0.46);
-  addMesh(g, G.box, matHall, -0.34, 0.09, -0.02, 0.22, 0.26, 0.38);
-  addMesh(g, G.box, matHall,  0.34, 0.09, -0.02, 0.22, 0.26, 0.38);
+  addMesh(g, G.box, matStone, 0, 0.384, -0.08, 0.60, 0.030, 0.42);
+  addMesh(g, G.box, matStone, -0.345, 0.314, -0.05, 0.235, 0.026, 0.35);
+  addMesh(g, G.box, matStone,  0.345, 0.314, -0.05, 0.235, 0.026, 0.35);
 
-  addMesh(g, G.box, matStone, 0, 0.43, -0.06, 0.66, 0.03, 0.50);
-  addMesh(g, G.box, matStone, -0.34, 0.35, -0.02, 0.25, 0.025, 0.41);
-  addMesh(g, G.box, matStone,  0.34, 0.35, -0.02, 0.25, 0.025, 0.41);
+  addMesh(g, G.box, matStoneD, -0.345, 0.340, -0.05, 0.225, 0.018, 0.34);
+  addMesh(g, G.box, matStoneD,  0.345, 0.340, -0.05, 0.225, 0.018, 0.34);
 
-  addMesh(g, G.gable, matRoofH, -0.34, 0.375, -0.02, 0.41, 0.09, 0.25, Math.PI / 2);
-  addMesh(g, G.gable, matRoofH,  0.34, 0.375, -0.02, 0.41, 0.09, 0.25, Math.PI / 2);
+  /* --- 3. Pórtico hexástilo (sólido CSG) --- */
+  addCSG(g, CSGGEO.colonnade, matStone, 0, 0.074, 0.16);
 
-  /* pórtico com arcada CSG */
-  addMesh(g, G.box, matStone, 0, 0.088, 0.24, 0.56, 0.02, 0.20);
-  addCSG(g, CSGGEO.arcade, matStone, 0, 0.098, 0.30);
-  /* arcadas laterais nas alas (giradas 90°) */
-  addCSG(g, CSGGEO.arcade, matStone, -0.455, 0.098, -0.02, Math.PI / 2);
-  addCSG(g, CSGGEO.arcade, matStone,  0.455, 0.098, -0.02, Math.PI / 2);
+  /* --- 4. Frontão e tímpano --- */
+  addMesh(g, G.pedi, matStone, 0, 0.414, 0.16, 0.68, 0.130, 0.17);
+  const oculo = addMesh(g, G.discLo, matGold, 0, 0.466, 0.250, 0.052, 1, 0.052);
+  oculo.rotation.x = Math.PI / 2;
 
-  /* frontão sobre a arcada */
-  addMesh(g, G.gable, matStone, 0, 0.404, 0.30, 0.60, 0.10, 0.10);
-  const clockF = addMesh(g, G.disc, matGold, 0, 0.437, 0.352, 0.055, 1, 0.055);
-  clockF.rotation.x = Math.PI / 2;
+  addMesh(g, G.box, matDoor, 0, 0.094, 0.101, 0.10, 0.17, 0.012);
 
-  /* porta principal */
-  addMesh(g, G.box, matDoor, 0, 0.10, 0.17, 0.11, 0.17, 0.012);
-
-  /* torre do relógio (sólido booleano) + cúpula */
-  addCSG(g, CSGGEO.clockTower, matHall, 0, 0.46, -0.06);
-  for (const f of [[0, 0.131, 0], [0, -0.131, Math.PI], [0.131, 0, Math.PI / 2], [-0.131, 0, -Math.PI / 2]]){
-    const d = addMesh(g, G.disc, matGold, f[0], 0.665, -0.06 + f[1], 0.10, 1, 0.10);
-    d.rotation.x = Math.PI / 2;
-    d.rotation.z = f[2];
-  }
-  addMesh(g, G.box,  matHall,  0, 0.785, -0.06, 0.20, 0.10, 0.20);
-  addMesh(g, G.dome, matGold,  0, 0.885, -0.06, 0.26, 0.20, 0.26);
-  addMesh(g, G.cylU, matGold,  0, 1.085, -0.06, 0.05, 0.05, 0.05);
-  addMesh(g, G.cylU, matStone, 0, 1.135, -0.06, 0.012, 0.16, 0.012);
-  const flag = addMesh(g, G.slab, matFlag, 0.055, 1.255, -0.06, 0.10, 1.2, 0.012);
+  /* --- 5. Rotunda: ático, tambor, cúpula e lanternim --- */
+  addMesh(g, G.box,    matStone, 0, 0.414, -0.10, 0.34, 0.035, 0.34);
+  addMesh(g, G.cylLo,  matHall,  0, 0.449, -0.10, 0.28, 0.110, 0.28);
+  addMesh(g, G.box,    matStone, 0, 0.559, -0.10, 0.30, 0.016, 0.30);
+  addMesh(g, G.domeLo, matGold,  0, 0.573, -0.10, 0.29, 0.190, 0.29);
+  addMesh(g, G.cylLo,  matStone, 0, 0.747, -0.10, 0.085, 0.050, 0.085);
+  addMesh(g, G.domeLo, matGold,  0, 0.795, -0.10, 0.095, 0.040, 0.095);
+  addMesh(g, G.box,    matStone, 0, 0.834, -0.10, 0.012, 0.130, 0.012);
+  const flag = addMesh(g, G.slab, matFlag, 0.05, 0.937, -0.10, 0.09, 1.2, 0.012);
   flag.rotation.z = Math.PI / 2;
   flag.rotation.y = Math.PI / 2;
 
-  /* jardineiras laterais */
-  addMesh(g, G.box, matLawnD, -0.36, 0.06, 0.34, 0.20, 0.035, 0.14);
-  addMesh(g, G.box, matLawnD,  0.36, 0.06, 0.34, 0.20, 0.035, 0.14);
+  /* --- 6. Jardineiras cônicas ladeando a escadaria --- */
   for (const sx of [-1, 1]){
-    addMesh(g, G.cylU, matTrunk, sx * 0.36, 0.09, 0.34, 0.030, 0.09, 0.030);
-    addMesh(g, G.sphere, matTree2, sx * 0.36, 0.215, 0.34, 0.17, 0.17, 0.17);
+    addMesh(g, G.box,   matLawnD, sx * 0.375, 0.094, 0.27, 0.15, 0.028, 0.15);
+    addMesh(g, G.cone8, matTree2, sx * 0.375, 0.120, 0.27, 0.13, 0.17, 0.13);
+  }
+
+  /* --- luminárias externas: acendem à noite --- */
+  for (const sx of [-1, 1]){
+    addMesh(g, G.cylU, matLamp, sx * 0.24, 0.051, 0.40, 0.020, 0.16, 0.020);
+    addMesh(g, G.sphere, matGlow, sx * 0.24, 0.218, 0.40, 0.05, 0.05, 0.05);
+  }
+
+  if (!hallLogged){
+    hallLogged = true;
+    console.log('Prefeitura neoclássica: ' + countTris(g) + ' triângulos em ' +
+                g.children.length + ' peças.');
   }
 }
 
-/* ---------- PARQUE ----------
-   Gramado, caminhos cruzados, coreto vazado ou chafariz em anel (ambos
-   sólidos CSG), lago, bancos ripados, postes e arborização variada. */
+/* ---------------------------------------------------------------------
+   PARQUE
+   Cotas revisadas: gramado, caminhos e discos ficam em camadas distintas,
+   de modo que nenhum plano fique dentro do volume de outra laje.
+   --------------------------------------------------------------------- */
 function buildPark(g, tile){
   const s = tile.seed;
   const R = (k) => ((Math.sin(s * 91.7 + k * 47.3) * 43758.5453) % 1 + 1) % 1;
 
-  addMesh(g, G.slab, matLawnD, 0, 0.018, 0, 0.98, 1.1, 0.98);
-  addMesh(g, G.slab, matLawn,  0, 0.030, 0, 0.90, 1.1, 0.90);
+  const GRASS = 0.046;   // topo do gramado
+  const PATHY = 0.066;   // topo dos caminhos
 
-  addMesh(g, G.slab, matPath, 0, 0.040, 0, 0.98, 1.0, 0.14);
-  addMesh(g, G.slab, matPath, 0, 0.040, 0, 0.14, 1.0, 0.98);
-  addMesh(g, G.disc, matPath, 0, 0.046, 0, 0.34, 1, 0.34);
+  addMesh(g, G.slab, matLawnD, 0, 0.010, 0, 0.98, 0.60, 0.98);   // -0.008 .. 0.028
+  addMesh(g, G.slab, matLawn,  0, 0.034, 0, 0.90, 0.40, 0.90);   //  0.022 .. 0.046
+
+  addMesh(g, G.slab, matPath, 0, 0.057, 0, 0.98, 0.30, 0.14);    //  0.048 .. 0.066
+  addMesh(g, G.slab, matPath, 0, 0.057, 0, 0.14, 0.30, 0.98);
+  addMesh(g, G.disc, matPath, 0, 0.072, 0, 0.34, 1, 0.34);       // acima dos caminhos
 
   if (R(1) > 0.45){
-    /* --- coreto: piso, seis colunas e cobertura cônica oca (CSG) --- */
-    addMesh(g, G.cylU, matStone, 0, 0.048, 0, 0.30, 0.03, 0.30);
+    addMesh(g, G.cylU, matStone, 0, 0.074, 0, 0.30, 0.03, 0.30);
     for (let i = 0; i < 6; i++){
       const a = i * Math.PI / 3;
-      addMesh(g, G.cylU, matLamp, Math.cos(a) * 0.115, 0.078, Math.sin(a) * 0.115,
+      addMesh(g, G.cylU, matLamp, Math.cos(a) * 0.115, 0.104, Math.sin(a) * 0.115,
               0.018, 0.13, 0.018);
     }
-    addCSG(g, CSGGEO.kioskRoof, matRoofH, 0, 0.208, 0);
+    addCSG(g, CSGGEO.kioskRoof, matRoofH, 0, 0.234, 0);
   } else {
-    /* --- chafariz: bacia em anel (CSG) + esguicho --- */
-    addCSG(g, CSGGEO.basin, matStone, 0, 0.048, 0);
-    addMesh(g, G.disc, matWater, 0, 0.088, 0, 0.245, 1, 0.245);
-    addMesh(g, G.cylU, matStone, 0, 0.070, 0, 0.06, 0.06, 0.06);
-    addMesh(g, G.sphere, matWater, 0, 0.140, 0, 0.09, 0.09, 0.09);
+    addCSG(g, CSGGEO.basin, matStone, 0, 0.074, 0);
+    addMesh(g, G.disc, matWater, 0, 0.116, 0, 0.245, 1, 0.245);
+    addMesh(g, G.cylU, matStone, 0, 0.096, 0, 0.06, 0.06, 0.06);
+    addMesh(g, G.sphere, matWater, 0, 0.166, 0, 0.09, 0.09, 0.09);
   }
 
   if (R(2) > 0.4){
     const qx = R(3) > 0.5 ? 0.26 : -0.26;
     const qz = R(4) > 0.5 ? 0.26 : -0.26;
-    addMesh(g, G.disc, matStoneD, qx, 0.042, qz, 0.34, 1, 0.28);
-    addMesh(g, G.disc, matWater,  qx, 0.050, qz, 0.28, 1, 0.22);
+    addMesh(g, G.disc, matStoneD, qx, GRASS + 0.004, qz, 0.34, 1, 0.28);
+    addMesh(g, G.disc, matWater,  qx, GRASS + 0.012, qz, 0.28, 1, 0.22);
   }
 
-  /* bancos ripados (CSG) ao longo dos caminhos */
   const seats = [
     [ 0.27,  0.11, 0],
     [-0.27, -0.11, Math.PI],
     [ 0.11, -0.27, Math.PI / 2],
     [-0.11,  0.27, -Math.PI / 2]
   ];
-  for (const b of seats) addCSG(g, CSGGEO.bench, matBench, b[0], 0.040, b[1], b[2]);
+  for (const b of seats) addCSG(g, CSGGEO.bench, matBench, b[0], GRASS + 0.001, b[1], b[2]);
 
   for (const p of [[-0.20, -0.20], [0.20, 0.20]]){
-    addMesh(g, G.cylU, matLamp, p[0], 0.046, p[1], 0.016, 0.20, 0.016);
-    addMesh(g, G.sphere, matGlow, p[0], 0.256, p[1], 0.05, 0.05, 0.05);
+    addMesh(g, G.cylU, matLamp, p[0], GRASS, p[1], 0.016, 0.20, 0.016);
+    addMesh(g, G.sphere, matGlow, p[0], GRASS + 0.210, p[1], 0.05, 0.05, 0.05);
   }
 
   for (let i = 0; i < 5; i++){
@@ -1408,37 +1749,98 @@ function buildPark(g, tile){
     const px = Math.cos(a) * rr, pz = Math.sin(a) * rr;
     if (Math.abs(px) < 0.10 && Math.abs(pz) < 0.10) continue;
     const sc = 0.8 + R(30 + i) * 0.6;
-    addMesh(g, G.cylU, matTrunk, px, 0.04, pz, 0.035 * sc, 0.13 * sc, 0.035 * sc);
+    addMesh(g, G.cylU, matTrunk, px, GRASS - 0.006, pz, 0.035 * sc, 0.13 * sc, 0.035 * sc);
     if (R(40 + i) > 0.5){
-      addMesh(g, G.sphere, matTree, px, 0.20 * sc + 0.04, pz, 0.24 * sc, 0.26 * sc, 0.24 * sc);
-      addMesh(g, G.sphere, matTree2, px + 0.04 * sc, 0.26 * sc + 0.04, pz - 0.03 * sc,
+      addMesh(g, G.sphere, matTree, px, 0.20 * sc + GRASS, pz, 0.24 * sc, 0.26 * sc, 0.24 * sc);
+      addMesh(g, G.sphere, matTree2, px + 0.04 * sc, 0.26 * sc + GRASS, pz - 0.03 * sc,
               0.16 * sc, 0.16 * sc, 0.16 * sc);
     } else {
-      addMesh(g, G.cone12, matTree, px, 0.13 * sc + 0.04, pz, 0.26 * sc, 0.34 * sc, 0.26 * sc);
+      addMesh(g, G.cone12, matTree, px, 0.13 * sc + GRASS, pz, 0.26 * sc, 0.34 * sc, 0.26 * sc);
     }
   }
 
   for (let i = 0; i < 3; i++){
     const px = (R(50 + i) - 0.5) * 0.6, pz = (R(60 + i) - 0.5) * 0.6;
     if (Math.abs(px) < 0.12 && Math.abs(pz) < 0.12) continue;
-    addMesh(g, G.sphere, matTree2, px, 0.06, pz, 0.10, 0.08, 0.10);
+    addMesh(g, G.sphere, matTree2, px, GRASS + 0.020, pz, 0.10, 0.08, 0.10);
   }
 }
 
-/* ---------- USINA ----------
-   Pátio, casa de máquinas, duas torres de resfriamento ocas (CSG) e
-   um tanque tubular. */
+/* ---------------------------------------------------------------------
+   USINA ELÉTRICA — low-poly
+   --------------------------------------------------------------------- */
+let powerLogged = false;
+
 function buildPower(g){
-  addMesh(g, G.slab, matYard, 0, 0.02, 0, 0.98, 1, 0.98);
-  addMesh(g, G.box, matPlant, 0, 0.04, 0.14, 0.82, 0.42, 0.56);
-  addMesh(g, G.box, matPlantY, 0, 0.44, 0.14, 0.84, 0.07, 0.58);
+  const Y = 0.052;                      /* cota do piso do pátio (topo da laje) */
 
-  addCSG(g, CSGGEO.coolTower, matStack, -0.24, 0.03, -0.26);
-  addCSG(g, CSGGEO.coolTower, matStack,  0.24, 0.03, -0.26);
+  /* --- 1. Pátio, via de serviço e portão --- */
+  addMesh(g, G.slab, matYard, 0, 0.022, 0, 0.98, 1.0, 0.98);      // -0.008 .. 0.052
+  addMesh(g, G.slab, matPath, 0, 0.062, 0.36, 0.88, 0.30, 0.16);  //  0.053 .. 0.071
+  addMesh(g, G.box,  matPlantY, 0, Y, 0.455, 0.30, 0.012, 0.030); // soleira do portão
+  addMesh(g, G.box,  matSteel, -0.20, Y, 0.455, 0.020, 0.075, 0.020);
+  addMesh(g, G.box,  matSteel,  0.20, Y, 0.455, 0.020, 0.075, 0.020);
 
-  addMesh(g, CSGGEO.tube, matPlant, 0.34, 0.04, -0.02, 0.20, 0.22, 0.20);
-  addMesh(g, G.box, matLamp, -0.36, 0.04, 0.40, 0.10, 0.16, 0.10);
-  addMesh(g, G.box, matPlantY, 0, 0.04, -0.46, 0.60, 0.03, 0.05);
+  /* --- 2. Torres de resfriamento + vapor --- */
+  const towers = [[-0.26, -0.28], [0.10, -0.31]];
+  for (const p of towers){
+    addCSG(g, CSGGEO.coolTower, matStack, p[0], Y, p[1]);
+    addMesh(g, G.box, matSteel, p[0], Y + 0.10, p[1], 0.47, 0.010, 0.010);  // anel estrutural
+    const v1 = addMesh(g, G.sphLo, matVapor, p[0], Y + 0.56, p[1], 0.26, 0.20, 0.26);
+    const v2 = addMesh(g, G.sphLo, matVapor, p[0] + 0.05, Y + 0.66, p[1] - 0.03, 0.18, 0.14, 0.18);
+    v1.castShadow = v2.castShadow = false;
+    v1.receiveShadow = v2.receiveShadow = false;
+    v1.renderOrder = 4; v2.renderOrder = 5;
+  }
+
+  /* --- 3. Casa de máquinas --- */
+  addMesh(g, G.box,   matPlant,  -0.04, Y, 0.10, 0.60, 0.24, 0.34);
+  /* o telhado afunda ROOF_SINK na parede: sem faces coincidentes */
+  addMesh(g, G.gable, matRoofH,  -0.04, Y + 0.24 - ROOF_SINK, 0.10, 0.36, 0.11, 0.63, Math.PI / 2);
+  addMesh(g, G.box,   matPlantY, -0.04, Y + 0.212, 0.10, 0.61, 0.022, 0.352);  // faixa
+  addMesh(g, G.box,   matStack,  -0.04, Y + 0.055, 0.2705, 0.44, 0.045, 0.006);
+  addMesh(g, G.box,   matStack,  -0.04, Y + 0.145, 0.2705, 0.44, 0.045, 0.006);
+  addMesh(g, G.box,   matDoor,   -0.19, Y, 0.2705, 0.11, 0.13, 0.008);         // portão
+
+  /* --- 4. Chaminé com balizagem --- */
+  addMesh(g, CSGGEO.tube, matStack,  0.33, Y, 0.04, 0.115, 0.60, 0.115);
+  addMesh(g, G.cylU,      matRedBand, 0.33, Y + 0.46, 0.04, 0.126, 0.055, 0.126);
+  addMesh(g, G.cylU,      matRedBand, 0.33, Y + 0.30, 0.04, 0.126, 0.045, 0.126);
+  addMesh(g, G.sphere,    matGlow,    0.33, Y + 0.618, 0.04, 0.045, 0.045, 0.045);
+
+  /* --- 5. Subestação: transformadores e torre de transmissão --- */
+  for (const px of [-0.31, -0.14]){
+    addCSG(g, CSGGEO.transformer, matSteel, px, Y, -0.05);
+    for (const bx of [-0.030, 0.030]){
+      addMesh(g, G.cylU, matStack, px + bx, Y + 0.137, -0.05, 0.020, 0.045, 0.020); // buchas
+    }
+  }
+  addMesh(g, G.box,  matSteel, 0.36, Y, -0.30, 0.030, 0.34, 0.030);  // mastro
+  addMesh(g, G.box,  matSteel, 0.36, Y + 0.22, -0.30, 0.22, 0.018, 0.018);
+  addMesh(g, G.box,  matSteel, 0.36, Y + 0.30, -0.30, 0.15, 0.018, 0.018);
+  addMesh(g, G.box,  matSteel, 0.36, Y + 0.04, -0.30, 0.13, 0.014, 0.014, Math.PI / 4);
+
+  /* --- 6. Cerca perimetral (três lados) --- */
+  addMesh(g, G.box, matSteel, 0,      Y, -0.455, 0.92, 0.070, 0.012);
+  addMesh(g, G.box, matSteel, -0.455, Y, 0,      0.012, 0.070, 0.92);
+  addMesh(g, G.box, matSteel,  0.455, Y, 0,      0.012, 0.070, 0.92);
+
+  if (!powerLogged){
+    powerLogged = true;
+    console.log('Usina elétrica: ' + countTris(g) + ' triângulos em ' +
+                g.children.length + ' peças.');
+  }
+}
+
+/* contagem de triângulos de um grupo (auditoria no console) */
+function countTris(g){
+  let tris = 0;
+  g.traverse(o => {
+    if (!o.isMesh || !o.geometry || !o.geometry.attributes.position) return;
+    tris += (o.geometry.index ? o.geometry.index.count
+                              : o.geometry.attributes.position.count) / 3;
+  });
+  return Math.round(tris);
 }
 
 function buildSpecial(tile){
@@ -1448,7 +1850,7 @@ function buildSpecial(tile){
   const edgeMat = tile.type === T.PARK ? matEdgePark
                 : tile.type === T.POWER ? matEdgePower : matEdgeHall;
   const edge = new THREE.Mesh(G.frame, edgeMat);
-  edge.position.y = 0.062;
+  edge.position.y = LAYER.EDGE;
   edge.renderOrder = 2;
   g.add(edge);
 
@@ -1525,11 +1927,12 @@ function makeEmitter(cx, cz, baseY, rot){
       m.setColorAt(i, color);
       CNT.body[type]++;
     },
+    /* telhados: sempre afundados ROOF_SINK no corpo (anti z-fighting) */
     gable(ox, oy, oz, sx, sy, sz, colorHex, ridgeAlongX){
       if (CNT.gab >= MAXI * 2) return;
       const wx = cx + ox * cosr + oz * sinr;
       const wz = cz - ox * sinr + oz * cosr;
-      dummy.position.set(wx, baseY + oy, wz);
+      dummy.position.set(wx, baseY + oy - ROOF_SINK, wz);
       dummy.rotation.set(0, rot + (ridgeAlongX ? Math.PI / 2 : 0), 0);
       dummy.scale.set(sx, sy, sz);
       dummy.updateMatrix();
@@ -1541,7 +1944,7 @@ function makeEmitter(cx, cz, baseY, rot){
       if (CNT.hip >= MAXI) return;
       const wx = cx + ox * cosr + oz * sinr;
       const wz = cz - ox * sinr + oz * cosr;
-      dummy.position.set(wx, baseY + oy, wz);
+      dummy.position.set(wx, baseY + oy - ROOF_SINK, wz);
       dummy.rotation.set(0, rot, 0);
       dummy.scale.set(sx, sy, sz);
       dummy.updateMatrix();
@@ -1585,26 +1988,26 @@ function emitResidential(E, t, zoneHex, tint){
     const h = twoFloors ? 0.52 + rnd(s, 17) * 0.08 : 0.28 + rnd(s, 17) * 0.06;
     const ox = -0.10 + rnd(s, 19) * 0.06;
 
-    E.body(T.RES, ox, 0.03, -0.02, w, h, d, wall);
+    E.body(T.RES, ox, 0.05, -0.02, w, h, d, wall);
 
     const rh = 0.16 + rnd(s, 23) * 0.08;
     if (twoFloors && rnd(s, 29) > 0.45){
-      E.hip(ox, 0.03 + h, -0.02, Math.max(w, d) * 1.20, rh, Math.max(w, d) * 1.20, roof);
+      E.hip(ox, 0.05 + h, -0.02, Math.max(w, d) * 1.20, rh, Math.max(w, d) * 1.20, roof);
     } else {
       const ridgeX = rnd(s, 31) > 0.5;
-      E.gable(ox, 0.03 + h, -0.02, (ridgeX ? d : w) * 1.18, rh, (ridgeX ? w : d) * 1.18, roof, ridgeX);
+      E.gable(ox, 0.05 + h, -0.02, (ridgeX ? d : w) * 1.18, rh, (ridgeX ? w : d) * 1.18, roof, ridgeX);
     }
 
-    E.box(ox, 0.02, -0.02 + d / 2 + 0.05, 0.16, 0.03, 0.09, DET.concrete);
-    E.box(ox + w / 2 + 0.11, 0.03, 0.02, 0.20, 0.16, 0.24, 0xd7d2c8);
-    E.gable(ox + w / 2 + 0.11, 0.19, 0.02, 0.22, 0.07, 0.26, roof, true);
-    E.box(ox, 0.005, d / 2 + 0.17, 0.10, 0.02, 0.22, DET.path);
-    E.box(ox + w * 0.28, 0.03 + h, -0.02 - d * 0.18, 0.06, rh + 0.10, 0.06, 0x8a5a48);
-    E.box(-0.30, 0.0, 0.42, 0.30, 0.07, 0.05, DET.garden);
-    E.box( 0.18, 0.0, 0.42, 0.26, 0.07, 0.05, DET.garden);
-    E.cyl(ox - w / 2 - 0.10, 0.0, -0.26, 0.05, 0.12, 0x6b4a2f);
-    E.box(ox - w / 2 - 0.10, 0.11, -0.26, 0.16, 0.16, 0.16, 0x3f8a42);
-    return { topY: 0.03 + h + 0.24, w: w * 1.2, d: d * 1.2 };
+    E.box(ox, 0.048, -0.02 + d / 2 + 0.05, 0.16, 0.03, 0.09, DET.concrete);
+    E.box(ox + w / 2 + 0.11, 0.05, 0.02, 0.20, 0.16, 0.24, 0xd7d2c8);
+    E.gable(ox + w / 2 + 0.11, 0.21, 0.02, 0.22, 0.07, 0.26, roof, true);
+    E.box(ox, 0.049, d / 2 + 0.17, 0.10, 0.02, 0.22, DET.path);
+    E.box(ox + w * 0.28, 0.05 + h, -0.02 - d * 0.18, 0.06, rh + 0.10, 0.06, 0x8a5a48);
+    E.box(-0.30, 0.048, 0.42, 0.30, 0.07, 0.05, DET.garden);
+    E.box( 0.18, 0.048, 0.42, 0.26, 0.07, 0.05, DET.garden);
+    E.cyl(ox - w / 2 - 0.10, 0.048, -0.26, 0.05, 0.12, 0x6b4a2f);
+    E.box(ox - w / 2 - 0.10, 0.158, -0.26, 0.16, 0.16, 0.16, 0x3f8a42);
+    return { topY: 0.05 + h + 0.24, w: w * 1.2, d: d * 1.2 };
   }
 
   const w = 0.52 + rnd(s, 11) * 0.14;
@@ -1613,12 +2016,12 @@ function emitResidential(E, t, zoneHex, tint){
   const fh = 0.17;
   const h = floors * fh;
 
-  E.body(T.RES, 0, 0.03, 0, w, h, d, wall);
-  E.box(0, 0.02, 0, w * 1.06, 0.10, d * 1.06, DET.concrete);
+  E.body(T.RES, 0, 0.05, 0, w, h, d, wall);
+  E.box(0, 0.046, 0, w * 1.06, 0.06, d * 1.06, DET.concrete);
 
   const maxBal = Math.min(floors, 12);
   for (let f = 1; f < maxBal; f++){
-    const y = 0.03 + f * fh;
+    const y = 0.05 + f * fh;
     E.box(0, y, d / 2 + 0.035, w * 0.78, 0.035, 0.07, DET.concrete);
     E.box(0, y + 0.035, d / 2 + 0.065, w * 0.78, 0.055, 0.012, DET.rail);
     if (t.level === 4 && f % 2 === 0){
@@ -1627,7 +2030,7 @@ function emitResidential(E, t, zoneHex, tint){
     }
   }
 
-  let topY = 0.03 + h, topW = w, topD = d;
+  let topY = 0.05 + h, topW = w, topD = d;
 
   if (t.level === 4){
     const w2 = w * 0.68, d2 = d * 0.68, h2 = fh * 2;
@@ -1637,15 +2040,17 @@ function emitResidential(E, t, zoneHex, tint){
     topY += h2; topW = w2; topD = d2;
   }
 
+  /* laje de cobertura + platibanda: dimensões DIFERENTES (1.07 e 1.02),
+     antes ambas mediam 1.07 e as faces laterais coincidiam */
   E.cap(0, topY, 0, topW * 1.07, topD * 1.07, DET.slab);
-  E.box(0, topY, 0, topW * 1.07, 0.05, topD * 1.07, DET.slab);
-  E.tube(topW * 0.22, topY + 0.04, -topD * 0.20, 0.15, 0.14, DET.tank);   // caixa d'água
-  E.box(-topW * 0.20, topY + 0.04, topD * 0.16, 0.14, 0.09, 0.14, DET.concrete);
+  E.box(0, topY + 0.03, 0, topW * 1.02, 0.045, topD * 1.02, DET.slab);
+  E.tube(topW * 0.22, topY + 0.07, -topD * 0.20, 0.15, 0.14, DET.tank);   // caixa d'água
+  E.box(-topW * 0.20, topY + 0.07, topD * 0.16, 0.14, 0.09, 0.14, DET.concrete);
   if (t.level === 4){
-    E.cyl(0, topY + 0.04, 0, 0.02, 0.22, DET.metal);
-    E.box(topW * 0.05, topY + 0.24, 0, 0.05, 0.02, 0.05, DET.stripeR);
+    E.cyl(0, topY + 0.07, 0, 0.02, 0.22, DET.metal);
+    E.box(topW * 0.05, topY + 0.27, 0, 0.05, 0.02, 0.05, DET.stripeR);
   }
-  return { topY: topY + 0.06, w: topW, d: topD };
+  return { topY: topY + 0.09, w: topW, d: topD };
 }
 
 /* ---------------- COMERCIAL ---------------- */
@@ -1657,33 +2062,33 @@ function emitCommercial(E, t, zoneHex, tint){
     const w = 0.70 + rnd(s, 11) * 0.10;
     const d = 0.58 + rnd(s, 13) * 0.10;
     const h = t.level === 1 ? 0.26 + rnd(s, 17) * 0.05 : 0.50 + rnd(s, 17) * 0.08;
-    E.body(T.COM, 0, 0.03, 0, w, h, d, wall);
-    E.box(0, 0.05, d / 2 + 0.004, w * 0.88, 0.14, 0.012, DET.glass);
-    E.box(0, 0.21, d / 2 + 0.05, w * 0.90, 0.02, 0.11, DET.awning);
-    E.box(0, 0.03 + h, 0, w * 0.62, 0.06, 0.05, DET.sign);
-    E.box(0, 0.03 + h - 0.02, 0, w * 1.05, 0.03, d * 1.05, 0xeceff1);
-    E.box(-w * 0.34, 0.02, d / 2 + 0.12, 0.05, 0.14, 0.05, DET.metal);
-    E.cap(0, 0.03 + h + 0.06, 0, w * 1.02, d * 1.02, DET.slab);
-    return { topY: 0.03 + h + 0.12, w, d };
+    E.body(T.COM, 0, 0.05, 0, w, h, d, wall);
+    E.box(0, 0.07, d / 2 + 0.006, w * 0.88, 0.14, 0.012, DET.glass);
+    E.box(0, 0.23, d / 2 + 0.05, w * 0.90, 0.02, 0.11, DET.awning);
+    E.box(0, 0.05 + h, 0, w * 0.62, 0.06, 0.05, DET.sign);
+    E.box(0, 0.05 + h - 0.02, 0, w * 1.05, 0.03, d * 1.05, 0xeceff1);
+    E.box(-w * 0.34, 0.048, d / 2 + 0.12, 0.05, 0.14, 0.05, DET.metal);
+    E.cap(0, 0.05 + h + 0.07, 0, w * 1.00, d * 1.00, DET.slab);
+    return { topY: 0.05 + h + 0.13, w, d };
   }
 
   const pw = 0.80, pd = 0.70, ph = 0.22;
-  E.body(T.COM, 0, 0.03, 0, pw, ph, pd, facadeColor(T.COM, s, zoneHex, tint, -0.04));
-  E.box(0, 0.05, pd / 2 + 0.004, pw * 0.9, 0.13, 0.012, DET.glass);
-  E.box(0, 0.03 + ph, 0, pw * 1.06, 0.04, pd * 1.06, DET.concrete);
-  E.box(0, 0.20, pd / 2 + 0.05, pw * 0.92, 0.02, 0.10, DET.awning);
+  E.body(T.COM, 0, 0.05, 0, pw, ph, pd, facadeColor(T.COM, s, zoneHex, tint, -0.04));
+  E.box(0, 0.07, pd / 2 + 0.006, pw * 0.9, 0.13, 0.012, DET.glass);
+  E.box(0, 0.05 + ph, 0, pw * 1.06, 0.04, pd * 1.06, DET.concrete);
+  E.box(0, 0.22, pd / 2 + 0.05, pw * 0.92, 0.02, 0.10, DET.awning);
 
   const w = 0.50 + rnd(s, 11) * 0.10;
   const d = 0.44 + rnd(s, 13) * 0.10;
   const fh = 0.16;
   const floors = t.level === 3 ? 6 + Math.floor(rnd(s, 15) * 3) : 11 + Math.floor(rnd(s, 15) * 6);
   const h = floors * fh;
-  const towerY = 0.03 + ph + 0.04;
+  const towerY = 0.05 + ph + 0.04;
   E.body(T.COM, 0, towerY, 0, w, h, d, wall);
 
-  E.box(-w * 0.25, towerY, d / 2 + 0.006, 0.03, h, 0.012, 0xdfe6ea);
-  E.box( w * 0.25, towerY, d / 2 + 0.006, 0.03, h, 0.012, 0xdfe6ea);
-  E.box(0, towerY, d / 2 + 0.008, 0.02, h, 0.012, 0xcdd6dc);
+  E.box(-w * 0.25, towerY, d / 2 + 0.008, 0.03, h, 0.012, 0xdfe6ea);
+  E.box( w * 0.25, towerY, d / 2 + 0.008, 0.03, h, 0.012, 0xdfe6ea);
+  E.box(0, towerY, d / 2 + 0.012, 0.02, h, 0.012, 0xcdd6dc);
 
   let topY = towerY + h, topW = w, topD = d;
 
@@ -1694,11 +2099,11 @@ function emitCommercial(E, t, zoneHex, tint){
   }
 
   E.cap(0, topY, 0, topW * 1.08, topD * 1.08, DET.slab);
-  E.box(0, topY, 0, topW * 1.08, 0.05, topD * 1.08, DET.slab);
-  E.tube(topW * 0.20, topY + 0.04, topD * 0.16, 0.16, 0.10, DET.tank);
-  E.cyl(0, topY + 0.04, 0, 0.022, t.level === 4 ? 0.34 : 0.20, DET.metal);
-  E.box(0, topY + (t.level === 4 ? 0.30 : 0.18), 0, 0.05, 0.03, 0.05, DET.stripeR);
-  return { topY: topY + 0.08, w: topW, d: topD };
+  E.box(0, topY + 0.03, 0, topW * 1.03, 0.045, topD * 1.03, DET.slab);
+  E.tube(topW * 0.20, topY + 0.07, topD * 0.16, 0.16, 0.10, DET.tank);
+  E.cyl(0, topY + 0.07, 0, 0.022, t.level === 4 ? 0.34 : 0.20, DET.metal);
+  E.box(0, topY + (t.level === 4 ? 0.33 : 0.21), 0, 0.05, 0.03, 0.05, DET.stripeR);
+  return { topY: topY + 0.11, w: topW, d: topD };
 }
 
 /* ---------------- INDUSTRIAL ---------------- */
@@ -1710,29 +2115,29 @@ function emitIndustrial(E, t, zoneHex, tint){
   const d = 0.62 + rnd(s, 13) * 0.10;
   const h = 0.20 + t.level * 0.13;
 
-  E.box(0, 0.0, 0, 0.94, 0.03, 0.94, 0x8d9095);
-  E.body(T.IND, 0, 0.03, -0.04, w, h, d, wall);
-  E.gable(0, 0.03 + h, -0.04, d * 1.06, 0.10 + rnd(s, 17) * 0.05, w * 1.06, 0x77808a, true);
-  E.box(0, 0.03 + h - 0.05, -0.04, w * 1.02, 0.035, d * 1.02, DET.band);
-  E.box(0, 0.03, d / 2 + 0.10, w * 0.5, 0.06, 0.14, DET.concrete);
+  /* pátio: 0.90 (o pad da zona mede 0.94) e assentado acima dele */
+  E.box(0, 0.046, 0, 0.90, 0.03, 0.90, 0x8d9095);
+  E.body(T.IND, 0, 0.070, -0.04, w, h, d, wall);
+  E.gable(0, 0.070 + h, -0.04, d * 1.06, 0.10 + rnd(s, 17) * 0.05, w * 1.06, 0x77808a, true);
+  E.box(0, 0.070 + h - 0.05, -0.04, w * 1.02, 0.035, d * 1.02, DET.band);
+  E.box(0, 0.070, d / 2 + 0.10, w * 0.5, 0.06, 0.14, DET.concrete);
 
   if (t.level >= 2){
-    /* silo tubular (CSG) */
-    E.tube(-w / 2 - 0.09, 0.03, 0.22, 0.17, 0.30 + t.level * 0.05, DET.tank);
-    E.box(-w / 2 - 0.09, 0.03 + 0.30 + t.level * 0.05, 0.22, 0.17, 0.02, 0.17, DET.metal);
+    E.tube(-w / 2 - 0.09, 0.070, 0.22, 0.17, 0.30 + t.level * 0.05, DET.tank);
+    E.box(-w / 2 - 0.09, 0.070 + 0.30 + t.level * 0.05, 0.22, 0.165, 0.02, 0.165, DET.metal);
   }
   if (t.level >= 3){
     const ch = 0.42 + t.level * 0.10;
-    E.tube(w / 2 - 0.06, 0.03 + h, -0.22, 0.11, ch, 0xe6e6e6);       // chaminé oca
-    E.cyl(w / 2 - 0.06, 0.03 + h + ch * 0.55, -0.22, 0.115, ch * 0.16, DET.stripeR);
-    E.cyl(w / 2 - 0.12, 0.03, 0.28, 0.20, 0.14, 0xb9c2c7);
+    E.tube(w / 2 - 0.06, 0.070 + h, -0.22, 0.11, ch, 0xe6e6e6);       // chaminé oca
+    E.cyl(w / 2 - 0.06, 0.070 + h + ch * 0.55, -0.22, 0.118, ch * 0.16, DET.stripeR);
+    E.cyl(w / 2 - 0.12, 0.070, 0.28, 0.20, 0.14, 0xb9c2c7);
   }
   if (t.level === 4){
-    E.body(T.IND, -0.02, 0.03 + h, -0.10, w * 0.5, 0.22, d * 0.5, facadeColor(T.IND, s, zoneHex, tint, 0.05));
-    E.box(-0.02, 0.03 + h + 0.22, -0.10, w * 0.54, 0.03, d * 0.54, DET.slab);
-    E.box(0.10, 0.03 + h * 0.6, 0.10, 0.04, 0.04, 0.5, DET.metal);
+    E.body(T.IND, -0.02, 0.070 + h, -0.10, w * 0.5, 0.22, d * 0.5, facadeColor(T.IND, s, zoneHex, tint, 0.05));
+    E.box(-0.02, 0.070 + h + 0.22, -0.10, w * 0.54, 0.03, d * 0.54, DET.slab);
+    E.box(0.10, 0.070 + h * 0.6, 0.10, 0.04, 0.04, 0.5, DET.metal);
   }
-  return { topY: 0.03 + h + 0.16, w, d };
+  return { topY: 0.070 + h + 0.16, w, d };
 }
 
 function emitBuilding(t, cx, cz, baseY, zoneHex, tint){
@@ -1768,7 +2173,7 @@ function rebuild(){
         const e = isRoad(x + 1, z), w = isRoad(x - 1, z);
         const n = isRoad(x, z - 1), s = isRoad(x, z + 1);
 
-        dummy.position.set(cx, Y + 0.03, cz);
+        dummy.position.set(cx, Y + LAYER.ROAD, cz);
         dummy.rotation.set(0, 0, 0);
         dummy.scale.set(1, 1, 1);
         dummy.updateMatrix();
@@ -1776,15 +2181,17 @@ function rebuild(){
         asphaltMesh.setColorAt(ia, tmpColor.setHex(COL.asphalt));
         ia++;
 
+        /* meio-fio deslocado para 0.425: a face externa fica em 0.505,
+           fora da face lateral do asfalto (0.498) */
         const edges = [
-          { on:!n, rotY:0,           ox:0,     oz:-0.42 },
-          { on:!s, rotY:0,           ox:0,     oz: 0.42 },
-          { on:!w, rotY:Math.PI / 2, ox:-0.42, oz:0     },
-          { on:!e, rotY:Math.PI / 2, ox: 0.42, oz:0     }
+          { on:!n, rotY:0,           ox:0,      oz:-0.425 },
+          { on:!s, rotY:0,           ox:0,      oz: 0.425 },
+          { on:!w, rotY:Math.PI / 2, ox:-0.425, oz:0      },
+          { on:!e, rotY:Math.PI / 2, ox: 0.425, oz:0      }
         ];
         for (const ed of edges){
           if (!ed.on) continue;
-          dummy.position.set(cx + ed.ox, Y + 0.035, cz + ed.oz);
+          dummy.position.set(cx + ed.ox, Y + 0.038, cz + ed.oz);
           dummy.rotation.set(0, ed.rotY, 0);
           dummy.scale.set(1, 1, 1);
           dummy.updateMatrix();
@@ -1798,7 +2205,7 @@ function rebuild(){
         if (horiz || vert){
           for (let k = 0; k < 2; k++){
             const off = (k === 0 ? -0.24 : 0.24);
-            dummy.position.set(cx + (horiz ? off : 0), Y + 0.068, cz + (vert ? off : 0));
+            dummy.position.set(cx + (horiz ? off : 0), Y + LAYER.STRIPE, cz + (vert ? off : 0));
             dummy.rotation.set(0, vert ? Math.PI / 2 : 0, 0);
             dummy.scale.set(1, 1, 1);
             dummy.updateMatrix();
@@ -1816,17 +2223,17 @@ function rebuild(){
         const built = t.level > 0;
         const alert = !t.connected || !t.powered;
 
-        dummy.position.set(cx, Y + 0.02, cz);
+        dummy.position.set(cx, Y + LAYER.PAD, cz);
         dummy.rotation.set(0, 0, 0);
         dummy.scale.set(1, 1, 1);
         dummy.updateMatrix();
         padMesh.setMatrixAt(ip, dummy.matrix);
         tmpColor.setHex(zoneHex);
-        tmpColor.lerp(built ? BLACK : WHITE, built ? 0.14 : 0.14);
+        tmpColor.lerp(built ? BLACK : WHITE, 0.14);
         padMesh.setColorAt(ip, tmpColor);
         ip++;
 
-        dummy.position.set(cx, Y + 0.062, cz);
+        dummy.position.set(cx, Y + LAYER.FRAME, cz);
         dummy.updateMatrix();
         frameMesh.setMatrixAt(ifr, dummy.matrix);
         if (alert) tmpColor.setHex(ALERT_COL);
@@ -1842,7 +2249,7 @@ function rebuild(){
             dummy.rotation.set(0, arm ? Math.PI / 2 : 0, 0);
             dummy.position.set(
               cx + sx * (arm ? 0.455 : 0.33),
-              Y + 0.075,
+              Y + LAYER.CORNER,
               cz + sz * (arm ? 0.33 : 0.455)
             );
             dummy.scale.set(1, 1, 1);
@@ -1898,8 +2305,362 @@ function rebuild(){
   for (const k of ZONE_TYPES) fin(buildMesh[k], CNT.body[k]);
 
   paintGround();
+  TRAFFIC.rebuildGraph();        // a malha viária mudou: refaz o grafo
   dirty = false;
 }
+
+/* =========================================================================
+   SEÇÃO 7d — TRÁFEGO DE CARROS
+   -------------------------------------------------------------------------
+   Modelo simples e barato, feito para rodar com centenas de veículos:
+
+     · O grafo viário é a própria grade: cada tile de estrada é um nó e as
+       ligações são os quatro vizinhos ortogonais que também sejam estrada.
+     · Cada veículo atravessa um tile por vez com uma Bézier quadrática que
+       liga a borda de entrada à borda de saída, mantendo o deslocamento
+       lateral da mão direita (trânsito brasileiro).
+     · A rota é decidida na chegada ao tile: prefere seguir em frente e só
+       faz retorno em rua sem saída.
+     · Há espaçamento entre veículos: cada carro observa quem está à frente
+       na mesma faixa (tile + sentido) e no tile seguinte, e desacelera.
+     · Faróis e lanternas usam materiais registrados em skyHooks, portanto
+       acendem junto com as janelas quando o sol se põe.
+
+   Correção de z-fighting nesta seção:
+     · ROAD_Y agora fica 4 mm acima do topo real do asfalto (antes os
+       veículos apoiavam exatamente sobre ele).
+     · Faróis e lanternas foram empurrados para fora da carroceria
+       (0.505 L em vez de 0.49 L), pois a folga anterior de 2 milésimos
+       era pequena demais para o depth buffer em vistas afastadas.
+   ========================================================================= */
+const TRAFFIC = (function(){
+
+  /* --- constantes do módulo --- */
+  const DIRS   = [[1,0],[0,1],[-1,0],[0,-1]];   // 0:+X  1:+Z  2:−X  3:−Z
+  const LANE   = 0.205;                          // deslocamento da mão direita
+  const MAXCARS = 240;
+  const ROAD_Y = CFG.GROUND_Y + 0.064;           // topo do asfalto + folga
+  const GAP_SLOW = 0.34, GAP_STOP = 0.17;        // distâncias de segurança
+
+  const CAR_COLORS = [
+    0xd94f3a, 0x2f6fd0, 0xeceff1, 0x2b3138, 0x2fa25a, 0xe8b62c,
+    0x8d5a3b, 0x9aa2a8, 0x6b4bb5, 0x14a3a8, 0xc9d1d6, 0xb03a5b
+  ];
+  const TRUCK_COLORS = [0xe0e4e8, 0x3a6ea8, 0xd6862c, 0x767d84, 0xb84a3a];
+
+  /* --- geometrias --- */
+  const gBody  = CSGGEO.carBody;                                     // 1×1×1, base em y=0
+  const gBox   = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);// caixa de carga / cabine
+  const gWheel = new THREE.CylinderGeometry(0.5, 0.5, 1, 8).rotateZ(Math.PI / 2);
+  const gLamp  = new THREE.BoxGeometry(1, 1, 1);
+
+  /* --- materiais --- */
+  const matCarBody = mat(0xffffff, 0.38, 0.35);
+  const matCarCab  = mat(0xffffff, 0.55, 0.15);
+  const matWheel   = mat(0x191c20, 0.95);
+  const matHead    = new THREE.MeshStandardMaterial({
+    color:0xfff4d8, roughness:0.35, emissive:0xffe6ae, emissiveIntensity:0.05 });
+  const matTail    = new THREE.MeshStandardMaterial({
+    color:0xff5545, roughness:0.35, emissive:0xff2414, emissiveIntensity:0.20 });
+
+  skyHooks.carHead = matHead;
+  skyHooks.carTail = matTail;
+
+  /* --- malhas instanciadas --- */
+  const mBody  = makeInstanced(gBody,  matCarBody, MAXCARS,     true);
+  const mCargo = makeInstanced(gBox,   matCarCab,  MAXCARS,     true);
+  const mWheel = makeInstanced(gWheel, matWheel,   MAXCARS * 4, false);
+  const mHead  = makeInstanced(gLamp,  matHead,    MAXCARS * 2, false);
+  const mTail  = makeInstanced(gLamp,  matTail,    MAXCARS * 2, false);
+
+  /* --- estado --- */
+  const cars  = [];
+  let roads   = [];       // tiles de estrada (referências)
+  let spawnAcc = 0;
+
+  const isRoadTile = (x, z) => { const t = tileAt(x, z); return !!t && t.type === T.ROAD; };
+  const rightOf = (d) => { const f = DIRS[d]; return [-f[1], f[0]]; };
+  const opposite = (d) => (d + 2) & 3;
+
+  /* ---------- geometria do trecho percorrido dentro de um tile ---------- */
+  function setSegment(c){
+    const cx = c.x + 0.5, cz = c.z + 0.5;
+    const fi = DIRS[c.din], fo = DIRS[c.dout];
+    const ri = rightOf(c.din), ro = rightOf(c.dout);
+
+    c.p0x = cx - fi[0] * 0.5 + ri[0] * LANE;
+    c.p0z = cz - fi[1] * 0.5 + ri[1] * LANE;
+    c.p2x = cx + fo[0] * 0.5 + ro[0] * LANE;
+    c.p2z = cz + fo[1] * 0.5 + ro[1] * LANE;
+
+    if (c.din === c.dout){                       // segue reto
+      c.p1x = (c.p0x + c.p2x) * 0.5;
+      c.p1z = (c.p0z + c.p2z) * 0.5;
+    } else if (c.dout === opposite(c.din)){      // retorno em rua sem saída
+      c.p1x = cx + fi[0] * 0.46;
+      c.p1z = cz + fi[1] * 0.46;
+    } else {                                     // interseção das duas retas
+      c.p1x = fi[0] !== 0 ? c.p2x : c.p0x;
+      c.p1z = fi[1] !== 0 ? c.p2z : c.p0z;
+    }
+
+    const d1 = Math.hypot(c.p1x - c.p0x, c.p1z - c.p0z);
+    const d2 = Math.hypot(c.p2x - c.p1x, c.p2z - c.p1z);
+    c.len = Math.max(0.45, d1 + d2);
+  }
+
+  /* ---------- escolha da saída ao chegar em um tile ---------- */
+  function chooseExit(c){
+    const back = opposite(c.din);
+    const opts = [];
+    for (let d = 0; d < 4; d++){
+      if (d === back) continue;
+      if (isRoadTile(c.x + DIRS[d][0], c.z + DIRS[d][1])) opts.push(d);
+    }
+    if (opts.length === 0) c.dout = back;                       // sem saída: retorna
+    else if (opts.indexOf(c.din) !== -1 && Math.random() < 0.66) c.dout = c.din;
+    else c.dout = opts[(Math.random() * opts.length) | 0];
+    setSegment(c);
+  }
+
+  /* ---------- criação de um veículo ---------- */
+  function spawn(){
+    if (!roads.length || cars.length >= MAXCARS) return false;
+    for (let attempt = 0; attempt < 10; attempt++){
+      const t = roads[(Math.random() * roads.length) | 0];
+      const dirs = [];
+      for (let d = 0; d < 4; d++)
+        if (isRoadTile(t.x + DIRS[d][0], t.z + DIRS[d][1])) dirs.push(d);
+      if (!dirs.length) continue;
+
+      const truck = Math.random() < 0.20;
+      const c = {
+        x: t.x, z: t.z,
+        din: dirs[(Math.random() * dirs.length) | 0],
+        dout: 0, p: Math.random() * 0.7,
+        vmax: truck ? 0.85 + Math.random() * 0.20 : 1.05 + Math.random() * 0.55,
+        v: 0, life: 0,
+        truck: truck,
+        w: truck ? 0.175 : 0.150 + Math.random() * 0.020,
+        h: truck ? 0.115 : 0.092 + Math.random() * 0.016,
+        L: truck ? 0.480 : 0.320 + Math.random() * 0.060,
+        col: truck ? TRUCK_COLORS[(Math.random() * TRUCK_COLORS.length) | 0]
+                   : CAR_COLORS[(Math.random() * CAR_COLORS.length) | 0],
+        cargo: 0xdde2e6
+      };
+      chooseExit(c);
+      cars.push(c);
+      return true;
+    }
+    return false;
+  }
+
+  /* ---------- grafo: chamado sempre que o mapa muda ---------- */
+  function rebuildGraph(){
+    roads = [];
+    for (let i = 0; i < map.length; i++) if (map[i].type === T.ROAD) roads.push(map[i]);
+
+    for (let i = cars.length - 1; i >= 0; i--){
+      const c = cars[i];
+      if (!isRoadTile(c.x, c.z)){ cars.splice(i, 1); continue; }
+      if (!isRoadTile(c.x + DIRS[c.dout][0], c.z + DIRS[c.dout][1])) chooseExit(c);
+    }
+  }
+
+  /* ---------- frota desejada ---------- */
+  function fleetTarget(){
+    if (roads.length < 2) return 0;
+    const demand = 3 + game.population / 38 + game.jobs / 55;
+    return Math.max(0, Math.min(MAXCARS, Math.floor(Math.min(demand, roads.length * 0.55))));
+  }
+
+  /* ---------- espaçamento: quem está à frente na mesma faixa ---------- */
+  const laneMap = new Map();   // (tile,saída) → carros    | (tile,entrada) → carros
+  function bucket(m, key, i){
+    let a = m.get(key);
+    if (!a){ a = []; m.set(key, a); }
+    a.push(i);
+  }
+
+  function frontGap(i){
+    const c = cars[i];
+    const here = laneMap.get((idx(c.x, c.z) << 3) | c.dout);
+    let gap = 9;
+    if (here){
+      for (let k = 0; k < here.length; k++){
+        const o = cars[here[k]];
+        if (o === c || o.p <= c.p) continue;
+        const g = (o.p - c.p) * c.len - c.L * 0.5 - o.L * 0.5;
+        if (g < gap) gap = g;
+      }
+    }
+    const nx = c.x + DIRS[c.dout][0], nz = c.z + DIRS[c.dout][1];
+    if (inBounds(nx, nz)){
+      const next = laneMap.get((idx(nx, nz) << 3) | 4 | c.dout);   // bit 2 = "entrando"
+      if (next){
+        for (let k = 0; k < next.length; k++){
+          const o = cars[next[k]];
+          const g = (1 - c.p) * c.len + o.p * o.len - c.L * 0.5 - o.L * 0.5;
+          if (g < gap) gap = g;
+        }
+      }
+    }
+    return gap;
+  }
+
+  /* ---------- passo de simulação + desenho ---------- */
+  const _fwd = [0, 0], _rgt = [0, 0];
+
+  function update(dt){
+    /* frota */
+    spawnAcc += dt;
+    if (spawnAcc > 0.35){
+      spawnAcc = 0;
+      const want = fleetTarget();
+      if (cars.length < want) spawn();
+      else if (cars.length > want + 2) cars.splice((Math.random() * cars.length) | 0, 1);
+    }
+
+    const scale = game.speed === 0 ? 0 : (game.speed >= 3 ? 1.7 : 1);
+
+    if (scale > 0 && cars.length){
+      /* índice de faixas para o espaçamento */
+      laneMap.clear();
+      for (let i = 0; i < cars.length; i++){
+        const c = cars[i];
+        const t = idx(c.x, c.z) << 3;
+        bucket(laneMap, t | c.dout, i);
+        bucket(laneMap, t | 4 | c.din, i);
+      }
+
+      for (let i = cars.length - 1; i >= 0; i--){
+        const c = cars[i];
+        const gap = frontGap(i);
+
+        let target = c.vmax;
+        if (gap < GAP_STOP) target = 0;
+        else if (gap < GAP_SLOW) target = c.vmax * (gap - GAP_STOP) / (GAP_SLOW - GAP_STOP);
+        /* reduz nas curvas */
+        if (c.din !== c.dout) target *= 0.62;
+
+        const acc = target > c.v ? 1.6 : 4.0;    // frear é mais rápido que acelerar
+        c.v += Math.max(-acc * dt, Math.min(acc * dt, target - c.v));
+        if (c.v < 0) c.v = 0;
+
+        c.p += (c.v * scale * dt) / c.len;
+        c.life += dt;
+
+        while (c.p >= 1){
+          c.p -= 1;
+          c.x += DIRS[c.dout][0];
+          c.z += DIRS[c.dout][1];
+          if (!isRoadTile(c.x, c.z)){ c.dead = true; break; }   // via demolida
+          c.din = c.dout;
+          chooseExit(c);
+        }
+      }
+
+      /* remoção adiada: os índices usados no espaçamento seguem válidos */
+      for (let i = cars.length - 1; i >= 0; i--) if (cars[i].dead) cars.splice(i, 1);
+    }
+
+    /* ---------- desenho ---------- */
+    let ib = 0, ic = 0, iw = 0, ih = 0, it = 0;
+    for (let i = 0; i < cars.length; i++){
+      const c = cars[i];
+      const u = c.p, iu = 1 - u;
+
+      /* Bézier quadrática + tangente */
+      const px = iu * iu * c.p0x + 2 * iu * u * c.p1x + u * u * c.p2x;
+      const pz = iu * iu * c.p0z + 2 * iu * u * c.p1z + u * u * c.p2z;
+      let tx = 2 * (iu * (c.p1x - c.p0x) + u * (c.p2x - c.p1x));
+      let tz = 2 * (iu * (c.p1z - c.p0z) + u * (c.p2z - c.p1z));
+      const tl = Math.hypot(tx, tz) || 1;
+      tx /= tl; tz /= tl;
+
+      const yaw = Math.atan2(tx, tz);
+      _fwd[0] = tx;  _fwd[1] = tz;
+      _rgt[0] = -tz; _rgt[1] = tx;
+
+      const wheelR = c.truck ? 0.042 : 0.034;
+      const baseY  = ROAD_Y + wheelR * 0.62;
+
+      /* carroceria */
+      dummy.position.set(px, baseY, pz);
+      dummy.rotation.set(0, yaw, 0);
+      dummy.scale.set(c.w, c.h, c.L);
+      dummy.updateMatrix();
+      mBody.setMatrixAt(ib, dummy.matrix);
+      mBody.setColorAt(ib, tmpColor2.setHex(c.col));
+      ib++;
+
+      /* caminhão: baú sobre o chassi */
+      if (c.truck){
+        const oz = -c.L * 0.22;
+        dummy.position.set(px + _fwd[0] * oz, baseY + c.h * 0.72, pz + _fwd[1] * oz);
+        dummy.rotation.set(0, yaw, 0);
+        dummy.scale.set(c.w * 1.04, c.h * 0.85, c.L * 0.52);
+        dummy.updateMatrix();
+        mCargo.setMatrixAt(ic, dummy.matrix);
+        mCargo.setColorAt(ic, tmpColor2.setHex(c.cargo));
+        ic++;
+      }
+
+      /* rodas */
+      for (let s = -1; s <= 1; s += 2){
+        for (let f = -1; f <= 1; f += 2){
+          const ox = s * c.w * 0.50, oz = f * c.L * 0.31;
+          dummy.position.set(
+            px + _rgt[0] * ox + _fwd[0] * oz,
+            ROAD_Y + wheelR,
+            pz + _rgt[1] * ox + _fwd[1] * oz
+          );
+          dummy.rotation.set(0, yaw, 0);
+          dummy.scale.set(0.030, wheelR * 2, wheelR * 2);
+          dummy.updateMatrix();
+          mWheel.setMatrixAt(iw, dummy.matrix);
+          mWheel.setColorAt(iw, tmpColor2.setHex(0xffffff));
+          iw++;
+        }
+      }
+
+      /* faróis e lanternas: projetados para fora da carroceria */
+      for (let s = -1; s <= 1; s += 2){
+        const ox = s * c.w * 0.30;
+        const ozF = c.L * 0.505, ozR = -c.L * 0.505;
+        const y = baseY + c.h * 0.42;
+
+        dummy.position.set(px + _rgt[0] * ox + _fwd[0] * ozF, y, pz + _rgt[1] * ox + _fwd[1] * ozF);
+        dummy.rotation.set(0, yaw, 0);
+        dummy.scale.set(0.036, 0.026, 0.018);
+        dummy.updateMatrix();
+        mHead.setMatrixAt(ih, dummy.matrix);
+        mHead.setColorAt(ih, tmpColor2.setHex(0xffffff));
+        ih++;
+
+        dummy.position.set(px + _rgt[0] * ox + _fwd[0] * ozR, y, pz + _rgt[1] * ox + _fwd[1] * ozR);
+        dummy.rotation.set(0, yaw, 0);
+        dummy.scale.set(0.034, 0.024, 0.016);
+        dummy.updateMatrix();
+        mTail.setMatrixAt(it, dummy.matrix);
+        mTail.setColorAt(it, tmpColor2.setHex(c.v < 0.05 ? 0xffffff : 0xcfcfcf));
+        it++;
+      }
+    }
+
+    const fin = (m, n) => {
+      m.count = n;
+      m.instanceMatrix.needsUpdate = true;
+      if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    };
+    fin(mBody, ib); fin(mCargo, ic); fin(mWheel, iw); fin(mHead, ih); fin(mTail, it);
+  }
+
+  function clear(){ cars.length = 0; }
+  function count(){ return cars.length; }
+
+  return { rebuildGraph, update, clear, count };
+})();
 
 /* =========================================================
    SEÇÃO 8 — RAYCASTING
@@ -2001,17 +2762,6 @@ function applyTool(tiles){
 
 /* =========================================================
    SEÇÃO 10 — SIMULAÇÃO / ECONOMIA
-   -----------------------------------------------------------
-   Modelo (1 tick = 1 mês):
-     · Capacidade  : cada nível de lote gera moradias ou empregos.
-     · Migração    : a população persegue min(moradias, atração por emprego).
-     · Ocupação    : empregos ÷ força de trabalho (50% da população).
-     · Impostos    : moradores (escalados pela ocupação) + empregos ocupados.
-     · Manutenção  : estradas, lotes (base + nível) e serviços.
-     · Demanda RCI : déficit entre o que a cidade quer e o que ela tem.
-     · Crescimento : lote sobe de nível se tem estrada, energia, demanda
-                     positiva e caixa positivo; decai se falta serviço ou
-                     se a demanda é fortemente negativa.
    ========================================================= */
 function recomputeNetwork(){
   /* 1) rede viária conectada à prefeitura (BFS) */
@@ -2222,6 +2972,7 @@ function updateHUD(){
   b.className = game.balance >= 0 ? 'money-pos' : 'money-neg';
 
   $('#s-time').textContent = MONTHS[game.tick % 12] + '/' + (1 + Math.floor(game.tick / 12));
+  $('#s-cars').textContent = fmt(TRAFFIC.count());
 
   for (const k of ['R', 'C', 'I']){
     const v = game.demand[k];
@@ -2286,7 +3037,7 @@ function updateHighlight(time){
   let i = 0;
   for (const p of tiles){
     if (!inBounds(p.x, p.z)) continue;
-    dummy.position.set(p.x + 0.5, CFG.GROUND_Y + 0.09, p.z + 0.5);
+    dummy.position.set(p.x + 0.5, CFG.GROUND_Y + LAYER.HILITE, p.z + 0.5);
     dummy.rotation.set(0, 0, 0);
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
@@ -2312,15 +3063,52 @@ function togglePause(){
 
 $('#help-title').onclick = () => $('#help').classList.toggle('min');
 
-function toggleNight(){
-  night = !night;
-  const b = $('#b-night');
-  b.innerHTML = night
-    ? '<i class="mdi mdi-weather-night"></i><span>Noite</span>'
-    : '<i class="mdi mdi-white-balance-sunny"></i><span>Dia</span>';
-  b.classList.toggle('active', night);
+/* ---------------------------------------------------------------------
+   11a — SELETOR DE ILUMINAÇÃO: Dia · Noite · Automático
+   --------------------------------------------------------------------- */
+const bSky = $('#b-sky'), skyHH = $('#sky-hh');
+let lastClock = '';
+
+function skyMode(){ return SKY_MODES[skyModeIdx]; }
+
+function refreshSkyButton(){
+  const m = skyMode();
+  bSky.innerHTML = '<i class="mdi mdi-' + m.icon + '"></i><span class="lbl">' + m.label + '</span>';
+  bSky.classList.toggle('active', m.id === 'auto');
+  bSky.title = 'Iluminação: ' + m.label + ' — clique (ou tecla N) para alternar entre Dia, Noite e Automático';
 }
-$('#b-night').onclick = toggleNight;
+
+function updateSkyClock(){
+  const total = Math.round(dayT * 24 * 60);
+  const hh = String(Math.floor(total / 60) % 24).padStart(2, '0');
+  const mm = String(total % 60).padStart(2, '0');
+  const txt = hh + ':' + mm;
+  if (txt !== lastClock){ lastClock = txt; skyHH.textContent = txt; }
+}
+
+function cycleSkyMode(){
+  skyModeIdx = (skyModeIdx + 1) % SKY_MODES.length;
+  const m = skyMode();
+  refreshSkyButton();
+  toast('Iluminação: ' + m.label, false, m.icon);
+}
+bSky.onclick = cycleSkyMode;
+refreshSkyButton();
+
+/* avanço do tempo do céu */
+function advanceSky(dt){
+  const m = skyMode();
+  if (m.t === null){
+    const factor = game.speed > 0 ? game.speed : 1;
+    updateSky(dayT + (dt * factor) / CFG.DAY_SECONDS);
+    return;
+  }
+  let diff = m.t - dayT;
+  diff -= Math.round(diff);                    // caminho mais curto no círculo
+  if (Math.abs(diff) < 0.0008){ updateSky(m.t); return; }
+  const step = Math.sign(diff) * Math.min(Math.abs(diff), dt * 0.35);
+  updateSky(dayT + step);
+}
 
 /* =========================================================
    SEÇÃO 12 — ENTRADA E LOOP
@@ -2353,7 +3141,7 @@ window.addEventListener('keydown', e => {
   const t = TOOLS.findIndex(x => x.key === k);
   if (t !== -1) { selectTool(t); return; }
   if (k === ' ') { e.preventDefault(); togglePause(); }
-  if (k === 'n' || k === 'N') toggleNight();
+  if (k === 'n' || k === 'N') cycleSkyMode();
   if (k === 'Escape') { drag = null; }
   if (['w','a','s','d','W','A','S','D'].indexOf(k) !== -1) keys[k.toLowerCase()] = true;
 });
@@ -2378,6 +3166,7 @@ function panCamera(dt){
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.setSize(innerWidth, innerHeight);
 });
 
@@ -2391,11 +3180,8 @@ function loop(now){
   controls.update();
   sky.position.copy(camera.position);
 
-  const targetBlend = night ? 1 : 0;
-  if (Math.abs(skyBlend - targetBlend) > 0.001){
-    skyBlend += (targetBlend - skyBlend) * Math.min(1, dt * 2.2);
-    applySky(skyBlend);
-  }
+  skyU.uTime.value = now * 0.001;
+  advanceSky(dt);
 
   if (game.speed > 0){
     acc += dt * 1000 * game.speed;
@@ -2403,6 +3189,7 @@ function loop(now){
   }
 
   if (dirty) rebuild();
+  TRAFFIC.update(dt);
   updateHighlight(now);
   renderer.render(scene, camera);
 }
@@ -2416,6 +3203,7 @@ $('#b-save').onclick = () => {
   const data = {
     n: N,
     money: game.money, pop: game.population, tick: game.tick,
+    hour: dayT, skyMode: skyModeIdx,
     tiles: map.map(t => [t.type, t.level, Math.round(t.seed * 1000)])
   };
   try {
@@ -2435,6 +3223,9 @@ $('#b-load').onclick = () => {
       map[i].type = v[0]; map[i].level = v[1]; map[i].seed = v[2] / 1000;
     });
     game.money = d.money; game.population = d.pop; game.tick = d.tick;
+    if (typeof d.skyMode === 'number'){ skyModeIdx = d.skyMode % SKY_MODES.length; refreshSkyButton(); }
+    if (typeof d.hour === 'number') updateSky(d.hour);
+    TRAFFIC.clear();
     recomputeNetwork(); updateHUD(); dirty = true;
     toast('Cidade carregada', false, 'folder-open');
   } catch (err){ toast('Save corrompido', true, 'alert'); }
@@ -2442,7 +3233,8 @@ $('#b-load').onclick = () => {
 
 $('#b-new').onclick = () => {
   if (!confirm('Iniciar uma nova cidade? O progresso não salvo será perdido.')) return;
-  newGame(true); recomputeNetwork(); updateHUD();
+  newGame(true); TRAFFIC.clear(); recomputeNetwork(); updateHUD();
+  updateSky(CFG.START_HOUR / 24);
   toast('Nova cidade fundada', false, 'city-variant-outline');
 };
 
@@ -2451,11 +3243,11 @@ $('#b-new').onclick = () => {
    ========================================================= */
 newGame(true);
 recomputeNetwork();
-applySky(0);
+updateSky(CFG.START_HOUR / 24);
 rebuild();
 updateHUD();
 document.getElementById('loader').style.display = 'none';
-toast('Sólidos CSG compilados em ' + CSGGEO.buildMs + ' ms', false, 'vector-difference');
+toast('Correção de z-fighting aplicada · modelos estáveis', false, 'layers-triple');
 requestAnimationFrame(loop);
 </script>
 </body>
