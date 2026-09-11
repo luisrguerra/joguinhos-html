@@ -5,9 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>City Builder 3D</title>
 
-<!-- =========================================================
-     SEÇÃO 1 — ÍCONES (Material Design Icons) E ESTILO
-     ========================================================= -->
 <link rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" />
 
@@ -25,7 +22,6 @@
   canvas{display:block}
   .mdi{line-height:1}
 
-  /* ---- HUD superior ---- */
   #hud{position:fixed;top:12px;left:12px;right:12px;display:flex;gap:10px;
     flex-wrap:wrap;align-items:stretch;pointer-events:none;z-index:10}
   .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;
@@ -39,7 +35,6 @@
   .stat span .mdi{font-size:12px}
   .money-pos{color:#7ee08a} .money-neg{color:#ff7b7b}
 
-  /* ---- Demanda RCI ---- */
   #rci{display:flex;gap:14px;align-items:flex-end}
   .rci-col{display:flex;flex-direction:column;align-items:center;gap:4px;width:26px}
   .rci-bar{width:16px;height:46px;background:#1b2430;border:1px solid var(--border);
@@ -48,7 +43,6 @@
   .rci-mid{position:absolute;left:0;right:0;top:50%;height:1px;background:#3c4a5e}
   .rci-col small{font-size:13px;color:var(--dim)}
 
-  /* ---- Toolbar inferior ---- */
   #toolbar{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);
     display:flex;gap:6px;z-index:10}
   .tool{background:var(--panel);border:1px solid var(--border);border-radius:9px;
@@ -61,7 +55,6 @@
   .tool .k{position:absolute;top:5px;right:7px;font-size:9px;color:var(--dim)}
   .tool .price{display:block;font-size:10px;color:var(--dim);margin-top:2px}
 
-  /* ---- Painel lateral ---- */
   #right{position:fixed;top:12px;right:12px;display:flex;flex-direction:column;
     gap:8px;align-items:flex-end;z-index:10}
   .row{display:flex;gap:6px}
@@ -72,14 +65,12 @@
   .btn:hover{border-color:var(--accent)}
   .btn.active{background:#1c2c42;border-color:var(--accent)}
 
-  /* ---- Seletor de iluminação (dia · noite · automático) ---- */
   #sky-ctl{display:flex;align-items:center;gap:6px}
   #b-sky{min-width:118px;justify-content:center}
   #b-sky .lbl{font-variant-numeric:tabular-nums}
   #sky-clock{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums;
     display:flex;align-items:center;gap:4px;min-width:52px;justify-content:flex-end}
 
-  /* ---- Legenda de zonas ---- */
   #legend{background:var(--panel);border:1px solid var(--border);border-radius:10px;
     padding:9px 11px;font-size:11.5px;line-height:1.5;min-width:206px;
     box-shadow:0 6px 20px rgba(0,0,0,.35)}
@@ -94,7 +85,6 @@
     padding-top:6px}
   #legend.min .body{display:none}
 
-  /* ---- Tooltip do tile ---- */
   #tip{position:fixed;pointer-events:none;z-index:20;background:rgba(10,14,20,.94);
     border:1px solid var(--border);border-radius:7px;padding:6px 9px;font-size:11.5px;
     display:none;line-height:1.5;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.5)}
@@ -105,7 +95,6 @@
   #tip .arch{color:var(--dim)}
   #tip .ok{color:#7ee08a} #tip .no{color:#ff7b7b}
 
-  /* ---- Mensagens ---- */
   #toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%);
     background:rgba(10,14,20,.95);border:1px solid var(--border);border-radius:8px;
     padding:7px 14px;font-size:12.5px;z-index:30;opacity:0;transition:opacity .25s;
@@ -113,7 +102,6 @@
   #toast.show{opacity:1}
   #toast.err{border-color:var(--dem);color:#ffb3b3}
 
-  /* ---- Ajuda ---- */
   #help{position:fixed;bottom:14px;left:14px;font-size:11px;color:var(--dim);
     background:var(--panel);border:1px solid var(--border);border-radius:9px;
     padding:8px 11px;z-index:10;max-width:255px;line-height:1.7}
@@ -135,9 +123,6 @@
   <small>Se esta mensagem persistir, verifique a conexão com a internet (Three.js e os ícones MDI são carregados via CDN apenas no primeiro acesso). A biblioteca CSG está embutida neste arquivo.</small>
 </div>
 
-<!-- =========================================================
-     SEÇÃO 2 — MARCAÇÃO DA INTERFACE
-     ========================================================= -->
 <div id="hud">
   <div class="card" id="stats">
     <div class="stat"><b id="s-money">§0</b><span><i class="mdi mdi-cash"></i>Saldo</span></div>
@@ -208,17 +193,9 @@
   </div>
 </div>
 
-<!-- =========================================================
-     SEÇÃO 3 — BIBLIOTECAS (CDN, builds clássicos p/ abrir via file://)
-     ========================================================= -->
 <script src="https://unpkg.com/three@0.147.0/build/three.min.js"></script>
 <script src="https://unpkg.com/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
 
-<!-- =========================================================
-     SEÇÃO 3b — csg.js (Constructive Solid Geometry por BSP)
-     Implementação de Evan Wallace (csg.js, licença MIT), embutida
-     para que o arquivo continue funcionando via file:// e offline.
-     ========================================================= -->
 <script>
 (function(global){
 'use strict';
@@ -281,7 +258,6 @@ CSG.prototype = {
   }
 };
 
-/* ---------- Vector ---------- */
 CSG.Vector = function(x, y, z){ this.x = x; this.y = y; this.z = z; };
 CSG.Vector.prototype = {
   clone: function(){ return new CSG.Vector(this.x, this.y, this.z); },
@@ -303,7 +279,6 @@ CSG.Vector.prototype = {
   }
 };
 
-/* ---------- Vertex ---------- */
 CSG.Vertex = function(pos, normal){ this.pos = pos.clone(); this.normal = normal.clone(); };
 CSG.Vertex.prototype = {
   clone: function(){ return new CSG.Vertex(this.pos, this.normal); },
@@ -313,7 +288,6 @@ CSG.Vertex.prototype = {
   }
 };
 
-/* ---------- Plane ---------- */
 CSG.Plane = function(normal, w){ this.normal = normal; this.w = w; };
 CSG.Plane.EPSILON = 1e-5;
 
@@ -364,7 +338,6 @@ CSG.Plane.prototype = {
   }
 };
 
-/* ---------- Polygon ---------- */
 CSG.Polygon = function(vertices, shared){
   this.vertices = vertices;
   this.shared = shared;
@@ -380,7 +353,6 @@ CSG.Polygon.prototype = {
   }
 };
 
-/* ---------- Node (árvore BSP) ---------- */
 CSG.Node = function(polygons){
   this.plane = null; this.front = null; this.back = null; this.polygons = [];
   if (polygons) this.build(polygons);
@@ -438,15 +410,11 @@ global.CSG = CSG;
 })(window);
 </script>
 
-<!-- =========================================================
-     SEÇÃO 3c — PONTE CSG ↔ THREE.js E FÁBRICA DE SÓLIDOS
-     ========================================================= -->
 <script>
 'use strict';
 
 var CSGX = (function(){
 
-  /* BufferGeometry (triângulos) → CSG */
   function fromGeometry(geo){
     var g = geo.index ? geo.toNonIndexed() : geo;
     if (!g.attributes.normal) g.computeVertexNormals();
@@ -462,7 +430,6 @@ var CSGX = (function(){
           new CSG.Vector(nor[o], nor[o + 1], nor[o + 2])
         ));
       }
-      /* descarta triângulos degenerados (evitam planos inválidos no BSP) */
       var a = vs[0].pos, b = vs[1].pos, c = vs[2].pos;
       if (b.minus(a).cross(c.minus(a)).length() < 1e-10) continue;
       polys.push(new CSG.Polygon(vs));
@@ -470,7 +437,6 @@ var CSGX = (function(){
     return CSG.fromPolygons(polys);
   }
 
-  /* CSG → BufferGeometry (triangulação em leque) */
   function toGeometry(csg){
     var polys = csg.toPolygons();
     var pos = [], nor = [];
@@ -491,7 +457,6 @@ var CSGX = (function(){
     return g;
   }
 
-  /* --- primitivas convenientes, já posicionadas em coordenadas locais --- */
   function box(w, h, d, x, y, z, ry){
     var g = new THREE.BoxGeometry(w, h, d);
     if (ry) g.rotateY(ry);
@@ -521,8 +486,6 @@ var CSGX = (function(){
     return fromGeometry(g);
   }
 
-  /* Normaliza o sólido para caber em 1×1×1 com a base em y = 0,
-     preservando o "contrato" das geometrias usadas em InstancedMesh. */
   function normalize(csgSolid, keepWidth){
     var g = toGeometry(csgSolid);
     g.computeBoundingBox();
@@ -540,54 +503,6 @@ var CSGX = (function(){
 })();
 </script>
 <script>
-/* =========================================================================
-   CITY BUILDER 3D — arquivo único, sem build, sem servidor, sem texturas.
-
-   REVISÃO v12 — CORREÇÃO DE Z-FIGHTING ("modelos piscando")
-     O cintilar vinha de superfícies exatamente coplanares disputando o
-     mesmo valor de profundidade. Correções aplicadas:
-
-     1. Camada de profundidade explícita (LAYER) para tudo que é plano e
-        fica sobre o terreno: grid, pad da zona, moldura, pips do nível.
-        Cada elemento tem uma cota própria, com folga suficiente.
-     2. Precisão do depth buffer: near 0.5 → 1.0 e far 900 → 700, o que
-        praticamente dobra a resolução útil de Z na faixa em que a cidade
-        realmente é vista.
-     3. Lajes duplicadas removidas: E.cap() e o bloco de cobertura tinham
-        exatamente as mesmas dimensões (1.07 e 1.08), gerando faces
-        laterais coincidentes no topo de cada torre.
-     4. Telhados (gable/hip) passam a afundar ROOF_SINK no corpo, em vez de
-        apoiar a face inferior do beiral exatamente sobre o topo da parede.
-     5. Meio-fio deslocado para 0.425: antes sua face externa coincidia
-        com a face lateral do asfalto, exatamente em ±0.5.
-     6. Base do galpão industrial reduzida (0.94 → 0.90) e elevada, para
-        não coincidir com o pad da zona, que também media 0.94.
-     7. Veículos elevados 0.004 acima do asfalto, e realce do cursor
-        virou uma placa fina com depthWrite desligado.
-     8. Sombras: normalBias maior e bias menor, eliminando o "shadow acne"
-        que também aparecia como cintilação em superfícies grandes.
-
-   Mantido da v11: tráfego de carros, céu procedural com ciclo dia/noite,
-   usina low-poly, prefeitura neoclássica, parque, sólidos CSG das
-   fachadas, jogabilidade (estrada + energia), sombras e economia.
-
-   Organização:
-     4. Configuração e constantes
-     5. Estado do jogo (mapa em grid)
-     6. Cena Three.js (CÉU PROCEDURAL, câmera, luzes, ciclo do dia)
-     7. Materiais e geometrias
-     7a. SÓLIDOS CSG (booleanos)
-     7b. Gerador de edifícios
-     7c. Construções especiais (prefeitura, parque, usina)
-     7d. TRÁFEGO DE CARROS
-     8. Raycasting / seleção de tiles
-     9. Ferramentas e construção
-    10. Simulação (economia)
-    11. Interface (HUD, toolbar, legenda, tooltip, seletor de céu)
-    12. Entrada e loop de render
-    13. Persistência
-   ========================================================================= */
-
 if (typeof THREE === 'undefined') {
   document.getElementById('loader').innerHTML =
     '<div>Falha ao carregar o Three.js.</div><small>Conecte-se à internet uma vez para baixar a biblioteca do CDN e recarregue a página.</small>';
@@ -599,9 +514,6 @@ if (typeof CSG === 'undefined') {
   throw new Error('CSG não carregado');
 }
 
-/* =========================================================
-   SEÇÃO 4 — CONFIGURAÇÃO E CONSTANTES
-   ========================================================= */
 const CFG = {
   GRID: 48,
   TILE: 1,
@@ -616,13 +528,6 @@ const CFG = {
   START_HOUR: 8.5     // hora do dia ao fundar a cidade
 };
 
-/* ---------------------------------------------------------
-   CAMADAS DE PROFUNDIDADE (correção de z-fighting)
-   Todo elemento plano que se sobrepõe ao terreno tem aqui uma
-   cota exclusiva. A separação mínima (6 mm no espaço do jogo)
-   é muito maior que a resolução do depth buffer nessa faixa,
-   então nada mais "pisca" quando a câmera se move.
-   --------------------------------------------------------- */
 const LAYER = {
   GRID   : 0.008,   // grade de referência
   PAD    : 0.020,   // pad da zona (bloco de 0.05 de altura)
@@ -637,7 +542,6 @@ const ROOF_SINK = 0.006;   // quanto o telhado afunda no corpo do edifício
 
 const T = { EMPTY:0, ROAD:1, RES:2, COM:3, IND:4, HALL:5, PARK:6, POWER:7, WATER:8 };
 
-/* PALETA OFICIAL DAS ZONAS */
 const ZONE_COL = {
   [T.RES]  : 0x2fbf5a,
   [T.COM]  : 0x2f7ff2,
@@ -648,9 +552,6 @@ const ZONE_COL = {
   [T.ROAD] : 0x6b7480
 };
 
-/* ---------------------------------------------------------
-   ECONOMIA — parâmetros em um único lugar (fáceis de ajustar)
-   --------------------------------------------------------- */
 const ECO = {
   HOMES_PER_LEVEL : 10,
   JOBS_COM_LEVEL  : 5,
@@ -721,9 +622,6 @@ const GROUND_TINT = 0.50;
 
 const ALERT_COL = 0xff4d4d;
 
-/* =========================================================
-   SEÇÃO 5 — ESTADO DO JOGO
-   ========================================================= */
 const N = CFG.GRID;
 let map = [];
 let game = null;
@@ -764,9 +662,6 @@ function seedStart(){
   map[idx(c, c)].level = 1;
 }
 
-/* =========================================================
-   SEÇÃO 6 — CENA THREE.JS
-   ========================================================= */
 const scene = new THREE.Scene();
 
 const renderer = new THREE.WebGLRenderer({
@@ -785,14 +680,9 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.sortObjects = true;
 document.body.appendChild(renderer.domElement);
 
-/* near/far ajustados: com near=1 e far=700 a precisão de Z na faixa
-   de trabalho (6 a 130 unidades) é muito maior que com near=0.5/far=900. */
 const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 1.0, 700);
 camera.position.set(N * 0.5 + 24, 28, N * 0.5 + 28);
 
-/* ---------------------------------------------------------------------
-   6a — CÉU PROCEDURAL
-   --------------------------------------------------------------------- */
 const winUniform = { value: 0 };          // 0 = dia, 1 = noite (janelas acesas)
 
 const skyU = {
@@ -826,7 +716,6 @@ const SKY_FRAG = [
   'uniform vec3 uTop, uMid, uBot, uSunDir, uSunCol, uGlowCol, uCloudCol;',
   'uniform float uGlowI, uSunVis, uMoonVis, uStars, uCloudI, uCloudCov, uTime;',
 
-  /* --- ruídos --- */
   'float h21(vec2 p){',
   '  vec3 p3 = fract(vec3(p.xyx) * 0.1031);',
   '  p3 += dot(p3, p3.yzx + 33.33);',
@@ -858,11 +747,9 @@ const SKY_FRAG = [
   '  vec3 d = normalize(vDir);',
   '  float h = d.y;',
 
-  /* --- gradiente base --- */
   '  vec3 col = mix(uBot, uMid, smoothstep(-0.07, 0.26, h));',
   '  col = mix(col, uTop, smoothstep(0.16, 0.80, h));',
 
-  /* --- estrelas + Via Láctea (somente com o céu escuro) --- */
   '  if (uStars > 0.002){',
   '    vec3 sd = rotY(d, uTime * 0.004);',
   '    vec3 cell = floor(sd * 150.0);',
@@ -878,7 +765,6 @@ const SKY_FRAG = [
   '    col += vec3(0.10, 0.12, 0.20) * mw * uStars * fade * 0.9;',
   '  }',
 
-  /* --- nuvens em fBm, à deriva --- */
   '  if (uCloudI > 0.002 && h > 0.005){',
   '    vec2 cuv = d.xz / (h + 0.16) * 0.85 + vec2(uTime * 0.010, uTime * 0.004);',
   '    float n  = fbm(cuv) * 0.65 + fbm(cuv * 2.7 + 5.0) * 0.35;',
@@ -890,14 +776,12 @@ const SKY_FRAG = [
   '    col = mix(col, lit, cov * uCloudI);',
   '  }',
 
-  /* --- halo e disco do sol --- */
   '  float cs = dot(d, uSunDir);',
   '  float glow = pow(max(cs, 0.0), 5.0) * 0.30 + pow(max(cs, 0.0), 48.0) * 0.85;',
   '  col += uGlowCol * glow * uGlowI;',
   '  float sunDisk = smoothstep(0.99900, 0.99945, cs);',
   '  col = mix(col, uSunCol * 1.25, sunDisk * uSunVis);',
 
-  /* --- lua: disco com crateras e brilho suave --- */
   '  if (uMoonVis > 0.002){',
   '    vec3 md = -uSunDir;',
   '    float cm = dot(d, md);',
@@ -908,7 +792,6 @@ const SKY_FRAG = [
   '    col = mix(col, vec3(0.95, 0.95, 0.90) * cr, disk * uMoonVis);',
   '  }',
 
-  /* --- leve granulação para evitar banding no gradiente --- */
   '  col += (h21(gl_FragCoord.xy) - 0.5) * 0.006;',
   '  gl_FragColor = vec4(col, 1.0);',
   '}'
@@ -941,8 +824,6 @@ const sun = new THREE.DirectionalLight(0xfff6e6, 1.4);
 sun.position.set(N * 0.75, N * 1.05, N * 0.35);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-/* bias menor + normalBias maior: elimina o "shadow acne" que também
-   se manifestava como cintilação em telhados e no asfalto. */
 sun.shadow.bias = -0.00025;
 sun.shadow.normalBias = 0.06;
 const S = N * 0.75;
@@ -955,9 +836,6 @@ scene.add(sun, sun.target);
 const hemi = new THREE.HemisphereLight(0xbcd8ff, 0x53663c, 0.6);
 scene.add(hemi);
 
-/* ---------------------------------------------------------------------
-   6b — PALETA CONTÍNUA POR ALTURA DO SOL
-   --------------------------------------------------------------------- */
 const SKY_KEYS = [
   { e:-1.00, top:0x03060f, mid:0x0a1226, bot:0x141f38, fog:0x101a2e,
     sun:0xc9d8ff, sunI:0.16, glow:0x2a3a63, glowI:0.20,
@@ -995,7 +873,6 @@ const SKY_KEYS = [
     cloud:0xffffff, cloudI:0.80, cov:0.55, stars:0.0 }
 ];
 
-/* ---- estado do ciclo ---------------------------------------------- */
 const SKY_MODES = [
   { id:'day',   label:'Dia',        icon:'white-balance-sunny', t:0.5000 },
   { id:'night', label:'Noite',      icon:'weather-night',       t:0.0000 },
@@ -1009,7 +886,6 @@ const skyHooks = { glow:null, carHead:null, carTail:null };  // materiais noturn
 const _c1 = new THREE.Color(), _c2 = new THREE.Color();
 const _sunDir = new THREE.Vector3();
 
-/* direção do sol para um instante do dia (0..1) */
 function sunDirection(t, out){
   const ang = (t - 0.25) * Math.PI * 2;         // 0.25 = nascente, 0.75 = poente
   const tilt = 0.28;                            // inclinação da eclíptica (norte)
@@ -1038,7 +914,6 @@ const smoothstep = (a, b, x) => {
   return t * t * (3 - 2 * t);
 };
 
-/* Atualiza céu, névoa, luzes e janelas acesas para o instante do dia. */
 function updateSky(t){
   dayT = ((t % 1) + 1) % 1;
   sunDirection(dayT, _sunDir);
@@ -1064,7 +939,6 @@ function updateSky(t){
 
   scene.fog.color.setHex(a.fog).lerp(_c2.setHex(b.fog), k);
 
-  /* luz principal: sol acima do horizonte, luar abaixo dele */
   const moonlit = e < -0.02;
   const dir = moonlit ? _sunDir.clone().negate() : _sunDir;
   const dist = N * 1.35;
@@ -1078,7 +952,6 @@ function updateSky(t){
 
   renderer.toneMappingExposure = mixN(a.exp, b.exp);
 
-  /* janelas, postes e faróis acendem no fim da tarde */
   const nightF = 1 - smoothstep(-0.14, 0.08, e);
   winUniform.value = nightF;
   if (skyHooks.glow)    skyHooks.glow.emissiveIntensity    = 0.15 + nightF * 2.1;
@@ -1087,9 +960,6 @@ function updateSky(t){
   updateSkyClock();
 }
 
-/* =========================================================
-   SEÇÃO 7 — MATERIAIS, GEOMETRIAS E MESHES INSTANCIADOS
-   ========================================================= */
 const dummy = new THREE.Object3D();
 const tmpColor = new THREE.Color();
 const tmpColor2 = new THREE.Color();
@@ -1103,8 +973,6 @@ const MAXTUBE = N * N * 4;
 
 const G = {
   pad    : new THREE.BoxGeometry(0.94, 0.05, 0.94),
-  /* asfalto 0.996: evita que a face lateral coincida exatamente com o
-     meio-fio e com o tile vizinho em ±0.5 */
   asphalt: new THREE.BoxGeometry(0.996, 0.06, 0.996),
   curb   : new THREE.BoxGeometry(1.0, 0.075, 0.16),
   stripe : new THREE.BoxGeometry(0.34, 0.02, 0.06),
@@ -1120,7 +988,6 @@ const G = {
   torus  : new THREE.TorusGeometry(0.5, 0.06, 8, 20).rotateX(Math.PI / 2)
 };
 
-/* ---- primitivas de BAIXA resolução (prefeitura e usina) ---- */
 G.cylLo  = new THREE.CylinderGeometry(0.5, 0.5, 1, 8).translate(0, 0.5, 0);   // 8 lados
 G.domeLo = new THREE.SphereGeometry(0.5, 8, 2, 0, Math.PI * 2, 0, Math.PI * 0.5);
 G.sphLo  = new THREE.SphereGeometry(0.5, 8, 5);                               // vapor
@@ -1133,7 +1000,6 @@ G.pedi   = (function(){                                                       //
   return g;
 })();
 
-/* Telhado de duas águas */
 G.gable = (function(){
   const tri = new THREE.Shape();
   tri.moveTo(-0.5, 0); tri.lineTo(0.5, 0); tri.lineTo(0, 1); tri.lineTo(-0.5, 0);
@@ -1143,10 +1009,8 @@ G.gable = (function(){
   return g;
 })();
 
-/* Telhado de quatro águas */
 G.hip = new THREE.ConeGeometry(0.7071, 1, 4).rotateY(Math.PI / 4).translate(0, 0.5, 0);
 
-/* Moldura quadrada vazada */
 G.frame = (function(){
   const outerS = 0.98, innerS = 0.86;
   const s = new THREE.Shape();
@@ -1161,25 +1025,17 @@ G.frame = (function(){
   return g;
 })();
 
-/* Disco plano (canteiro/lago do parque) */
 G.disc = new THREE.CircleGeometry(0.5, 20).rotateX(-Math.PI / 2);
-/* Disco de baixa resolução (óculo do frontão / relógio) */
 G.discLo = new THREE.CircleGeometry(0.5, 10).rotateX(-Math.PI / 2);
 
 G.corner = new THREE.BoxGeometry(0.30, 0.03, 0.08);
 
-/* placa fina do realce do cursor (não é mais um cubo alto que atravessava
-   moldura, pips e edifícios) */
 G.hilite = new THREE.PlaneGeometry(0.98, 0.98).rotateX(-Math.PI / 2);
 
-/* =========================================================
-   SEÇÃO 7a — SÓLIDOS CSG (booleanos, calculados uma única vez)
-   ========================================================= */
 const CSGGEO = (function(){
   const t0 = performance.now();
   const B = CSGX.box, C = CSGX.cyl;
 
-  /* ---- Fachada residencial: embasamento, cornija, porta e janelas ---- */
   function shellRes(){
     let s = B(1, 1, 1, 0, 0.5, 0);
     s = s.subtract(B(0.24, 0.28, 0.16, 0, 0.16, 0.46));  // porta recuada
@@ -1190,7 +1046,6 @@ const CSGGEO = (function(){
     return CSGX.normalize(s);
   }
 
-  /* ---- Fachada comercial: montantes verticais e marquise ---- */
   function shellCom(){
     let s = B(1, 1, 1, 0, 0.5, 0);
     s = s.subtract(B(0.10, 0.86, 0.05, 0, 0.53,  0.49));
@@ -1203,7 +1058,6 @@ const CSGGEO = (function(){
     return CSGX.normalize(s);
   }
 
-  /* ---- Galpão industrial: portão, faixa e beiral ---- */
   function shellInd(){
     let s = B(1, 1, 1, 0, 0.5, 0);
     s = s.subtract(B(0.46, 0.44, 0.12, 0, 0.25, 0.47));   // portão
@@ -1212,14 +1066,12 @@ const CSGGEO = (function(){
     return CSGX.normalize(s);
   }
 
-  /* ---- Tubo (chaminé / caixa d'água): cilindro − cilindro ---- */
   function tube(){
     let s = C(0.5, 0.5, 1, 12, 0, 0.5, 0);
     s = s.subtract(C(0.36, 0.36, 0.9, 12, 0, 0.62, 0));   // vazio superior
     return CSGX.normalize(s);
   }
 
-  /* ---- Telhado de duas águas com beiral e cumeeira ---- */
   function gable(){
     const tri = new THREE.Shape();
     tri.moveTo(-0.5, 0); tri.lineTo(0.5, 0); tri.lineTo(0, 1); tri.lineTo(-0.5, 0);
@@ -1232,7 +1084,6 @@ const CSGGEO = (function(){
     return CSGX.normalize(s);
   }
 
-  /* ---- PREFEITURA · pórtico hexástilo ---- */
   function colonnade(){
     let s = B(0.58, 0.28, 0.10, 0, 0.16, 0);                  // bloco das colunas
     for (let i = 0; i < 5; i++){
@@ -1245,7 +1096,6 @@ const CSGGEO = (function(){
     return CSGX.to(s);
   }
 
-  /* ---- Bacia do chafariz: anel (cilindro − cilindro) ---- */
   function basin(){
     let s = C(0.28, 0.28, 0.07, 26, 0, 0.035, 0);
     s = s.subtract(C(0.235, 0.235, 0.07, 26, 0, 0.05, 0));
@@ -1253,7 +1103,6 @@ const CSGGEO = (function(){
     return CSGX.to(s);
   }
 
-  /* ---- Cobertura do coreto: cone oco com lanternim ---- */
   function kioskRoof(){
     let s = CSGX.cone(0.34, 0.12, 16, 0, 0.06, 0);
     s = s.subtract(CSGX.cone(0.30, 0.11, 16, 0, 0.035, 0));  // vaza por baixo
@@ -1261,7 +1110,6 @@ const CSGGEO = (function(){
     return CSGX.to(s);
   }
 
-  /* ---- USINA · torre de resfriamento ---- */
   function coolTower(){
     let s = C(0.130, 0.215, 0.30, 12, 0, 0.15, 0);           // tronco inferior
     s = s.union(C(0.185, 0.130, 0.20, 12, 0, 0.40, 0));      // tronco superior
@@ -1270,7 +1118,6 @@ const CSGGEO = (function(){
     return CSGX.to(s);
   }
 
-  /* ---- USINA · transformador ---- */
   function transformer(){
     let s = B(0.13, 0.11, 0.10, 0, 0.065, 0);
     for (let i = 0; i < 3; i++){
@@ -1282,7 +1129,6 @@ const CSGGEO = (function(){
     return CSGX.to(s);
   }
 
-  /* ---- Banco de praça: assento e encosto com ripas vazadas ---- */
   function bench(){
     let s = B(0.17, 0.016, 0.055, 0, 0.042, 0);                       // assento
     for (const c of [-0.017, 0.017]) s = s.subtract(B(0.20, 0.03, 0.010, 0, 0.042, c));
@@ -1294,7 +1140,6 @@ const CSGGEO = (function(){
     return CSGX.to(s);
   }
 
-  /* ---- CARRO · carroceria com para-brisas e caixas de roda vazadas ---- */
   function carBody(){
     let s = B(1, 0.62, 1.9, 0, 0.31, 0);                     // volume base
     s = s.subtract(B(1.06, 0.30, 0.42,  0, 0.10,  0.62));    // caixa de roda diant.
@@ -1319,7 +1164,6 @@ const CSGGEO = (function(){
   return out;
 })();
 
-/* o telhado de duas águas passa a ser o sólido booleano */
 G.gable = CSGGEO.gable;
 
 function mat(color, rough, metal){
@@ -1330,10 +1174,6 @@ function mat(color, rough, metal){
   });
 }
 
-/* Materiais planos das sobreposições do terreno.
-   polygonOffset por camada: quanto maior a "ordem", mais o polígono é
-   puxado na direção da câmera, garantindo desempate estável mesmo em
-   ângulos rasantes. */
 function flatMaterial(opacity, order){
   const o = order === undefined ? 1 : order;
   return new THREE.MeshBasicMaterial({
@@ -1345,7 +1185,6 @@ function flatMaterial(opacity, order){
   });
 }
 
-/* ---------- Material de fachada com janelas procedurais ---------- */
 function facadeMaterial(baseColor, opts){
   opts = opts || {};
   const m = mat(baseColor, opts.roughness || 0.72, opts.metalness || 0.04);
@@ -1425,7 +1264,6 @@ function makeInstanced(geo, material, count, shadow){
   return m;
 }
 
-/* ---------- Terreno ---------- */
 const groundGeo = (function(){
   const g = new THREE.BufferGeometry();
   const pos = new Float32Array(N * N * 4 * 3);
@@ -1458,8 +1296,6 @@ const groundMesh = new THREE.Mesh(
   groundGeo,
   new THREE.MeshStandardMaterial({
     vertexColors:true, roughness:1.0, metalness:0.0,
-    /* empurra o terreno levemente para trás: ele é a base de todas as
-       sobreposições planas e nunca deve ganhar o desempate */
     polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:2
   })
 );
@@ -1502,40 +1338,33 @@ outer.rotation.x = -Math.PI / 2;
 outer.position.set(N / 2, CFG.GROUND_Y - 0.08, N / 2);
 scene.add(outer);
 
-/* --- Vias --- */
 const asphaltMesh = makeInstanced(G.asphalt, mat(COL.asphalt, 0.92), MAXI, false);
 const curbMesh    = makeInstanced(G.curb, mat(COL.sidewalk, 0.95), MAXI * 4, false);
 const stripeMesh  = makeInstanced(G.stripe, mat(COL.stripe, 0.7), MAXI * 2, false);
 
-/* --- Lotes zoneados --- */
 const padMesh    = makeInstanced(G.pad, mat(0xffffff, 0.95), MAXI, false);
 const frameMesh  = makeInstanced(G.frame, flatMaterial(1.0, 2), MAXI, false);
 const cornerMesh = makeInstanced(G.corner, flatMaterial(1.0, 3), MAXI * 8, false);
 frameMesh.renderOrder = 2;
 cornerMesh.renderOrder = 3;
 
-/* --- Corpos dos edifícios (sólidos CSG) --- */
 const buildMesh = {
   [T.RES]: makeInstanced(CSGGEO.shellRes, facadeMaterial(FACADE[T.RES], { winW:0.20, winH:0.24, glass:0.42 }), MAXB, true),
   [T.COM]: makeInstanced(CSGGEO.shellCom, facadeMaterial(FACADE[T.COM], { winW:0.16, winH:0.20, glass:0.62, roughness:0.40, metalness:0.18 }), MAXB, true),
   [T.IND]: makeInstanced(CSGGEO.shellInd, facadeMaterial(FACADE[T.IND], { winW:0.30, winH:0.30, glass:0.28 }), MAXB, true)
 };
 
-/* --- Telhados --- */
 const gableMesh = makeInstanced(G.gable, mat(0x9d4433, 0.88), MAXI * 2, true);
 const hipMesh   = makeInstanced(G.hip,   mat(0x9d4433, 0.88), MAXI, true);
 const capMesh   = makeInstanced(G.slab,  mat(DET.slab, 0.9), MAXB, true);
 
-/* --- Detalhes construtivos --- */
 const detailMesh = makeInstanced(G.box, mat(0xffffff, 0.8), MAXDET, true);
 const cylMesh    = makeInstanced(G.cylU, mat(0xffffff, 0.7, 0.15), MAXCYL, true);
 const tubeMesh   = makeInstanced(CSGGEO.tube, mat(0xffffff, 0.65, 0.20), MAXTUBE, true);
 
-/* --- Vegetação em tiles vazios --- */
 const trunkMesh = makeInstanced(G.cyl, mat(0x6b4a2f, 1), MAXI, true);
 const crownMesh = makeInstanced(G.cone8, mat(0x37773a, 0.95), MAXI, true);
 
-/* --- Highlight do cursor: placa fina, sem escrita de profundidade --- */
 const hlMesh = makeInstanced(
   G.hilite,
   new THREE.MeshBasicMaterial({
@@ -1559,9 +1388,6 @@ gridHelper.material.polygonOffsetUnits = -2;
 gridHelper.renderOrder = 1;
 scene.add(gridHelper);
 
-/* =========================================================
-   SEÇÃO 7c — CONSTRUÇÕES ESPECIAIS (prefeitura, parque, usina)
-   ========================================================= */
 const matHall    = facadeMaterial(COL.hall, { winW:0.16, winH:0.22, glass:0.40 });
 const matGold    = mat(COL.gold, 0.32, 0.75);
 const matStone   = mat(0xd7cfbc, 0.9);
@@ -1586,10 +1412,8 @@ matWater.polygonOffset = true;
 matWater.polygonOffsetFactor = -3;
 matWater.polygonOffsetUnits = -6;
 
-/* as luminárias do parque acendem conforme a noite cai */
 skyHooks.glow = matGlow;
 
-/* ---- materiais exclusivos da usina ---- */
 const matPlant   = mat(0xb9bcc0, 0.75, 0.25);   // casa de máquinas
 const matPlantY  = mat(0xe0b23c, 0.7, 0.1);     // faixa de sinalização
 const matStack   = mat(0xe2e2e2, 0.8);          // torres e chaminé
@@ -1619,24 +1443,18 @@ function addMesh(parent, geo, material, px, py, pz, sx, sy, sz, ry){
   parent.add(m);
   return m;
 }
-/* atalho para as peças CSG, que já vêm no tamanho final */
 function addCSG(parent, geo, material, px, py, pz, ry){
   return addMesh(parent, geo, material, px, py, pz, 1, 1, 1, ry);
 }
 
-/* ---------------------------------------------------------------------
-   PREFEITURA — NEOCLÁSSICA (low-poly)
-   --------------------------------------------------------------------- */
 let hallLogged = false;
 
 function buildHall(g){
-  /* --- 1. Estereóbata e crepidoma --- */
   addMesh(g, G.slab, matStoneD, 0, 0.020, 0, 0.98, 0.9, 0.98);
   addMesh(g, G.box,  matStone,  0, 0.046, -0.02, 0.90, 0.05, 0.78);
   addMesh(g, G.box,  matStoneD, 0, 0.046, 0.435, 0.46, 0.026, 0.07);
   addMesh(g, G.box,  matStoneD, 0, 0.046, 0.370, 0.42, 0.052, 0.068);
 
-  /* --- 2. Corpo central e alas simétricas --- */
   addMesh(g, G.box, matHall, 0, 0.094, -0.08, 0.56, 0.29, 0.38);
   addMesh(g, G.box, matHall, -0.345, 0.094, -0.05, 0.20, 0.22, 0.32);
   addMesh(g, G.box, matHall,  0.345, 0.094, -0.05, 0.20, 0.22, 0.32);
@@ -1648,17 +1466,14 @@ function buildHall(g){
   addMesh(g, G.box, matStoneD, -0.345, 0.340, -0.05, 0.225, 0.018, 0.34);
   addMesh(g, G.box, matStoneD,  0.345, 0.340, -0.05, 0.225, 0.018, 0.34);
 
-  /* --- 3. Pórtico hexástilo (sólido CSG) --- */
   addCSG(g, CSGGEO.colonnade, matStone, 0, 0.074, 0.16);
 
-  /* --- 4. Frontão e tímpano --- */
   addMesh(g, G.pedi, matStone, 0, 0.414, 0.16, 0.68, 0.130, 0.17);
   const oculo = addMesh(g, G.discLo, matGold, 0, 0.466, 0.250, 0.052, 1, 0.052);
   oculo.rotation.x = Math.PI / 2;
 
   addMesh(g, G.box, matDoor, 0, 0.094, 0.101, 0.10, 0.17, 0.012);
 
-  /* --- 5. Rotunda: ático, tambor, cúpula e lanternim --- */
   addMesh(g, G.box,    matStone, 0, 0.414, -0.10, 0.34, 0.035, 0.34);
   addMesh(g, G.cylLo,  matHall,  0, 0.449, -0.10, 0.28, 0.110, 0.28);
   addMesh(g, G.box,    matStone, 0, 0.559, -0.10, 0.30, 0.016, 0.30);
@@ -1670,13 +1485,11 @@ function buildHall(g){
   flag.rotation.z = Math.PI / 2;
   flag.rotation.y = Math.PI / 2;
 
-  /* --- 6. Jardineiras cônicas ladeando a escadaria --- */
   for (const sx of [-1, 1]){
     addMesh(g, G.box,   matLawnD, sx * 0.375, 0.094, 0.27, 0.15, 0.028, 0.15);
     addMesh(g, G.cone8, matTree2, sx * 0.375, 0.120, 0.27, 0.13, 0.17, 0.13);
   }
 
-  /* --- luminárias externas: acendem à noite --- */
   for (const sx of [-1, 1]){
     addMesh(g, G.cylU, matLamp, sx * 0.24, 0.051, 0.40, 0.020, 0.16, 0.020);
     addMesh(g, G.sphere, matGlow, sx * 0.24, 0.218, 0.40, 0.05, 0.05, 0.05);
@@ -1689,11 +1502,6 @@ function buildHall(g){
   }
 }
 
-/* ---------------------------------------------------------------------
-   PARQUE
-   Cotas revisadas: gramado, caminhos e discos ficam em camadas distintas,
-   de modo que nenhum plano fique dentro do volume de outra laje.
-   --------------------------------------------------------------------- */
 function buildPark(g, tile){
   const s = tile.seed;
   const R = (k) => ((Math.sin(s * 91.7 + k * 47.3) * 43758.5453) % 1 + 1) % 1;
@@ -1766,22 +1574,17 @@ function buildPark(g, tile){
   }
 }
 
-/* ---------------------------------------------------------------------
-   USINA ELÉTRICA — low-poly
-   --------------------------------------------------------------------- */
 let powerLogged = false;
 
 function buildPower(g){
-  const Y = 0.052;                      /* cota do piso do pátio (topo da laje) */
+  const Y = 0.052;
 
-  /* --- 1. Pátio, via de serviço e portão --- */
   addMesh(g, G.slab, matYard, 0, 0.022, 0, 0.98, 1.0, 0.98);      // -0.008 .. 0.052
   addMesh(g, G.slab, matPath, 0, 0.062, 0.36, 0.88, 0.30, 0.16);  //  0.053 .. 0.071
   addMesh(g, G.box,  matPlantY, 0, Y, 0.455, 0.30, 0.012, 0.030); // soleira do portão
   addMesh(g, G.box,  matSteel, -0.20, Y, 0.455, 0.020, 0.075, 0.020);
   addMesh(g, G.box,  matSteel,  0.20, Y, 0.455, 0.020, 0.075, 0.020);
 
-  /* --- 2. Torres de resfriamento + vapor --- */
   const towers = [[-0.26, -0.28], [0.10, -0.31]];
   for (const p of towers){
     addCSG(g, CSGGEO.coolTower, matStack, p[0], Y, p[1]);
@@ -1793,22 +1596,18 @@ function buildPower(g){
     v1.renderOrder = 4; v2.renderOrder = 5;
   }
 
-  /* --- 3. Casa de máquinas --- */
   addMesh(g, G.box,   matPlant,  -0.04, Y, 0.10, 0.60, 0.24, 0.34);
-  /* o telhado afunda ROOF_SINK na parede: sem faces coincidentes */
   addMesh(g, G.gable, matRoofH,  -0.04, Y + 0.24 - ROOF_SINK, 0.10, 0.36, 0.11, 0.63, Math.PI / 2);
   addMesh(g, G.box,   matPlantY, -0.04, Y + 0.212, 0.10, 0.61, 0.022, 0.352);  // faixa
   addMesh(g, G.box,   matStack,  -0.04, Y + 0.055, 0.2705, 0.44, 0.045, 0.006);
   addMesh(g, G.box,   matStack,  -0.04, Y + 0.145, 0.2705, 0.44, 0.045, 0.006);
   addMesh(g, G.box,   matDoor,   -0.19, Y, 0.2705, 0.11, 0.13, 0.008);         // portão
 
-  /* --- 4. Chaminé com balizagem --- */
   addMesh(g, CSGGEO.tube, matStack,  0.33, Y, 0.04, 0.115, 0.60, 0.115);
   addMesh(g, G.cylU,      matRedBand, 0.33, Y + 0.46, 0.04, 0.126, 0.055, 0.126);
   addMesh(g, G.cylU,      matRedBand, 0.33, Y + 0.30, 0.04, 0.126, 0.045, 0.126);
   addMesh(g, G.sphere,    matGlow,    0.33, Y + 0.618, 0.04, 0.045, 0.045, 0.045);
 
-  /* --- 5. Subestação: transformadores e torre de transmissão --- */
   for (const px of [-0.31, -0.14]){
     addCSG(g, CSGGEO.transformer, matSteel, px, Y, -0.05);
     for (const bx of [-0.030, 0.030]){
@@ -1820,7 +1619,6 @@ function buildPower(g){
   addMesh(g, G.box,  matSteel, 0.36, Y + 0.30, -0.30, 0.15, 0.018, 0.018);
   addMesh(g, G.box,  matSteel, 0.36, Y + 0.04, -0.30, 0.13, 0.014, 0.014, Math.PI / 4);
 
-  /* --- 6. Cerca perimetral (três lados) --- */
   addMesh(g, G.box, matSteel, 0,      Y, -0.455, 0.92, 0.070, 0.012);
   addMesh(g, G.box, matSteel, -0.455, Y, 0,      0.012, 0.070, 0.92);
   addMesh(g, G.box, matSteel,  0.455, Y, 0,      0.012, 0.070, 0.92);
@@ -1832,7 +1630,6 @@ function buildPower(g){
   }
 }
 
-/* contagem de triângulos de um grupo (auditoria no console) */
 function countTris(g){
   let tris = 0;
   g.traverse(o => {
@@ -1865,9 +1662,6 @@ function buildSpecial(tile){
 const specialGroup = new THREE.Group();
 scene.add(specialGroup);
 
-/* =========================================================================
-   SEÇÃO 7b — GERADOR DE EDIFÍCIOS
-   ========================================================================= */
 function rnd(seed, k){ return ((Math.sin(seed * 127.1 + k * 311.7) * 43758.5453) % 1 + 1) % 1; }
 function pick(arr, seed, k){ return arr[Math.floor(rnd(seed, k) * arr.length) % arr.length]; }
 
@@ -1900,7 +1694,6 @@ function makeEmitter(cx, cz, baseY, rot){
       cylMesh.setColorAt(CNT.cyl, tmpColor2.setHex(colorHex));
       CNT.cyl++;
     },
-    /* tubo oco (CSG): chaminés, caixas d'água, silos */
     tube(ox, oy, oz, dia, hgt, colorHex){
       if (CNT.tube >= MAXTUBE) return;
       const wx = cx + ox * cosr + oz * sinr;
@@ -1927,7 +1720,6 @@ function makeEmitter(cx, cz, baseY, rot){
       m.setColorAt(i, color);
       CNT.body[type]++;
     },
-    /* telhados: sempre afundados ROOF_SINK no corpo (anti z-fighting) */
     gable(ox, oy, oz, sx, sy, sz, colorHex, ridgeAlongX){
       if (CNT.gab >= MAXI * 2) return;
       const wx = cx + ox * cosr + oz * sinr;
@@ -1975,7 +1767,6 @@ function facadeColor(type, seed, zoneHex, tint, lighten){
     .lerp(_fcZone.setHex(zoneHex), tint);
 }
 
-/* ---------------- RESIDENCIAL ---------------- */
 function emitResidential(E, t, zoneHex, tint){
   const s = t.seed;
   const roof = pick(ROOF_COLORS, s, 1);
@@ -2040,8 +1831,6 @@ function emitResidential(E, t, zoneHex, tint){
     topY += h2; topW = w2; topD = d2;
   }
 
-  /* laje de cobertura + platibanda: dimensões DIFERENTES (1.07 e 1.02),
-     antes ambas mediam 1.07 e as faces laterais coincidiam */
   E.cap(0, topY, 0, topW * 1.07, topD * 1.07, DET.slab);
   E.box(0, topY + 0.03, 0, topW * 1.02, 0.045, topD * 1.02, DET.slab);
   E.tube(topW * 0.22, topY + 0.07, -topD * 0.20, 0.15, 0.14, DET.tank);   // caixa d'água
@@ -2053,7 +1842,6 @@ function emitResidential(E, t, zoneHex, tint){
   return { topY: topY + 0.09, w: topW, d: topD };
 }
 
-/* ---------------- COMERCIAL ---------------- */
 function emitCommercial(E, t, zoneHex, tint){
   const s = t.seed;
   const wall = facadeColor(T.COM, s, zoneHex, tint);
@@ -2106,7 +1894,6 @@ function emitCommercial(E, t, zoneHex, tint){
   return { topY: topY + 0.11, w: topW, d: topD };
 }
 
-/* ---------------- INDUSTRIAL ---------------- */
 function emitIndustrial(E, t, zoneHex, tint){
   const s = t.seed;
   const wall = facadeColor(T.IND, s, zoneHex, tint);
@@ -2115,7 +1902,6 @@ function emitIndustrial(E, t, zoneHex, tint){
   const d = 0.62 + rnd(s, 13) * 0.10;
   const h = 0.20 + t.level * 0.13;
 
-  /* pátio: 0.90 (o pad da zona mede 0.94) e assentado acima dele */
   E.box(0, 0.046, 0, 0.90, 0.03, 0.90, 0x8d9095);
   E.body(T.IND, 0, 0.070, -0.04, w, h, d, wall);
   E.gable(0, 0.070 + h, -0.04, d * 1.06, 0.10 + rnd(s, 17) * 0.05, w * 1.06, 0x77808a, true);
@@ -2148,7 +1934,6 @@ function emitBuilding(t, cx, cz, baseY, zoneHex, tint){
   return emitIndustrial(E, t, zoneHex, tint);
 }
 
-/* ---------- Reconstrução das instâncias a partir do mapa ---------- */
 function isRoad(x, z){ const t = tileAt(x, z); return !!t && t.type === T.ROAD; }
 
 function rebuild(){
@@ -2168,7 +1953,6 @@ function rebuild(){
       const t = map[idx(x, z)];
       const cx = x + 0.5, cz = z + 0.5;
 
-      /* --- ESTRADAS --- */
       if (t.type === T.ROAD){
         const e = isRoad(x + 1, z), w = isRoad(x - 1, z);
         const n = isRoad(x, z - 1), s = isRoad(x, z + 1);
@@ -2181,8 +1965,6 @@ function rebuild(){
         asphaltMesh.setColorAt(ia, tmpColor.setHex(COL.asphalt));
         ia++;
 
-        /* meio-fio deslocado para 0.425: a face externa fica em 0.505,
-           fora da face lateral do asfalto (0.498) */
         const edges = [
           { on:!n, rotY:0,           ox:0,      oz:-0.425 },
           { on:!s, rotY:0,           ox:0,      oz: 0.425 },
@@ -2217,7 +1999,6 @@ function rebuild(){
         continue;
       }
 
-      /* --- ZONAS --- */
       if (ZONE_TYPES.indexOf(t.type) !== -1){
         const zoneHex = ZONE_COL[t.type];
         const built = t.level > 0;
@@ -2266,7 +2047,6 @@ function rebuild(){
         continue;
       }
 
-      /* --- vegetação em terreno livre --- */
       if (t.type === T.EMPTY && t.seed > 0.90){
         const ox = (t.seed * 17 % 1 - 0.5) * 0.4, oz = (t.seed * 29 % 1 - 0.5) * 0.4;
         const sc = 0.5 + (t.seed * 11 % 1) * 0.5;
@@ -2285,7 +2065,6 @@ function rebuild(){
         continue;
       }
 
-      /* --- construções especiais --- */
       if (t.type === T.HALL || t.type === T.PARK || t.type === T.POWER){
         specialGroup.add(buildSpecial(t));
       }
@@ -2309,33 +2088,8 @@ function rebuild(){
   dirty = false;
 }
 
-/* =========================================================================
-   SEÇÃO 7d — TRÁFEGO DE CARROS
-   -------------------------------------------------------------------------
-   Modelo simples e barato, feito para rodar com centenas de veículos:
-
-     · O grafo viário é a própria grade: cada tile de estrada é um nó e as
-       ligações são os quatro vizinhos ortogonais que também sejam estrada.
-     · Cada veículo atravessa um tile por vez com uma Bézier quadrática que
-       liga a borda de entrada à borda de saída, mantendo o deslocamento
-       lateral da mão direita (trânsito brasileiro).
-     · A rota é decidida na chegada ao tile: prefere seguir em frente e só
-       faz retorno em rua sem saída.
-     · Há espaçamento entre veículos: cada carro observa quem está à frente
-       na mesma faixa (tile + sentido) e no tile seguinte, e desacelera.
-     · Faróis e lanternas usam materiais registrados em skyHooks, portanto
-       acendem junto com as janelas quando o sol se põe.
-
-   Correção de z-fighting nesta seção:
-     · ROAD_Y agora fica 4 mm acima do topo real do asfalto (antes os
-       veículos apoiavam exatamente sobre ele).
-     · Faróis e lanternas foram empurrados para fora da carroceria
-       (0.505 L em vez de 0.49 L), pois a folga anterior de 2 milésimos
-       era pequena demais para o depth buffer em vistas afastadas.
-   ========================================================================= */
 const TRAFFIC = (function(){
 
-  /* --- constantes do módulo --- */
   const DIRS   = [[1,0],[0,1],[-1,0],[0,-1]];   // 0:+X  1:+Z  2:−X  3:−Z
   const LANE   = 0.205;                          // deslocamento da mão direita
   const MAXCARS = 240;
@@ -2348,13 +2102,11 @@ const TRAFFIC = (function(){
   ];
   const TRUCK_COLORS = [0xe0e4e8, 0x3a6ea8, 0xd6862c, 0x767d84, 0xb84a3a];
 
-  /* --- geometrias --- */
   const gBody  = CSGGEO.carBody;                                     // 1×1×1, base em y=0
   const gBox   = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);// caixa de carga / cabine
   const gWheel = new THREE.CylinderGeometry(0.5, 0.5, 1, 8).rotateZ(Math.PI / 2);
   const gLamp  = new THREE.BoxGeometry(1, 1, 1);
 
-  /* --- materiais --- */
   const matCarBody = mat(0xffffff, 0.38, 0.35);
   const matCarCab  = mat(0xffffff, 0.55, 0.15);
   const matWheel   = mat(0x191c20, 0.95);
@@ -2366,14 +2118,12 @@ const TRAFFIC = (function(){
   skyHooks.carHead = matHead;
   skyHooks.carTail = matTail;
 
-  /* --- malhas instanciadas --- */
   const mBody  = makeInstanced(gBody,  matCarBody, MAXCARS,     true);
   const mCargo = makeInstanced(gBox,   matCarCab,  MAXCARS,     true);
   const mWheel = makeInstanced(gWheel, matWheel,   MAXCARS * 4, false);
   const mHead  = makeInstanced(gLamp,  matHead,    MAXCARS * 2, false);
   const mTail  = makeInstanced(gLamp,  matTail,    MAXCARS * 2, false);
 
-  /* --- estado --- */
   const cars  = [];
   let roads   = [];       // tiles de estrada (referências)
   let spawnAcc = 0;
@@ -2382,7 +2132,6 @@ const TRAFFIC = (function(){
   const rightOf = (d) => { const f = DIRS[d]; return [-f[1], f[0]]; };
   const opposite = (d) => (d + 2) & 3;
 
-  /* ---------- geometria do trecho percorrido dentro de um tile ---------- */
   function setSegment(c){
     const cx = c.x + 0.5, cz = c.z + 0.5;
     const fi = DIRS[c.din], fo = DIRS[c.dout];
@@ -2409,7 +2158,6 @@ const TRAFFIC = (function(){
     c.len = Math.max(0.45, d1 + d2);
   }
 
-  /* ---------- escolha da saída ao chegar em um tile ---------- */
   function chooseExit(c){
     const back = opposite(c.din);
     const opts = [];
@@ -2423,7 +2171,6 @@ const TRAFFIC = (function(){
     setSegment(c);
   }
 
-  /* ---------- criação de um veículo ---------- */
   function spawn(){
     if (!roads.length || cars.length >= MAXCARS) return false;
     for (let attempt = 0; attempt < 10; attempt++){
@@ -2455,7 +2202,6 @@ const TRAFFIC = (function(){
     return false;
   }
 
-  /* ---------- grafo: chamado sempre que o mapa muda ---------- */
   function rebuildGraph(){
     roads = [];
     for (let i = 0; i < map.length; i++) if (map[i].type === T.ROAD) roads.push(map[i]);
@@ -2467,14 +2213,12 @@ const TRAFFIC = (function(){
     }
   }
 
-  /* ---------- frota desejada ---------- */
   function fleetTarget(){
     if (roads.length < 2) return 0;
     const demand = 3 + game.population / 38 + game.jobs / 55;
     return Math.max(0, Math.min(MAXCARS, Math.floor(Math.min(demand, roads.length * 0.55))));
   }
 
-  /* ---------- espaçamento: quem está à frente na mesma faixa ---------- */
   const laneMap = new Map();   // (tile,saída) → carros    | (tile,entrada) → carros
   function bucket(m, key, i){
     let a = m.get(key);
@@ -2508,11 +2252,9 @@ const TRAFFIC = (function(){
     return gap;
   }
 
-  /* ---------- passo de simulação + desenho ---------- */
   const _fwd = [0, 0], _rgt = [0, 0];
 
   function update(dt){
-    /* frota */
     spawnAcc += dt;
     if (spawnAcc > 0.35){
       spawnAcc = 0;
@@ -2524,7 +2266,6 @@ const TRAFFIC = (function(){
     const scale = game.speed === 0 ? 0 : (game.speed >= 3 ? 1.7 : 1);
 
     if (scale > 0 && cars.length){
-      /* índice de faixas para o espaçamento */
       laneMap.clear();
       for (let i = 0; i < cars.length; i++){
         const c = cars[i];
@@ -2540,7 +2281,6 @@ const TRAFFIC = (function(){
         let target = c.vmax;
         if (gap < GAP_STOP) target = 0;
         else if (gap < GAP_SLOW) target = c.vmax * (gap - GAP_STOP) / (GAP_SLOW - GAP_STOP);
-        /* reduz nas curvas */
         if (c.din !== c.dout) target *= 0.62;
 
         const acc = target > c.v ? 1.6 : 4.0;    // frear é mais rápido que acelerar
@@ -2560,17 +2300,14 @@ const TRAFFIC = (function(){
         }
       }
 
-      /* remoção adiada: os índices usados no espaçamento seguem válidos */
       for (let i = cars.length - 1; i >= 0; i--) if (cars[i].dead) cars.splice(i, 1);
     }
 
-    /* ---------- desenho ---------- */
     let ib = 0, ic = 0, iw = 0, ih = 0, it = 0;
     for (let i = 0; i < cars.length; i++){
       const c = cars[i];
       const u = c.p, iu = 1 - u;
 
-      /* Bézier quadrática + tangente */
       const px = iu * iu * c.p0x + 2 * iu * u * c.p1x + u * u * c.p2x;
       const pz = iu * iu * c.p0z + 2 * iu * u * c.p1z + u * u * c.p2z;
       let tx = 2 * (iu * (c.p1x - c.p0x) + u * (c.p2x - c.p1x));
@@ -2585,7 +2322,6 @@ const TRAFFIC = (function(){
       const wheelR = c.truck ? 0.042 : 0.034;
       const baseY  = ROAD_Y + wheelR * 0.62;
 
-      /* carroceria */
       dummy.position.set(px, baseY, pz);
       dummy.rotation.set(0, yaw, 0);
       dummy.scale.set(c.w, c.h, c.L);
@@ -2594,7 +2330,6 @@ const TRAFFIC = (function(){
       mBody.setColorAt(ib, tmpColor2.setHex(c.col));
       ib++;
 
-      /* caminhão: baú sobre o chassi */
       if (c.truck){
         const oz = -c.L * 0.22;
         dummy.position.set(px + _fwd[0] * oz, baseY + c.h * 0.72, pz + _fwd[1] * oz);
@@ -2606,7 +2341,6 @@ const TRAFFIC = (function(){
         ic++;
       }
 
-      /* rodas */
       for (let s = -1; s <= 1; s += 2){
         for (let f = -1; f <= 1; f += 2){
           const ox = s * c.w * 0.50, oz = f * c.L * 0.31;
@@ -2624,7 +2358,6 @@ const TRAFFIC = (function(){
         }
       }
 
-      /* faróis e lanternas: projetados para fora da carroceria */
       for (let s = -1; s <= 1; s += 2){
         const ox = s * c.w * 0.30;
         const ozF = c.L * 0.505, ozR = -c.L * 0.505;
@@ -2662,9 +2395,6 @@ const TRAFFIC = (function(){
   return { rebuildGraph, update, clear, count };
 })();
 
-/* =========================================================
-   SEÇÃO 8 — RAYCASTING
-   ========================================================= */
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -CFG.GROUND_Y);
@@ -2680,9 +2410,6 @@ function updateHover(ev){
   hover = inBounds(x, z) ? { x, z } : null;
 }
 
-/* =========================================================
-   SEÇÃO 9 — FERRAMENTAS E CONSTRUÇÃO
-   ========================================================= */
 const TOOLS = [
   { key:'1', type:T.RES,   mode:'area',   icon:'home-group' },
   { key:'2', type:T.COM,   mode:'area',   icon:'store' },
@@ -2760,11 +2487,7 @@ function applyTool(tiles){
   toast((type === 'DEMO' ? 'Demolido' : DEF[type].name) + ' ×' + n + '  (−§' + Math.round(total) + ')', false, ico);
 }
 
-/* =========================================================
-   SEÇÃO 10 — SIMULAÇÃO / ECONOMIA
-   ========================================================= */
 function recomputeNetwork(){
-  /* 1) rede viária conectada à prefeitura (BFS) */
   const roadOK = new Uint8Array(N * N);
   const queue = [];
   for (let z = 0; z < N; z++) for (let x = 0; x < N; x++){
@@ -2786,7 +2509,6 @@ function recomputeNetwork(){
     }
   }
 
-  /* 2) cobertura elétrica (raio quadrado ao redor de cada usina) */
   const plants = [];
   for (let i = 0; i < map.length; i++) if (map[i].type === T.POWER) plants.push(map[i]);
 
@@ -2807,7 +2529,6 @@ function recomputeNetwork(){
   dirty = true;
 }
 
-/* Bônus de qualidade de vida: parques próximos aceleram o crescimento. */
 function amenityBonus(t){
   let b = 0;
   const R = CFG.PARK_RADIUS;
@@ -2825,7 +2546,6 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 function simulate(){
   game.tick++;
 
-  /* ---------- 1. Censo: capacidade instalada e manutenção ---------- */
   let homes = 0, comJobs = 0, indJobs = 0, upkeep = 0;
 
   for (let i = 0; i < map.length; i++){
@@ -2851,19 +2571,16 @@ function simulate(){
   game.homes = homes;
   game.jobs = jobs;
 
-  /* ---------- 2. Migração ---------- */
   const attraction = jobs * ECO.JOB_PULL + ECO.SEED_POP;
   const target = Math.min(homes, attraction);
   game.population += (target - game.population) * ECO.MIGRATION;
   if (game.population < 0.5) game.population = 0;
   const pop = game.population;
 
-  /* ---------- 3. Ocupação ---------- */
   const workforce = pop * 0.5;
   const filledJobs = Math.min(jobs, workforce);
   game.employment = workforce > 0 ? clamp(filledJobs / workforce, 0, 1) : 1;
 
-  /* ---------- 4. Demanda RCI (déficit normalizado) ---------- */
   const d = game.demand;
   const K = ECO.DEMAND_SCALE;
   const wantCom = pop * ECO.SHOP_RATIO;
@@ -2872,7 +2589,6 @@ function simulate(){
   d.C = clamp((wantCom - comJobs) / K, -1, 1);
   d.I = clamp((wantInd - indJobs) / K, -1, 1);
 
-  /* ---------- 5. Finanças ---------- */
   const jobFill = jobs > 0 ? clamp(filledJobs / jobs, 0, 1) : 0;
   const resTax = pop * ECO.TAX_PER_RESIDENT * (0.55 + 0.45 * game.employment);
   const comTax = comJobs * jobFill * ECO.TAX_PER_COM_JOB;
@@ -2889,7 +2605,6 @@ function simulate(){
     game.warnedBroke = true;
   } else if (!broke) game.warnedBroke = false;
 
-  /* ---------- 6. Crescimento e decadência dos lotes ---------- */
   for (let i = 0; i < map.length; i++){
     const t = map[i];
     if (ZONE_TYPES.indexOf(t.type) === -1) continue;
@@ -2914,9 +2629,6 @@ function simulate(){
   updateHUD();
 }
 
-/* =========================================================
-   SEÇÃO 11 — INTERFACE
-   ========================================================= */
 const $ = s => document.querySelector(s);
 const hex = n => '#' + n.toString(16).padStart(6, '0');
 
@@ -3063,9 +2775,6 @@ function togglePause(){
 
 $('#help-title').onclick = () => $('#help').classList.toggle('min');
 
-/* ---------------------------------------------------------------------
-   11a — SELETOR DE ILUMINAÇÃO: Dia · Noite · Automático
-   --------------------------------------------------------------------- */
 const bSky = $('#b-sky'), skyHH = $('#sky-hh');
 let lastClock = '';
 
@@ -3095,7 +2804,6 @@ function cycleSkyMode(){
 bSky.onclick = cycleSkyMode;
 refreshSkyButton();
 
-/* avanço do tempo do céu */
 function advanceSky(dt){
   const m = skyMode();
   if (m.t === null){
@@ -3110,9 +2818,6 @@ function advanceSky(dt){
   updateSky(dayT + step);
 }
 
-/* =========================================================
-   SEÇÃO 12 — ENTRADA E LOOP
-   ========================================================= */
 const cv = renderer.domElement;
 cv.addEventListener('contextmenu', e => e.preventDefault());
 
@@ -3194,9 +2899,6 @@ function loop(now){
   renderer.render(scene, camera);
 }
 
-/* =========================================================
-   SEÇÃO 13 — PERSISTÊNCIA
-   ========================================================= */
 const SAVE_KEY = 'citybuilder3d.save.v2';
 
 $('#b-save').onclick = () => {
@@ -3238,9 +2940,6 @@ $('#b-new').onclick = () => {
   toast('Nova cidade fundada', false, 'city-variant-outline');
 };
 
-/* =========================================================
-   INICIALIZAÇÃO
-   ========================================================= */
 newGame(true);
 recomputeNetwork();
 updateSky(CFG.START_HOUR / 24);
