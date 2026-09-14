@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zoo Magnata 3D</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:#0b1220;font-family:"Segoe UI",Roboto,system-ui,sans-serif;color:#eaf2ff;user-select:none}
+  #app{position:fixed;inset:0}
+  canvas{display:block}
+
+  /* TOP BAR */
+  #topbar{position:absolute;top:0;left:0;right:0;height:52px;display:flex;align-items:center;gap:18px;
+    padding:0 16px;background:linear-gradient(180deg,rgba(8,14,26,.95),rgba(8,14,26,.72));
+    border-bottom:1px solid rgba(255,255,255,.08);backdrop-filter:blur(8px);z-index:10}
+  #topbar .brand{font-weight:700;letter-spacing:.5px;font-size:15px;color:#ffd166;white-space:nowrap}
+  .stat{display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap}
+  .stat b{font-weight:700;font-variant-numeric:tabular-nums}
+  .stat .ico{font-size:15px}
+  .spacer{flex:1}
+  .tbtn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#eaf2ff;
+    padding:6px 10px;border-radius:7px;cursor:pointer;font-size:12px}
+  .tbtn:hover{background:rgba(255,255,255,.18)}
+  .tbtn.on{background:#2f7d4f;border-color:#45b06f}
+
+  /* TOOLBAR */
+  #toolbar{position:absolute;left:10px;top:62px;bottom:10px;width:226px;overflow-y:auto;z-index:10;
+    background:rgba(10,17,30,.86);border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:10px;
+    backdrop-filter:blur(8px)}
+  #toolbar::-webkit-scrollbar{width:8px}
+  #toolbar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:8px}
+  .group{margin-bottom:12px}
+  .group h3{font-size:10.5px;text-transform:uppercase;letter-spacing:1.2px;color:#8fa6c8;margin:0 0 6px 2px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .tool{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:9px;
+    padding:7px 5px;cursor:pointer;text-align:center;font-size:10.5px;line-height:1.25;transition:.12s}
+  .tool .e{display:block;font-size:19px;margin-bottom:2px}
+  .tool .c{display:block;color:#7fe0a5;font-size:9.5px;font-weight:700}
+  .tool:hover{background:rgba(255,255,255,.14);transform:translateY(-1px)}
+  .tool.sel{background:#1f5f8b;border-color:#4aa3dd;box-shadow:0 0 0 1px #4aa3dd inset}
+  .tool.bad .c{color:#ff8b8b}
+
+  /* PANEL */
+  #panel{position:absolute;right:10px;top:62px;width:264px;z-index:10;background:rgba(10,17,30,.88);
+    border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:12px;backdrop-filter:blur(8px);display:none}
+  #panel h4{font-size:14px;margin-bottom:8px;color:#ffd166}
+  #panel .row{display:flex;justify-content:space-between;font-size:12px;margin:4px 0;color:#c8d6ee}
+  .bar{height:7px;background:rgba(255,255,255,.12);border-radius:5px;overflow:hidden;margin:3px 0 8px}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,#e5484d,#f5a524,#46b46e);border-radius:5px}
+  .note{font-size:11px;color:#94a9c9;line-height:1.45;margin-top:6px}
+
+  /* HINT / LOG */
+  #hint{position:absolute;left:246px;bottom:12px;z-index:10;font-size:12px;color:#b9c9e4;
+    background:rgba(10,17,30,.8);padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.08)}
+  #log{position:absolute;right:10px;bottom:12px;width:264px;z-index:10;display:flex;flex-direction:column;gap:5px}
+  .msg{background:rgba(10,17,30,.88);border-left:3px solid #45b06f;padding:6px 9px;border-radius:6px;
+    font-size:11.5px;color:#d7e4f7;animation:fade 6s forwards}
+  .msg.warn{border-color:#f5a524}.msg.bad{border-color:#e5484d}
+  @keyframes fade{0%{opacity:0;transform:translateX(12px)}8%{opacity:1;transform:none}82%{opacity:1}100%{opacity:0}}
+
+  /* MODAL */
+  #modal{position:absolute;inset:0;background:rgba(4,8,16,.82);z-index:50;display:flex;align-items:center;
+    justify-content:center;backdrop-filter:blur(4px)}
+  .card{background:#111d33;border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:26px 30px;
+    max-width:520px;text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.6)}
+  .card h1{font-size:26px;color:#ffd166;margin-bottom:8px}
+  .card p{font-size:13px;color:#b9c9e4;line-height:1.65;margin-bottom:10px;text-align:left}
+  .card kbd{background:rgba(255,255,255,.12);padding:1px 6px;border-radius:4px;font-size:11px}
+  .play{margin-top:14px;background:#2f7d4f;border:1px solid #45b06f;color:#fff;padding:10px 26px;
+    border-radius:9px;font-size:14px;cursor:pointer;font-weight:600}
+  .play:hover{background:#3a9a61}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="topbar">
+  <span class="brand">ZOO MAGNATA 3D</span>
+  <span class="stat"><span class="ico">💰</span><b id="s-money">0</b></span>
+  <span class="stat"><span class="ico">🐾</span><b id="s-animals">0</b> animais</span>
+  <span class="stat"><span class="ico">🧍</span><b id="s-guests">0</b> visitantes</span>
+  <span class="stat"><span class="ico">⭐</span><b id="s-rating">0</b>/100</span>
+  <span class="stat"><span class="ico">📅</span>Dia <b id="s-day">1</b></span>
+  <span class="spacer"></span>
+  <span class="stat">🎟️ <button class="tbtn" id="b-tdown">−</button> <b id="s-ticket">15</b> <button class="tbtn" id="b-tup">+</button></span>
+  <button class="tbtn" id="b-speed">▶ 1x</button>
+  <button class="tbtn" id="b-save">Salvar</button>
+  <button class="tbtn" id="b-load">Carregar</button>
+  <button class="tbtn" id="b-help">?</button>
+</div>
+
+<div id="toolbar"></div>
+<div id="panel"></div>
+<div id="hint">Botão esquerdo: construir · Botão direito/meio: girar câmera · Roda: zoom · WASD: mover</div>
+<div id="log"></div>
+
+<div id="modal">
+  <div class="card">
+    <h1>🦁 Zoo Magnata 3D</h1>
+    <p><b>Objetivo:</b> construir o zoológico mais lucrativo do mundo. Cerque recintos, coloque animais no bioma
+    certo, ligue tudo por trilhas até a entrada e deixe os visitantes felizes.</p>
+    <p><b>Como jogar:</b><br>
+    1. Use <b>Trilha</b> para ligar a <b>Entrada</b> (seta amarela) ao resto do parque.<br>
+    2. Use <b>Cerca</b> para fechar um recinto totalmente (sem buracos).<br>
+    3. Pinte o <b>terreno</b> do bioma preferido do bicho e adicione <b>árvores/rochas</b> como enriquecimento.<br>
+    4. Solte o <b>animal</b> dentro do recinto fechado. Trilha ao lado = visitantes olhando.<br>
+    5. Lanchonete, bebidas e banheiros mantêm a nota alta.</p>
+    <p><b>Controles:</b> <kbd>LMB</kbd> construir/arrastar · <kbd>RMB</kbd> girar · <kbd>Roda</kbd> zoom ·
+    <kbd>WASD</kbd> mover · <kbd>Esc</kbd> cancelar ferramenta · <kbd>X</kbd> demolir</p>
+    <button class="play" id="b-play">Abrir o zoológico</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ============================================================================
+   ZOO MAGNATA 3D — single file game
+   ========================================================================== */
+const N = 44, TILE = 2, HALF = N*TILE/2;
+const w2 = (i)=> i*TILE - HALF + TILE/2;          // grid index -> world coord
+const g2 = (x)=> Math.floor((x + HALF)/TILE);     // world coord -> grid index
+const inb = (i,j)=> i>=0 && j>=0 && i<N && j<N;
+const key = (i,j)=> j*N+i;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const pick=a=>a[(Math.random()*a.length)|0];
+
+/* ---------------------------- DATA ---------------------------------------- */
+const TERR = {
+  grass:{name:'Grama',  col:0x4f8f3d, cost:15,  emo:'🌿'},
+  sand: {name:'Areia',  col:0xd9c184, cost:20,  emo:'🏜️'},
+  water:{name:'Água',   col:0x2f7fb5, cost:40,  emo:'💧'},
+  rock: {name:'Rocha',  col:0x7d7f86, cost:25,  emo:'🪨'},
+  snow: {name:'Neve',   col:0xdfeaf5, cost:45,  emo:'❄️'},
+  path: {name:'Trilha', col:0xbfae91, cost:25,  emo:'🛤️'}
+};
+
+const SPECIES = {
+  lion:     {name:'Leão',        emo:'🦁', cost:2600, up:130, terr:'sand',  space:14, body:0xc08b3e, alt:0x6b4a1c, kind:'cat',  zoo:9},
+  tiger:    {name:'Tigre',       emo:'🐯', cost:3000, up:150, terr:'grass', space:16, body:0xe08a2a, alt:0x2a2118, kind:'cat',  zoo:10, stripes:true},
+  elephant: {name:'Elefante',    emo:'🐘', cost:4600, up:240, terr:'grass', space:30, body:0x9098a0, alt:0x6d747c, kind:'big',  zoo:12},
+  giraffe:  {name:'Girafa',      emo:'🦒', cost:3600, up:180, terr:'sand',  space:22, body:0xe0b552, alt:0x9a6b2c, kind:'tall', zoo:11},
+  zebra:    {name:'Zebra',       emo:'🦓', cost:2100, up:110, terr:'grass', space:16, body:0xf2f2f2, alt:0x1b1b1b, kind:'horse',zoo:7, stripes:true},
+  monkey:   {name:'Macaco',      emo:'🐒', cost:1700, up:90,  terr:'grass', space:10, body:0x8a5a34, alt:0xd8b48c, kind:'ape',  zoo:6},
+  panda:    {name:'Panda',       emo:'🐼', cost:4200, up:210, terr:'grass', space:18, body:0xf4f4f4, alt:0x1c1c1c, kind:'bear', zoo:13},
+  polar:    {name:'Urso Polar',  emo:'🐻‍❄️',cost:3900, up:200, terr:'snow',  space:20, body:0xf0f6ff, alt:0xc9d8e8, kind:'bear', zoo:11},
+  penguin:  {name:'Pinguim',     emo:'🐧', cost:1500, up:70,  terr:'snow',  space:8,  body:0x25292e, alt:0xf6f6f6, kind:'bird', zoo:6},
+  flamingo: {name:'Flamingo',    emo:'🦩', cost:1600, up:75,  terr:'water', space:8,  body:0xf089a8, alt:0xd0567c, kind:'bird', zoo:6},
+  croc:     {name:'Crocodilo',   emo:'🐊', cost:2400, up:120, terr:'water', space:12, body:0x4c6b3a, alt:0x33492a, kind:'rept', zoo:8},
+  rhino:    {name:'Rinoceronte', emo:'🦏', cost:3400, up:170, terr:'sand',  space:20, body:0x8d8f94, alt:0x6a6c70, kind:'big',  zoo:9}
+};
+
+const BUILD = {
+  tree:  {name:'Árvore',    emo:'🌳', cost:120, zoo:1},
+  rock:  {name:'Pedra',     emo:'🪨', cost:70,  zoo:1},
+  bench: {name:'Banco',     emo:'🪑', cost:160, rest:1},
+  bin:   {name:'Lixeira',   emo:'🗑️', cost:90,  clean:1},
+  lamp:  {name:'Poste',     emo:'💡', cost:130, zoo:1},
+  food:  {name:'Lanchonete',emo:'🍔', cost:900, need:'food',  price:16},
+  drink: {name:'Bebidas',   emo:'🥤', cost:750, need:'drink', price:11},
+  wc:    {name:'Banheiro',  emo:'🚻', cost:650, need:'wc',    price:0},
+  gift:  {name:'Souvenir',  emo:'🎁', cost:1100,need:'gift',  price:28}
+};
+
+/* ---------------------------- STATE --------------------------------------- */
+const S = {
+  money: 25000, day: 1, dayT: 0, ticket: 15, rating: 50,
+  speed: 1, running: false, tool: null, tileData: [], animals: [], guests: [],
+  objs: [], regionVer: 0, netVer: 0, entrance: {i: N>>1, j: 0},
+  income: 0, expense: 0, served: 0
+};
+for (let k = 0; k < N*N; k++) S.tileData.push({t:'grass', fence:false, obj:null, mesh:null});
+const T = (i,j)=> S.tileData[key(i,j)];
+
+/* ---------------------------- THREE SETUP --------------------------------- */
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87b7e8);
+scene.fog = new THREE.Fog(0x87b7e8, 70, 190);
+
+const camera = new THREE.PerspectiveCamera(48, innerWidth/innerHeight, 0.5, 400);
+const cam = {tgt:new THREE.Vector3(0,0,0), dist:58, yaw:Math.PI*0.25, pitch:0.86};
+function updCam(){
+  cam.pitch = clamp(cam.pitch, 0.25, 1.45);
+  cam.dist  = clamp(cam.dist, 12, 130);
+  cam.tgt.x = clamp(cam.tgt.x, -HALF-8, HALF+8);
+  cam.tgt.z = clamp(cam.tgt.z, -HALF-8, HALF+8);
+  const r = cam.dist*Math.cos(cam.pitch);
+  camera.position.set(cam.tgt.x + r*Math.sin(cam.yaw), cam.tgt.y + cam.dist*Math.sin(cam.pitch), cam.tgt.z + r*Math.cos(cam.yaw));
+  camera.lookAt(cam.tgt);
+}
+updCam();
+
+scene.add(new THREE.HemisphereLight(0xbfd9ff, 0x3a4a30, 0.75));
+const sun = new THREE.DirectionalLight(0xfff2d6, 1.05);
+sun.position.set(48, 70, 30);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+const sc = sun.shadow.camera;
+sc.left=-HALF-6; sc.right=HALF+6; sc.top=HALF+6; sc.bottom=-HALF-6; sc.near=1; sc.far=210;
+scene.add(sun); scene.add(sun.target);
+
+/* water surround */
+const sea = new THREE.Mesh(new THREE.PlaneGeometry(600,600),
+  new THREE.MeshLambertMaterial({color:0x2a6a99}));
+sea.rotation.x = -Math.PI/2; sea.position.y = -0.6; scene.add(sea);
+
+/* ---------------------------- TERRAIN MESH -------------------------------- */
+let terrainMesh = null;
+function buildTerrain(){
+  if (terrainMesh){ scene.remove(terrainMesh); terrainMesh.geometry.dispose(); }
+  const pos=[], col=[], idx=[], nrm=[]; let v=0; const c = new THREE.Color();
+  for (let j=0;j<N;j++) for (let i=0;i<N;i++){
+    const t = T(i,j), d = TERR[t.t];
+    const y = t.t==='water' ? -0.22 : (t.t==='path' ? 0.02 : 0);
+    const x0 = i*TILE-HALF, z0 = j*TILE-HALF, x1 = x0+TILE, z1 = z0+TILE;
+    pos.push(x0,y,z0, x1,y,z0, x1,y,z1, x0,y,z1);
+    for(let k=0;k<4;k++) nrm.push(0,1,0);
+    // subtle per-tile shade so the grid reads as tiles
+    const sh = 1 + (((i*7+j*13)%5)-2)*0.018;
+    c.setHex(d.col); col.push(c.r*sh,c.g*sh,c.b*sh, c.r*sh,c.g*sh,c.b*sh, c.r*sh,c.g*sh,c.b*sh, c.r*sh,c.g*sh,c.b*sh);
+    idx.push(v,v+2,v+1, v,v+3,v+2); v+=4;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('normal',   new THREE.Float32BufferAttribute(nrm,3));
+  g.setAttribute('color',    new THREE.Float32BufferAttribute(col,3));
+  g.setIndex(idx);
+  terrainMesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({vertexColors:true}));
+  terrainMesh.receiveShadow = true;
+  terrainMesh.name = 'terrain';
+  scene.add(terrainMesh);
+}
+buildTerrain();
+let terrainDirty = false;
+const markTerrain = ()=> terrainDirty = true;
+
+/* ---------------------------- MESH HELPERS -------------------------------- */
+const MAT = {};
+function mat(hex, flat){
+  const k = hex + (flat?'f':'');
+  if (!MAT[k]) MAT[k] = new THREE.MeshLambertMaterial({color:hex, flatShading:!!flat});
+  return MAT[k];
+}
+const BOX = new THREE.BoxGeometry(1,1,1);
+const CYL = new THREE.CylinderGeometry(0.5,0.5,1,10);
+const SPH = new THREE.SphereGeometry(0.5,12,10);
+const CONE= new THREE.ConeGeometry(0.5,1,10);
+function part(geo,color,sx,sy,sz,px,py,pz,flat){
+  const m = new THREE.Mesh(geo, mat(color,flat));
+  m.scale.set(sx,sy,sz); m.position.set(px,py,pz);
+  m.castShadow = true; return m;
+}
+
+/* ---------------------------- ANIMAL MODELS ------------------------------- */
+function buildAnimal(sp){
+  const d = SPECIES[sp], g = new THREE.Group();
+  const B = d.body, A = d.alt;
+  const P=(geo,c,sx,sy,sz,x,y,z)=>{const m=part(geo,c,sx,sy,sz,x,y,z,true);g.add(m);return m;};
+  const legs=[];
+  const quad=(bw,bh,bl,lh,hs)=>{
+    P(BOX,B,bw,bh,bl,0,lh+bh/2,0);
+    for(const s of [[-1,-1],[1,-1],[-1,1],[1,1]]){
+      legs.push(P(BOX,A,bw*0.22,lh,bw*0.22, s[0]*bw*0.34, lh/2, s[1]*bl*0.33));
+    }
+    const head=P(BOX,B,hs,hs,hs*1.15, 0, lh+bh*0.9, bl*0.55);
+    P(BOX,A,bw*0.12,bw*0.12,bl*0.45, 0, lh+bh*0.75, -bl*0.6);
+    return head;
+  };
+  let head=null;
+  switch(d.kind){
+    case 'cat':
+      head = quad(0.85,0.62,1.5,0.5,0.6);
+      P(SPH,A,0.2,0.2,0.2, 0, 1.36, 0.95);                 // muzzle-ish
+      P(CONE,B,0.2,0.22,0.2, -0.2, 1.42, 0.86);
+      P(CONE,B,0.2,0.22,0.2,  0.2, 1.42, 0.86);
+      if (sp==='lion'){ const m=part(SPH,A,0.62,0.62,0.5,0,1.22,0.78,true); g.add(m); }
+      break;
+    case 'horse':
+      head = quad(0.78,0.68,1.55,0.72,0.5);
+      head.position.set(0,1.62,0.8); head.scale.set(0.42,0.5,0.8);
+      P(BOX,B,0.32,0.62,0.32, 0, 1.36, 0.66);
+      P(BOX,A,0.1,0.55,0.34, 0, 1.5, 0.5);
+      break;
+    case 'tall':
+      P(BOX,B,0.95,0.85,1.7,0,1.72,0);
+      for(const s of [[-1,-1],[1,-1],[-1,1],[1,1]])
+        legs.push(P(BOX,B,0.22,1.3,0.22, s[0]*0.32, 0.65, s[1]*0.56));
+      P(BOX,B,0.36,1.5,0.36, 0, 2.7, 0.62);
+      head = P(BOX,B,0.42,0.42,0.72, 0, 3.4, 0.84);
+      P(CYL,A,0.09,0.2,0.09, -0.12, 3.68, 0.7);
+      P(CYL,A,0.09,0.2,0.09,  0.12, 3.68, 0.7);
+      for(let k=0;k<7;k++) P(BOX,A,0.3,0.3,0.3, rnd(-0.4,0.4), rnd(1.5,2.1), rnd(-0.7,0.7));
+      break;
+    case 'big':
+      P(BOX,B,1.5,1.2,2.2,0,1.25,0);
+      for(const s of [[-1,-1],[1,-1],[-1,1],[1,1]])
+        legs.push(P(CYL,B,0.34,0.7,0.34, s[0]*0.52, 0.35, s[1]*0.72));
+      head = P(BOX,B,0.95,0.9,0.85, 0, 1.75, 1.3);
+      if (sp==='elephant'){
+        P(CYL,B,0.2,0.9,0.2, 0, 1.25, 1.62);
+        P(BOX,A,0.12,0.75,0.9, -0.62, 1.8, 1.3);
+        P(BOX,A,0.12,0.75,0.9,  0.62, 1.8, 1.3);
+      } else {
+        P(CONE,0xe8e4d8,0.2,0.55,0.2, 0, 2.05, 1.72);
+      }
+      break;
+    case 'bear':
+      P(BOX,B,1.1,1.0,1.5,0,1.05,0);
+      for(const s of [[-1,-1],[1,-1],[-1,1],[1,1]])
+        legs.push(P(BOX, sp==='panda'?A:B, 0.3,0.6,0.32, s[0]*0.4, 0.3, s[1]*0.48));
+      head = P(SPH,B,0.78,0.72,0.7, 0, 1.6, 0.72);
+      P(SPH,A,0.24,0.24,0.24, -0.26, 1.92, 0.6);
+      P(SPH,A,0.24,0.24,0.24,  0.26, 1.92, 0.6);
+      if (sp==='panda'){ P(BOX,A,1.15,0.42,1.05,0,1.18,0); }
+      break;
+    case 'ape':
+      P(BOX,B,0.6,0.75,0.45,0,0.95,0);
+      legs.push(P(BOX,B,0.18,0.45,0.2,-0.18,0.26,0));
+      legs.push(P(BOX,B,0.18,0.45,0.2, 0.18,0.26,0));
+      P(BOX,B,0.16,0.62,0.16,-0.38,1.0,0);
+      P(BOX,B,0.16,0.62,0.16, 0.38,1.0,0);
+      head = P(SPH,B,0.5,0.5,0.46, 0, 1.55, 0.06);
+      P(SPH,A,0.3,0.26,0.2, 0, 1.5, 0.26);
+      P(CYL,B,0.07,1.0,0.07, 0, 0.9, -0.36);
+      break;
+    case 'bird':
+      P(SPH,B,0.44,0.72,0.46, 0, 0.72, 0);
+      P(SPH,A,0.3,0.5,0.24, 0, 0.72, 0.2);
+      legs.push(P(CYL,0xe8a13a,0.07,0.3,0.07,-0.13,0.18,0));
+      legs.push(P(CYL,0xe8a13a,0.07,0.3,0.07, 0.13,0.18,0));
+      if (sp==='flamingo'){
+        P(CYL,B,0.1,0.7,0.1, 0, 1.3, 0);
+        head = P(SPH,B,0.26,0.26,0.3, 0, 1.68, 0.05);
+      } else {
+        head = P(SPH,B,0.36,0.36,0.34, 0, 1.2, 0);
+        P(SPH,A,0.22,0.18,0.14, 0, 1.16, 0.2);
+      }
+      P(CONE,0xe8a13a,0.12,0.22,0.12, 0, head.position.y, 0.3).rotation.x = Math.PI/2;
+      break;
+    case 'rept':
+      P(BOX,B,0.85,0.35,2.2,0,0.34,0);
+      for(const s of [[-1,-1],[1,-1],[-1,1],[1,1]])
+        legs.push(P(BOX,A,0.18,0.24,0.2, s[0]*0.5, 0.14, s[1]*0.7));
+      head = P(BOX,B,0.6,0.28,0.95, 0, 0.36, 1.45);
+      P(BOX,A,0.2,0.2,1.3, 0, 0.32, -1.5);
+      for(let k=0;k<6;k++) P(CONE,A,0.14,0.2,0.14, 0, 0.55, -1.0+k*0.35);
+      break;
+  }
+  if (d.stripes){
+    for(let k=0;k<7;k++){
+      const z = -0.6 + k*0.2;
+      g.add(part(BOX, d.alt, 0.88, 0.5, 0.07, 0, (d.kind==='cat'?0.82:0.9), z, true));
+    }
+  }
+  g.userData.legs = legs; g.userData.head = head;
+  g.traverse(o=>{ if(o.isMesh){o.castShadow=true;} });
+  return g;
+}
+
+/* ---------------------------- GUEST MODEL --------------------------------- */
+const SHIRTS=[0xe5484d,0x3b82f6,0xf5a524,0x8b5cf6,0x14b8a6,0xec4899,0x22c55e,0xf97316];
+function buildGuest(){
+  const g=new THREE.Group(); const sh=pick(SHIRTS);
+  g.add(part(BOX,sh,0.34,0.44,0.24,0,0.72,0));
+  g.add(part(SPH,0xe8b98e,0.26,0.28,0.26,0,1.08,0));
+  g.add(part(BOX,pick([0x2a3550,0x4b3b2a,0x333]),0.13,0.42,0.15,-0.1,0.28,0));
+  g.add(part(BOX,pick([0x2a3550,0x4b3b2a,0x333]),0.13,0.42,0.15, 0.1,0.28,0));
+  g.userData.legs=[g.children[2],g.children[3]];
+  g.traverse(o=>{if(o.isMesh)o.castShadow=true;});
+  return g;
+}
+
+/* ---------------------------- STATIC OBJECT MODELS ------------------------ */
+function buildObj(type){
+  const g = new THREE.Group();
+  const P=(geo,c,sx,sy,sz,x,y,z)=>{const m=part(geo,c,sx,sy,sz,x,y,z,true);g.add(m);return m;};
+  switch(type){
+    case 'tree':{
+      P(CYL,0x6b4a2a,0.22,1.2,0.22,0,0.6,0);
+      const c=pick([0x2f7d3a,0x3d8f45,0x276b33]);
+      P(SPH,c,1.5,1.3,1.5,0,1.7,0);
+      P(SPH,c,1.0,0.9,1.0,0.5,1.35,0.35);
+      P(SPH,c,0.9,0.8,0.9,-0.45,1.45,-0.3);
+      break;}
+    case 'rock':
+      P(SPH,0x8b8d93,1.1,0.8,1.0,0,0.3,0);
+      P(SPH,0x75777d,0.7,0.6,0.7,0.5,0.22,0.35);
+      break;
+    case 'bench':
+      P(BOX,0x8a5f33,1.3,0.1,0.45,0,0.42,0);
+      P(BOX,0x8a5f33,1.3,0.42,0.09,0,0.62,-0.2);
+      P(BOX,0x5a5f66,0.1,0.4,0.4,-0.55,0.22,0);
+      P(BOX,0x5a5f66,0.1,0.4,0.4, 0.55,0.22,0);
+      break;
+    case 'bin':
+      P(CYL,0x3f6b4a,0.34,0.62,0.34,0,0.31,0);
+      P(CYL,0x2c4c36,0.4,0.08,0.4,0,0.66,0);
+      break;
+    case 'lamp':
+      P(CYL,0x44484f,0.09,2.1,0.09,0,1.05,0);
+      P(SPH,0xffe9a8,0.28,0.28,0.28,0,2.2,0);
+      break;
+    case 'food': case 'drink': case 'gift': case 'wc':{
+      const col = {food:0xd2452f, drink:0x2f7fb5, gift:0x8b5cf6, wc:0x5b6470}[type];
+      P(BOX,0xf2ede2,1.7,1.1,1.7,0,0.55,0);
+      P(BOX,col,1.95,0.35,1.95,0,1.25,0);
+      P(CONE,col,1.6,0.6,1.6,0,1.7,0).rotation.y=Math.PI/4;
+      P(BOX,0x3b3f45,0.9,0.7,0.06,0,0.7,0.88);
+      break;}
+  }
+  g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
+  return g;
+}
+function buildFence(){
+  const g=new THREE.Group();
+  g.add(part(CYL,0x7a5a36,0.13,1.25,0.13,-0.65,0.62,0,true));
+  g.add(part(CYL,0x7a5a36,0.13,1.25,0.13, 0.65,0.62,0,true));
+  g.add(part(BOX,0x8d6b42,1.9,0.14,0.12,0,1.05,0,true));
+  g.add(part(BOX,0x8d6b42,1.9,0.14,0.12,0,0.62,0,true));
+  g.traverse(o=>{if(o.isMesh)o.castShadow=true;});
+  return g;
+}
+
+/* entrance marker */
+const gate = new THREE.Group();
+gate.add(part(BOX,0xffd166,0.35,2.6,0.35,-1.6,1.3,0,true));
+gate.add(part(BOX,0xffd166,0.35,2.6,0.35, 1.6,1.3,0,true));
+gate.add(part(BOX,0xe0a020,3.8,0.5,0.4,0,2.7,0,true));
+gate.add(part(CONE,0x45b06f,0.5,0.8,0.5,0,3.5,0,true));
+scene.add(gate);
+
+/* hover highlight */
+const hov = new THREE.Mesh(new THREE.BoxGeometry(TILE,0.12,TILE),
+  new THREE.MeshBasicMaterial({color:0xffffff, transparent:true, opacity:0.45}));
+hov.visible=false; scene.add(hov);
+const ghost = new THREE.Group(); scene.add(ghost);
+
+/* ---------------------------- TILE OBJECT MGMT ---------------------------- */
+function setTerr(i,j,t){
+  const c = T(i,j);
+  if (c.t===t) return false;
+  if (c.fence && t==='path') return false;
+  c.t = t; markTerrain(); S.netVer++; S.regionVer++;
+  return true;
+}
+function placeFence(i,j){
+  const c=T(i,j);
+  if (c.fence || c.obj) return false;
+  if (i===S.entrance.i && j===S.entrance.j) return false;
+  c.fence=true;
+  const m=buildFence(); m.position.set(w2(i),0,w2(j));
+  m.rotation.y = 0; c.mesh=m; scene.add(m);
+  // orient: align with neighbours to look continuous
+  const hn = (inb(i-1,j)&&T(i-1,j).fence)||(inb(i+1,j)&&T(i+1,j).fence);
+  const vn = (inb(i,j-1)&&T(i,j-1).fence)||(inb(i,j+1)&&T(i,j+1).fence);
+  if (vn && !hn) m.rotation.y = Math.PI/2;
+  S.netVer++; S.regionVer++;
+  return true;
+}
+function placeObj(i,j,type){
+  const c=T(i,j);
+  if (c.fence||c.obj) return false;
+  if (c.t==='water') return false;
+  const shop = !!BUILD[type].need;
+  if (shop && c.t!=='path'){ toast('Lojas só podem ficar sobre trilhas.','warn'); return false; }
+  const m=buildObj(type); m.position.set(w2(i),0,w2(j));
+  m.rotation.y = shop ? 0 : rnd(0,Math.PI*2);
+  scene.add(m);
+  c.obj={type, mesh:m, i, j}; c.mesh=m;
+  S.objs.push(c.obj); S.netVer++;
+  return true;
+}
+function clearTile(i,j){
+  const c=T(i,j); let did=false;
+  const a = S.animals.findIndex(a=>a.i===i&&a.j===j);
+  if (a>=0){ scene.remove(S.animals[a].mesh); S.money += Math.round(SPECIES[S.animals[a].sp].cost*0.4); S.animals.splice(a,1); did=true; }
+  if (c.obj){ scene.remove(c.obj.mesh); S.objs.splice(S.objs.indexOf(c.obj),1); c.obj=null; c.mesh=null; did=true; }
+  if (c.fence){ if(c.mesh) scene.remove(c.mesh); c.fence=false; c.mesh=null; did=true; }
+  else if (c.t!=='grass'){ c.t='grass'; markTerrain(); did=true; }
+  if (did){ S.netVer++; S.regionVer++; }
+  return did;
+}
+
+/* ---------------------------- ENCLOSURE LOGIC ----------------------------- */
+const regionCache = {ver:-1, id:new Int32Array(N*N), info:[]};
+function computeRegions(){
+  if (regionCache.ver === S.regionVer) return regionCache;
+  const id = regionCache.id.fill(-1); const info=[];
+  for (let j=0;j<N;j++) for (let i=0;i<N;i++){
+    const k=key(i,j);
+    if (id[k]!==-1 || T(i,j).fence) continue;
+    const rid=info.length, q=[k]; id[k]=rid;
+    let size=0, open=false, terrCount={}, enrich=0, hasPath=false;
+    while(q.length){
+      const cur=q.pop(), ci=cur%N, cj=(cur/N)|0, t=T(ci,cj);
+      size++; terrCount[t.t]=(terrCount[t.t]||0)+1;
+      if (t.obj && (t.obj.type==='tree'||t.obj.type==='rock')) enrich++;
+      if (t.t==='path') hasPath=true;
+      if (ci===0||cj===0||ci===N-1||cj===N-1) open=true;
+      const nb=[[ci-1,cj],[ci+1,cj],[ci,cj-1],[ci,cj+1]];
+      for(const [ni,nj] of nb){
+        if(!inb(ni,nj)) continue;
+        const nk=key(ni,nj);
+        if (id[nk]!==-1 || T(ni,nj).fence) continue;
+        id[nk]=rid; q.push(nk);
+      }
+    }
+    info.push({size, open, terr:terrCount, enrich, hasPath, rid});
+  }
+  regionCache.ver = S.regionVer; regionCache.info = info;
+  return regionCache;
+}
+
+/* ---------------------------- PATH NETWORK -------------------------------- */
+const net = {ver:-1, connected:new Uint8Array(N*N), tiles:[], viewSpots:[], shops:[]};
+function computeNet(){
+  if (net.ver === S.netVer) return net;
+  const conn = net.connected.fill(0); const tiles=[];
+  const e = S.entrance;
+  if (T(e.i,e.j).t==='path'){
+    const q=[key(e.i,e.j)]; conn[q[0]]=1;
+    while(q.length){
+      const cur=q.pop(), ci=cur%N, cj=(cur/N)|0;
+      tiles.push(cur);
+      for(const [ni,nj] of [[ci-1,cj],[ci+1,cj],[ci,cj-1],[ci,cj+1]]){
+        if(!inb(ni,nj)) continue;
+        const nk=key(ni,nj);
+        if (conn[nk] || T(ni,nj).fence || T(ni,nj).t!=='path') continue;
+        conn[nk]=1; q.push(nk);
+      }
+    }
+  }
+  net.ver=S.netVer; net.tiles=tiles;
+  net.shops = S.objs.filter(o=>BUILD[o.type].need && conn[key(o.i,o.j)]);
+  // viewing spots = connected path tiles adjacent to a fence that belongs to an enclosure with animals
+  const R = computeRegions(); const spots=[];
+  const animalRegions = new Set();
+  for (const a of S.animals){ animalRegions.add(R.id[key(a.i,a.j)]); }
+  for (const k of tiles){
+    const ci=k%N, cj=(k/N)|0; let good=false;
+    for(const [ni,nj] of [[ci-1,cj],[ci+1,cj],[ci,cj-1],[ci,cj+1]]){
+      if(!inb(ni,nj)||!T(ni,nj).fence) continue;
+      for(const [mi,mj] of [[ni-1,nj],[ni+1,nj],[ni,nj-1],[ni,nj+1]]){
+        if(!inb(mi,mj)||T(mi,mj).fence) continue;
+        if (animalRegions.has(R.id[key(mi,mj)])) good=true;
+      }
+    }
+    if (good) spots.push(k);
+  }
+  net.viewSpots = spots;
+  return net;
+}
+function bfsPath(fromK, toK){
+  const n=computeNet();
+  if (!n.connected[fromK] || !n.connected[toK]) return null;
+  const prev=new Int32Array(N*N).fill(-1); prev[fromK]=fromK;
+  const q=[fromK]; let h=0;
+  while(h<q.length){
+    const cur=q[h++]; if(cur===toK) break;
+    const ci=cur%N, cj=(cur/N)|0;
+    for(const [ni,nj] of [[ci-1,cj],[ci+1,cj],[ci,cj-1],[ci,cj+1]]){
+      if(!inb(ni,nj)) continue;
+      const nk=key(ni,nj);
+      if (prev[nk]!==-1 || !n.connected[nk]) continue;
+      prev[nk]=cur; q.push(nk);
+    }
+  }
+  if (prev[toK]===-1) return null;
+  const out=[]; let c=toK;
+  while(c!==fromK){ out.push(c); c=prev[c]; }
+  out.reverse(); return out;
+}
+
+/* ---------------------------- ANIMALS ------------------------------------- */
+function addAnimal(sp,i,j){
+  const d=SPECIES[sp], c=T(i,j);
+  if (c.fence||c.obj) { toast('Espaço ocupado.','warn'); return false; }
+  const R=computeRegions(); const rid=R.id[key(i,j)];
+  const reg=R.info[rid];
+  if (!reg || reg.open){ toast('Esse local não está cercado! Feche o recinto com cercas.','bad'); return false; }
+  if (reg.hasPath){ toast('Não solte animais num recinto com trilha de visitantes.','bad'); return false; }
+  if (S.money < d.cost){ toast('Dinheiro insuficiente.','bad'); return false; }
+  S.money -= d.cost; S.expense += d.cost;
+  const mesh=buildAnimal(sp);
+  mesh.position.set(w2(i),0,w2(j));
+  scene.add(mesh);
+  S.animals.push({sp,i,j,mesh,x:w2(i),z:w2(j),tx:w2(i),tz:w2(j),happy:60,food:80,hunger:0,
+                  dir:rnd(0,6.28),phase:rnd(0,6.28),rest:rnd(0,4),rid});
+  S.netVer++;
+  toast(`${d.emo} ${d.name} chegou ao zoológico!`);
+  return true;
+}
+function animalHabitat(a){
+  const R=computeRegions(); const reg=R.info[R.id[key(a.i,a.j)]];
+  if (!reg || reg.open) return {score:0, reg:null};
+  const d=SPECIES[a.sp];
+  const pref=(reg.terr[d.terr]||0)/reg.size;
+  const count=S.animals.filter(x=>R.id[key(x.i,x.j)]===reg.rid).length;
+  const space=clamp(reg.size/(d.space*count),0,1.2);
+  const enr=clamp(reg.enrich/Math.max(2,reg.size/12),0,1);
+  return {score: clamp((pref*55 + space*30 + enr*15),0,100), reg, pref, space, enr, count};
+}
+
+/* ---------------------------- GUESTS -------------------------------------- */
+function spawnGuest(){
+  const n=computeNet();
+  if (!n.tiles.length) return;
+  const e=S.entrance;
+  const g={mesh:buildGuest(), x:w2(e.i), z:w2(e.j)+1.5, path:[], pi:0,
+    happy:65, hunger:rnd(0,35), thirst:rnd(0,35), wc:rnd(0,25), wallet:rnd(30,140),
+    t:0, seen:0, leave:false, phase:rnd(0,6.28)};
+  g.mesh.position.set(g.x,0,g.z); scene.add(g.mesh);
+  S.guests.push(g);
+  S.money += S.ticket; S.income += S.ticket;
+}
+function guestGoal(g){
+  const n=computeNet();
+  if (!n.tiles.length) return null;
+  const fromK = key(clamp(g2(g.x),0,N-1), clamp(g2(g.z),0,N-1));
+  let target=null;
+  const needShop = (need)=> n.shops.filter(s=>BUILD[s.type].need===need);
+  if (g.wc>78){ const s=needShop('wc'); if(s.length) target=key(pick(s).i,pick(s).j); }
+  if (!target && g.hunger>75){ const s=needShop('food'); if(s.length){const p=pick(s);target=key(p.i,p.j);} }
+  if (!target && g.thirst>75){ const s=needShop('drink'); if(s.length){const p=pick(s);target=key(p.i,p.j);} }
+  if (!target && g.leave) target = key(S.entrance.i,S.entrance.j);
+  if (!target && n.viewSpots.length && Math.random()<0.7) target = pick(n.viewSpots);
+  if (!target) target = pick(n.tiles);
+  const p = bfsPath(fromK, target);
+  return p;
+}
+
+/* ---------------------------- UI ------------------------------------------ */
+const toolbar = document.getElementById('toolbar');
+function section(title, items){
+  const d=document.createElement('div'); d.className='group';
+  d.innerHTML=`<h3>${title}</h3>`;
+  const gr=document.createElement('div'); gr.className='grid';
+  for(const it of items){
+    const b=document.createElement('div'); b.className='tool'; b.dataset.tool=it.id;
+    b.innerHTML=`<span class="e">${it.emo}</span>${it.name}<span class="c">${it.cost?('$'+it.cost):'—'}</span>`;
+    b.onclick=()=>selectTool(it.id);
+    gr.appendChild(b);
+  }
+  d.appendChild(gr); toolbar.appendChild(d);
+}
+section('Ferramentas',[{id:'select',emo:'👆',name:'Inspecionar',cost:0},{id:'bulldoze',emo:'💥',name:'Demolir',cost:0}]);
+section('Terreno & Cerca',[
+  {id:'t:path',emo:'🛤️',name:'Trilha',cost:TERR.path.cost},
+  {id:'fence',emo:'🚧',name:'Cerca',cost:60},
+  {id:'t:grass',emo:'🌿',name:'Grama',cost:TERR.grass.cost},
+  {id:'t:sand',emo:'🏜️',name:'Areia',cost:TERR.sand.cost},
+  {id:'t:water',emo:'💧',name:'Água',cost:TERR.water.cost},
+  {id:'t:rock',emo:'🪨',name:'Rocha',cost:TERR.rock.cost},
+  {id:'t:snow',emo:'❄️',name:'Neve',cost:TERR.snow.cost},
+]);
+section('Construções', Object.keys(BUILD).map(k=>({id:'b:'+k,emo:BUILD[k].emo,name:BUILD[k].name,cost:BUILD[k].cost})));
+section('Animais', Object.keys(SPECIES).map(k=>({id:'a:'+k,emo:SPECIES[k].emo,name:SPECIES[k].name,cost:SPECIES[k].cost})));
+
+function selectTool(id){
+  S.tool = (S.tool===id) ? null : id;
+  document.querySelectorAll('.tool').forEach(e=>e.classList.toggle('sel', e.dataset.tool===S.tool));
+  ghost.clear();
+  if (S.tool && S.tool.startsWith('a:')){
+    const m=buildAnimal(S.tool.slice(2)); m.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=0.55;}});
+    ghost.add(m);
+  } else if (S.tool && S.tool.startsWith('b:')){
+    const m=buildObj(S.tool.slice(2)); m.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=0.55;}});
+    ghost.add(m);
+  } else if (S.tool==='fence'){
+    const m=buildFence(); m.traverse(o=>{if(o.isMesh){o.material=o.material.clone();o.material.transparent=true;o.material.opacity=0.55;}});
+    ghost.add(m);
+  }
+  const t = S.tool;
+  document.getElementById('hint').textContent = !t ? 'Escolha uma ferramenta à esquerda. Arraste para construir em linha.'
+    : t==='bulldoze' ? 'Demolir: clique/arraste sobre o que quer remover (animais vendem por 40%).'
+    : t==='select' ? 'Inspecionar: clique num animal, loja ou recinto para ver detalhes.'
+    : t.startsWith('a:') ? `Solte o ${SPECIES[t.slice(2)].name} dentro de um recinto totalmente cercado.`
+    : 'Clique e arraste sobre o terreno para construir.';
+}
+function toast(txt, cls){
+  const l=document.getElementById('log'); const d=document.createElement('div');
+  d.className='msg'+(cls?' '+cls:''); d.textContent=txt; l.appendChild(d);
+  setTimeout(()=>d.remove(),6000);
+  while(l.children.length>6) l.firstChild.remove();
+}
+
+const panel=document.getElementById('panel');
+function showPanel(i,j){
+  const c=T(i,j);
+  const a=S.animals.find(x=>x.i===i&&x.j===j);
+  let html='';
+  if (a){
+    const d=SPECIES[a.sp], h=animalHabitat(a);
+    html=`<h4>${d.emo} ${d.name}</h4>
+      <div class="row"><span>Felicidade</span><b>${a.happy|0}%</b></div><div class="bar"><i style="width:${a.happy|0}%"></i></div>
+      <div class="row"><span>Qualidade do habitat</span><b>${h.score|0}%</b></div><div class="bar"><i style="width:${h.score|0}%"></i></div>
+      <div class="row"><span>Bioma ideal</span><b>${TERR[d.terr].emo} ${TERR[d.terr].name}</b></div>
+      <div class="row"><span>Bioma no recinto</span><b>${h.reg?((h.pref*100)|0):0}%</b></div>
+      <div class="row"><span>Espaço</span><b>${h.reg?h.reg.size:0} tiles / ${h.count||1} animais</b></div>
+      <div class="row"><span>Enriquecimento</span><b>${h.reg?h.reg.enrich:0} objetos</b></div>
+      <div class="row"><span>Custo diário</span><b>$${d.up}</b></div>
+      <p class="note">Precisa de ${d.space} tiles por indivíduo. Aumente a área com o bioma certo e adicione árvores e pedras para elevar a felicidade.</p>`;
+  } else if (c.obj){
+    const b=BUILD[c.obj.type];
+    html=`<h4>${b.emo} ${b.name}</h4>
+      <div class="row"><span>Custo de construção</span><b>$${b.cost}</b></div>
+      ${b.price?`<div class="row"><span>Preço ao visitante</span><b>$${b.price}</b></div>`:''}
+      ${b.need?`<div class="row"><span>Atende</span><b>${{food:'Fome',drink:'Sede',wc:'Banheiro',gift:'Compras'}[b.need]}</b></div>`:''}
+      <p class="note">${b.need?'Precisa estar sobre uma trilha ligada à entrada.':'Decoração: aumenta a nota do zoológico.'}</p>`;
+  } else {
+    const R=computeRegions(); const reg=R.info[R.id[key(i,j)]];
+    html=`<h4>${TERR[c.t].emo} ${c.fence?'Cerca':TERR[c.t].name}</h4>
+      <div class="row"><span>Posição</span><b>${i}, ${j}</b></div>
+      ${reg?`<div class="row"><span>Área conectada</span><b>${reg.size} tiles</b></div>
+      <div class="row"><span>Fechada?</span><b>${reg.open?'❌ aberta':'✅ fechada'}</b></div>`:''}
+      <p class="note">${reg&&!reg.open?'Este espaço está pronto para receber animais.':'Cerque completamente esta área para transformá-la em recinto.'}</p>`;
+  }
+  panel.innerHTML=html; panel.style.display='block';
+}
+
+/* topbar handlers */
+document.getElementById('b-tup').onclick=()=>{S.ticket=clamp(S.ticket+1,0,90);};
+document.getElementById('b-tdown').onclick=()=>{S.ticket=clamp(S.ticket-1,0,90);};
+const SPEEDS=[0,1,2,4]; let spIdx=1;
+document.getElementById('b-speed').onclick=()=>{
+  spIdx=(spIdx+1)%SPEEDS.length; S.speed=SPEEDS[spIdx];
+  document.getElementById('b-speed').textContent = S.speed===0?'⏸ Pausa':'▶ '+S.speed+'x';
+};
+document.getElementById('b-help').onclick=()=>document.getElementById('modal').style.display='flex';
+document.getElementById('b-play').onclick=()=>{document.getElementById('modal').style.display='none';S.running=true;};
+document.getElementById('b-save').onclick=saveGame;
+document.getElementById('b-load').onclick=loadGame;
+
+/* ---------------------------- INPUT --------------------------------------- */
+const ray=new THREE.Raycaster(), mouse=new THREE.Vector2();
+let hoverTile=null, dragging=false, rotating=false, lastM={x:0,y:0}, painted=new Set();
+const keys={};
+addEventListener('keydown',e=>{
+  keys[e.code]=true;
+  if(e.code==='Escape'){selectTool(null);panel.style.display='none';}
+  if(e.key==='x'||e.key==='X') selectTool('bulldoze');
+  if(e.code==='Space'){e.preventDefault();document.getElementById('b-speed').click();}
+});
+addEventListener('keyup',e=>keys[e.code]=false);
+addEventListener('contextmenu',e=>e.preventDefault());
+renderer.domElement.addEventListener('mousedown',e=>{
+  if(e.button===0){ dragging=true; painted.clear(); apply(); }
+  else { rotating=true; }
+  lastM={x:e.clientX,y:e.clientY};
+});
+addEventListener('mouseup',()=>{dragging=false;rotating=false;});
+addEventListener('mousemove',e=>{
+  mouse.x=(e.clientX/innerWidth)*2-1; mouse.y=-(e.clientY/innerHeight)*2+1;
+  if(rotating){
+    cam.yaw -= (e.clientX-lastM.x)*0.005;
+    cam.pitch += (e.clientY-lastM.y)*0.004;
+    updCam();
+  }
+  lastM={x:e.clientX,y:e.clientY};
+  pickTile();
+  if(dragging) apply();
+});
+renderer.domElement.addEventListener('wheel',e=>{
+  e.preventDefault(); cam.dist *= (1 + Math.sign(e.deltaY)*0.09); updCam();
+},{passive:false});
+addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+function pickTile(){
+  ray.setFromCamera(mouse,camera);
+  const hit=ray.intersectObject(terrainMesh,false)[0];
+  if(!hit){ hoverTile=null; hov.visible=false; ghost.visible=false; return; }
+  const i=clamp(g2(hit.point.x),0,N-1), j=clamp(g2(hit.point.z),0,N-1);
+  hoverTile={i,j};
+  hov.visible=true; hov.position.set(w2(i),0.1,w2(j));
+  const ok = canPlace(i,j);
+  hov.material.color.setHex(ok?0xffffff:0xff5555);
+  ghost.visible = ghost.children.length>0;
+  ghost.position.set(w2(i),0.02,w2(j));
+}
+function toolCost(){
+  const t=S.tool; if(!t) return 0;
+  if(t==='fence') return 60;
+  if(t.startsWith('t:')) return TERR[t.slice(2)].cost;
+  if(t.startsWith('b:')) return BUILD[t.slice(2)].cost;
+  if(t.startsWith('a:')) return SPECIES[t.slice(2)].cost;
+  return 0;
+}
+function canPlace(i,j){
+  const t=S.tool; if(!t||t==='select') return true;
+  if(t==='bulldoze') return true;
+  if(S.money < toolCost()) return false;
+  const c=T(i,j);
+  if(t==='fence') return !c.fence && !c.obj && !(i===S.entrance.i&&j===S.entrance.j);
+  if(t.startsWith('t:')) return !(c.fence && t==='t:path');
+  if(t.startsWith('b:')) return !c.fence && !c.obj && c.t!=='water' && (!BUILD[t.slice(2)].need || c.t==='path');
+  if(t.startsWith('a:')) return !c.fence && !c.obj;
+  return true;
+}
+function apply(){
+  if(!hoverTile||!S.tool) { if(hoverTile&&!S.tool) return; return; }
+  const {i,j}=hoverTile, k=key(i,j);
+  if(painted.has(k)) return; painted.add(k);
+  const t=S.tool;
+  if(t==='select'){ showPanel(i,j); return; }
+  if(t==='bulldoze'){ if(clearTile(i,j)) S.money-=5; return; }
+  const cost=toolCost();
+  if(S.money<cost){ toast('Sem dinheiro para isso.','bad'); return; }
+  let ok=false;
+  if(t==='fence') ok=placeFence(i,j);
+  else if(t.startsWith('t:')) ok=setTerr(i,j,t.slice(2));
+  else if(t.startsWith('b:')) ok=placeObj(i,j,t.slice(2));
+  else if(t.startsWith('a:')){ addAnimal(t.slice(2),i,j); return; }
+  if(ok){ S.money-=cost; S.expense+=cost; }
+}
+// click on empty tool = inspect
+renderer.domElement.addEventListener('click',()=>{ if(!S.tool && hoverTile) showPanel(hoverTile.i,hoverTile.j); });
+
+/* ---------------------------- SIM ----------------------------------------- */
+function simulate(dt){
+  /* --- animals --- */
+  let happySum=0;
+  for(const a of S.animals){
+    const h=animalHabitat(a);
+    a.happy += (h.score - a.happy) * dt * 0.25;
+    happySum += a.happy;
+    a.rest -= dt;
+    if(a.rest<=0){
+      const R=computeRegions(), rid=R.id[key(a.i,a.j)];
+      // pick a nearby free tile in same region
+      for(let tries=0;tries<12;tries++){
+        const ni=clamp(a.i+((Math.random()*9)|0)-4,0,N-1), nj=clamp(a.j+((Math.random()*9)|0)-4,0,N-1);
+        if(T(ni,nj).fence||T(ni,nj).obj) continue;
+        if(R.id[key(ni,nj)]!==rid) continue;
+        a.tx=w2(ni)+rnd(-0.5,0.5); a.tz=w2(nj)+rnd(-0.5,0.5); break;
+      }
+      a.rest = rnd(2.5, 8);
+    }
+    const dx=a.tx-a.x, dz=a.tz-a.z, d=Math.hypot(dx,dz);
+    const spd = (SPECIES[a.sp].kind==='big'?0.8:1.6) * (0.6+a.happy/160);
+    if(d>0.14){
+      a.x += dx/d*spd*dt; a.z += dz/d*spd*dt;
+      a.dir = Math.atan2(dx,dz);
+      a.phase += dt*6;
+      const legs=a.mesh.userData.legs||[];
+      legs.forEach((L,n)=> L.rotation.x = Math.sin(a.phase + n*Math.PI/2)*0.5);
+      a.mesh.position.y = Math.abs(Math.sin(a.phase*0.5))*0.04;
+    } else {
+      a.phase += dt*1.2;
+      const legs=a.mesh.userData.legs||[];
+      legs.forEach(L=> L.rotation.x *= 0.9);
+      if(a.mesh.userData.head) a.mesh.userData.head.rotation.x = Math.sin(a.phase)*0.12;
+    }
+    a.i=clamp(g2(a.x),0,N-1); a.j=clamp(g2(a.z),0,N-1);
+    a.mesh.position.x=a.x; a.mesh.position.z=a.z;
+    let ry=a.mesh.rotation.y, tgt=a.dir, df=((tgt-ry+Math.PI*3)%(Math.PI*2))-Math.PI;
+    a.mesh.rotation.y = ry + df*Math.min(1,dt*4);
+  }
+  const avgAnimal = S.animals.length ? happySum/S.animals.length : 50;
+
+  /* --- guests --- */
+  const n=computeNet();
+  for(let gi=S.guests.length-1; gi>=0; gi--){
+    const g=S.guests[gi];
+    g.t += dt;
+    g.hunger = clamp(g.hunger + dt*2.2, 0, 100);
+    g.thirst = clamp(g.thirst + dt*2.8, 0, 100);
+    g.wc     = clamp(g.wc + dt*1.6, 0, 100);
+    let mood = 0;
+    if(g.hunger>85) mood -= dt*5;
+    if(g.thirst>85) mood -= dt*5;
+    if(g.wc>90) mood -= dt*6;
+    g.happy = clamp(g.happy + mood, 0, 100);
+
+    if(!g.path || g.pi>=g.path.length){
+      const p=guestGoal(g);
+      if(!p||!p.length){
+        // stuck: wander slightly or despawn
+        if(Math.random()<0.02){ scene.remove(g.mesh); S.guests.splice(gi,1); }
+        continue;
+      }
+      g.path=p; g.pi=0;
+    }
+    const tk=g.path[g.pi], ti=tk%N, tj=(tk/N)|0;
+    const tx=w2(ti)+((tk*13)%7-3)*0.07, tz=w2(tj)+((tk*29)%7-3)*0.07;
+    const dx=tx-g.x, dz=tz-g.z, d=Math.hypot(dx,dz);
+    const spd=2.1;
+    if(d<0.16){
+      g.pi++;
+      // interactions at this tile
+      const c=T(ti,tj);
+      for(const [ni,nj] of [[ti-1,tj],[ti+1,tj],[ti,tj-1],[ti,tj+1]]){
+        if(!inb(ni,nj)) continue;
+        const o=T(ni,nj).obj;
+        if(!o) continue;
+        const b=BUILD[o.type];
+        if(b.need==='food' && g.hunger>55 && g.wallet>=b.price){ g.hunger=0; g.wallet-=b.price; S.money+=b.price; S.income+=b.price; g.happy=clamp(g.happy+8,0,100); S.served++; }
+        if(b.need==='drink'&& g.thirst>55 && g.wallet>=b.price){ g.thirst=0; g.wallet-=b.price; S.money+=b.price; S.income+=b.price; g.happy=clamp(g.happy+7,0,100); S.served++; }
+        if(b.need==='wc'  && g.wc>60){ g.wc=0; g.happy=clamp(g.happy+6,0,100); }
+        if(b.need==='gift'&& g.wallet>=b.price && Math.random()<0.02*S.speed){ g.wallet-=b.price; S.money+=b.price; S.income+=b.price; g.happy=clamp(g.happy+5,0,100); S.served++; }
+        if(o.type==='bench'&&Math.random()<0.01) g.happy=clamp(g.happy+3,0,100);
+      }
+      // viewing an animal
+      if(n.viewSpots.includes(tk)){
+        let best=0;
+        for(const a of S.animals){
+          if(Math.hypot(a.x-tx,a.z-tz)<6.5) best=Math.max(best, a.happy*0.01*SPECIES[a.sp].zoo);
+        }
+        if(best>0){ g.happy=clamp(g.happy+best*0.5,0,100); g.seen++; }
+      }
+      if(g.seen>rnd(6,14) || g.t>rnd(120,240)) g.leave=true;
+      if(g.leave && ti===S.entrance.i && tj===S.entrance.j){
+        scene.remove(g.mesh); S.guests.splice(gi,1); continue;
+      }
+    } else {
+      g.x += dx/d*spd*dt; g.z += dz/d*spd*dt;
+      g.phase += dt*10;
+      g.mesh.userData.legs[0].rotation.x = Math.sin(g.phase)*0.6;
+      g.mesh.userData.legs[1].rotation.x = -Math.sin(g.phase)*0.6;
+      const tgt=Math.atan2(dx,dz);
+      const df=((tgt-g.mesh.rotation.y+Math.PI*3)%(Math.PI*2))-Math.PI;
+      g.mesh.rotation.y += df*Math.min(1,dt*8);
+    }
+    g.mesh.position.set(g.x,0,g.z);
+  }
+
+  /* --- rating --- */
+  const guestHappy = S.guests.length ? S.guests.reduce((s,g)=>s+g.happy,0)/S.guests.length : 50;
+  const variety = new Set(S.animals.map(a=>a.sp)).size;
+  const decor = S.objs.filter(o=>BUILD[o.type].zoo).length;
+  const shops = new Set(S.objs.filter(o=>BUILD[o.type].need).map(o=>BUILD[o.type].need)).size;
+  const target = clamp(
+      avgAnimal*0.34 + guestHappy*0.30 + Math.min(variety,10)*2.2
+    + Math.min(decor,30)*0.35 + shops*3.2 - Math.max(0,S.ticket-22)*0.9, 0, 100);
+  S.rating += (target - S.rating)*dt*0.12;
+
+  /* --- spawning --- */
+  const n2=computeNet();
+  const capacity = n2.viewSpots.length>0 ? 6 + S.rating*0.9 + S.animals.length*1.6 : 0;
+  const rate = n2.tiles.length ? clamp((S.rating/100)*1.1 + 0.15, 0, 1.6) * (1 - clamp(S.ticket/70,0,0.8)) : 0;
+  if(S.guests.length < capacity && Math.random() < rate*dt) spawnGuest();
+
+  /* --- day cycle --- */
+  S.dayT += dt;
+  if(S.dayT >= 45){
+    S.dayT = 0; S.day++;
+    let up=0; for(const a of S.animals) up += SPECIES[a.sp].up;
+    const staff = 220 + S.objs.length*12;
+    const total = up + staff;
+    S.money -= total; S.expense += total;
+    const bal = S.income - S.expense;
+    toast(`📅 Dia ${S.day}: manutenção -$${total}. Saldo do dia: ${bal>=0?'+':''}$${bal|0}`, bal>=0?'':'warn');
+    S.income=0; S.expense=0;
+    if(S.money < 0) toast('⚠️ Você está no vermelho! Aumente o ingresso ou venda animais.','bad');
+  }
+}
+
+/* ---------------------------- HUD ----------------------------------------- */
+let hudT=0;
+function hud(){
+  document.getElementById('s-money').textContent = '$'+Math.round(S.money).toLocaleString('pt-BR');
+  document.getElementById('s-money').style.color = S.money<0?'#ff8b8b':'#9ff0b8';
+  document.getElementById('s-animals').textContent = S.animals.length;
+  document.getElementById('s-guests').textContent  = S.guests.length;
+  document.getElementById('s-rating').textContent  = S.rating|0;
+  document.getElementById('s-day').textContent     = S.day;
+  document.getElementById('s-ticket').textContent  = S.ticket;
+  document.querySelectorAll('.tool').forEach(e=>{
+    const t=e.dataset.tool; let c=0;
+    if(t==='fence')c=60; else if(t.startsWith('t:'))c=TERR[t.slice(2)].cost;
+    else if(t.startsWith('b:'))c=BUILD[t.slice(2)].cost; else if(t.startsWith('a:'))c=SPECIES[t.slice(2)].cost;
+    e.classList.toggle('bad', c>0 && S.money<c);
+  });
+}
+
+/* ---------------------------- SAVE / LOAD --------------------------------- */
+function saveGame(){
+  const d={money:S.money,day:S.day,ticket:S.ticket,rating:S.rating,
+    tiles:S.tileData.map(t=>[t.t,t.fence?1:0,t.obj?t.obj.type:0]),
+    animals:S.animals.map(a=>[a.sp,a.i,a.j,a.happy])};
+  try{ localStorage.setItem('zoo3d', JSON.stringify(d)); toast('💾 Jogo salvo no navegador.'); }
+  catch(e){ toast('Não foi possível salvar.','bad'); }
+}
+function loadGame(){
+  const raw=localStorage.getItem('zoo3d');
+  if(!raw){ toast('Nenhum save encontrado.','warn'); return; }
+  const d=JSON.parse(raw);
+  for(const a of S.animals) scene.remove(a.mesh);
+  for(const g of S.guests) scene.remove(g.mesh);
+  for(const o of S.objs) scene.remove(o.mesh);
+  for(let k=0;k<N*N;k++){ const t=S.tileData[k]; if(t.fence&&t.mesh) scene.remove(t.mesh); }
+  S.animals=[];S.guests=[];S.objs=[];
+  for(let k=0;k<N*N;k++) S.tileData[k]={t:'grass',fence:false,obj:null,mesh:null};
+  S.money=d.money;S.day=d.day;S.ticket=d.ticket;S.rating=d.rating;S.netVer++;S.regionVer++;
+  d.tiles.forEach((v,k)=>{ const i=k%N,j=(k/N)|0; S.tileData[k].t=v[0]; if(v[1])placeFence(i,j); if(v[2])placeObj(i,j,v[2]); });
+  markTerrain();
+  d.animals.forEach(a=>{ const m=buildAnimal(a[0]); m.position.set(w2(a[1]),0,w2(a[2])); scene.add(m);
+    S.animals.push({sp:a[0],i:a[1],j:a[2],mesh:m,x:w2(a[1]),z:w2(a[2]),tx:w2(a[1]),tz:w2(a[2]),
+      happy:a[3],dir:0,phase:0,rest:rnd(0,3),rid:0}); });
+  S.netVer++;S.regionVer++;
+  toast('📂 Jogo carregado.');
+}
+
+/* ---------------------------- STARTER MAP --------------------------------- */
+function starterMap(){
+  const e=S.entrance;
+  for(let j=0;j<10;j++) S.tileData[key(e.i,j)].t='path';
+  for(let i=e.i-9;i<=e.i+9;i++) if(inb(i,9)) S.tileData[key(i,9)].t='path';
+  // scattered scenery
+  for(let k=0;k<40;k++){
+    const i=(Math.random()*N)|0, j=(Math.random()*N)|0;
+    if(T(i,j).t!=='grass') continue;
+    placeObj(i,j, Math.random()<0.75?'tree':'rock');
+  }
+  markTerrain(); S.netVer++; S.regionVer++;
+  gate.position.set(w2(e.i), 0, w2(e.j)-0.6);
+}
+starterMap();
+selectTool('t:path');
+
+/* ---------------------------- LOOP ---------------------------------------- */
+let last=performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  let dt=Math.min((now-last)/1000, 0.05); last=now;
+
+  // camera pan
+  const pan = dt*cam.dist*0.9;
+  const fx=Math.sin(cam.yaw), fz=Math.cos(cam.yaw);
+  if(keys.KeyW){cam.tgt.x-=fx*pan;cam.tgt.z-=fz*pan;}
+  if(keys.KeyS){cam.tgt.x+=fx*pan;cam.tgt.z+=fz*pan;}
+  if(keys.KeyA){cam.tgt.x-=fz*pan;cam.tgt.z+=fx*pan;}
+  if(keys.KeyD){cam.tgt.x+=fz*pan;cam.tgt.z-=fx*pan;}
+  if(keys.KeyW||keys.KeyS||keys.KeyA||keys.KeyD) updCam();
+
+  if(terrainDirty){ buildTerrain(); terrainDirty=false; }
+
+  if(S.running && S.speed>0){
+    const steps=Math.min(S.speed,4);
+    for(let k=0;k<steps;k++) simulate(dt);
+  }
+  hudT+=dt; if(hudT>0.2){ hud(); hudT=0; }
+  sun.target.position.copy(cam.tgt);
+  renderer.render(scene,camera);
+}
+requestAnimationFrame(loop);
+hud();
+</script>
+</body>
+</html>
