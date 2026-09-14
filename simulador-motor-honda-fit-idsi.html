@@ -1,0 +1,1482 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador 3D — Motor Honda Fit 1.4 i-DSi (L13A) | Pistões, Combustão e Falhas</title>
+<link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0f14; --bg2:#121821; --bg3:#18202b; --line:#26313f;
+  --txt:#e6edf3; --dim:#8fa3b8; --acc:#ff6b35; --acc2:#3ba5f0;
+  --ok:#38d39f; --warn:#ffc93c; --bad:#ff4d4d; --pur:#b07cff;
+  --mono:"SF Mono",Consolas,"Roboto Mono",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:"Segoe UI",Roboto,system-ui,sans-serif;font-size:14px;line-height:1.55}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:#2d3a4a;border-radius:5px}
+::-webkit-scrollbar-thumb:hover{background:#3d4d61}
+
+header{background:linear-gradient(100deg,#161d27,#0f141b);border-bottom:1px solid var(--line);padding:10px 18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:50}
+header h1{font-size:16px;font-weight:600;letter-spacing:.2px;display:flex;align-items:center;gap:9px}
+header h1 .mdi{color:var(--acc);font-size:24px}
+.badges{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.badge{background:var(--bg3);border:1px solid var(--line);border-radius:20px;padding:3px 11px;font-size:11px;color:var(--dim);display:flex;align-items:center;gap:5px}
+.badge .mdi{font-size:14px;color:var(--acc2)}
+.badge.hot{border-color:#54301f;color:#ffb599}.badge.hot .mdi{color:var(--acc)}
+
+.layout{display:grid;grid-template-columns:320px 1fr 330px;gap:12px;padding:12px;align-items:start}
+@media(max-width:1500px){.layout{grid-template-columns:300px 1fr}.col-right{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}}
+@media(max-width:980px){.layout{grid-template-columns:1fr}.col-right{grid-column:auto}}
+
+.panel{background:var(--bg2);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:12px}
+.panel>h2{font-size:12.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--dim);padding:10px 13px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;background:#141b24;cursor:pointer;user-select:none}
+.panel>h2 .mdi:first-child{color:var(--acc);font-size:17px}
+.panel>h2 .chev{margin-left:auto;transition:.2s;font-size:17px}
+.panel.collapsed>h2 .chev{transform:rotate(-90deg)}
+.panel.collapsed .pbody{display:none}
+.pbody{padding:12px 13px}
+
+.ctrl{margin-bottom:14px}
+.ctrl:last-child{margin-bottom:2px}
+.ctrl label{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;color:var(--dim);margin-bottom:5px;gap:8px}
+.ctrl label b{color:var(--txt);font-family:var(--mono);font-size:12.5px;font-weight:600}
+.ctrl .hint{font-size:11px;color:#6b7f94;margin-top:4px;line-height:1.4}
+input[type=range]{width:100%;-webkit-appearance:none;height:5px;border-radius:4px;background:#2a3543;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:var(--acc);cursor:pointer;border:2px solid #0b0f14;box-shadow:0 0 0 1px var(--acc)}
+input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--acc);cursor:pointer;border:2px solid #0b0f14}
+select,input[type=number]{width:100%;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:7px 9px;font-size:13px;font-family:inherit}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{flex:1;min-width:70px;text-align:center;background:var(--bg3);border:1px solid var(--line);border-radius:8px;padding:7px 4px;font-size:12px;cursor:pointer;transition:.15s}
+.chip:hover{border-color:#3c4c60}
+.chip.on{background:#2b1a10;border-color:var(--acc);color:#ffd4c2}
+.chip .mdi{display:block;font-size:18px;margin-bottom:2px}
+button.btn{background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 10px;font-size:12.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit;transition:.15s;width:100%}
+button.btn:hover{border-color:var(--acc);color:#ffd4c2}
+button.btn.prim{background:#2b1a10;border-color:var(--acc)}
+button.btn.on{background:#10261f;border-color:var(--ok);color:#9ff0d2}
+.switch{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--dim);cursor:pointer;padding:4px 0}
+.switch input{accent-color:var(--acc);width:15px;height:15px;cursor:pointer}
+
+/* 3D */
+.stage{position:relative;background:#070a0e;border:1px solid var(--line);border-radius:12px;overflow:hidden;min-height:520px;height:66vh}
+#gl{display:block;width:100%;height:100%}
+.hud{position:absolute;pointer-events:none;font-family:var(--mono);font-size:11.5px}
+.hud-tl{top:10px;left:12px}
+.hud-tr{top:10px;right:12px;text-align:right}
+.hud-bl{bottom:56px;left:12px}
+.hud .k{color:#6b7f94}
+.hud .v{color:var(--txt);font-weight:600}
+.stroke-tag{display:inline-block;padding:2px 9px;border-radius:5px;font-size:11px;margin-top:4px;font-weight:600}
+.playbar{position:absolute;left:0;right:0;bottom:0;background:rgba(9,13,18,.93);border-top:1px solid var(--line);padding:7px 12px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.playbar button{background:var(--bg3);border:1px solid var(--line);color:var(--txt);width:32px;height:30px;border-radius:7px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+.playbar button:hover{border-color:var(--acc);color:var(--acc)}
+.playbar button.on{border-color:var(--ok);color:var(--ok)}
+.playbar .deg{font-family:var(--mono);font-size:12px;color:var(--dim);margin-left:auto}
+.cyl-legend{display:flex;gap:5px}
+.cyl-dot{width:24px;height:24px;border-radius:6px;background:var(--bg3);border:1px solid var(--line);font-size:11px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);position:relative}
+.cyl-dot.fire{background:#ff6b35;border-color:#ff6b35;color:#160a04;font-weight:700}
+.cyl-dot.fault{border-color:var(--bad);color:var(--bad)}
+
+/* telemetria */
+.tel{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.tel .cell{background:var(--bg3);border:1px solid var(--line);border-radius:8px;padding:7px 9px}
+.tel .cell.wide{grid-column:1/-1}
+.tel .lbl{font-size:10.5px;color:#6b7f94;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:4px}
+.tel .lbl .mdi{font-size:13px}
+.tel .val{font-family:var(--mono);font-size:16px;font-weight:600;margin-top:1px}
+.tel .val small{font-size:10.5px;color:var(--dim);font-weight:400}
+.bar{height:5px;background:#232d3a;border-radius:3px;overflow:hidden;margin-top:5px}
+.bar i{display:block;height:100%;background:var(--acc2);transition:width .15s}
+canvas.chart{width:100%;height:150px;display:block;background:#0c1118;border:1px solid var(--line);border-radius:8px}
+.alerts{display:flex;flex-direction:column;gap:6px}
+.alert{border-radius:8px;padding:7px 10px;font-size:12px;display:flex;gap:8px;align-items:flex-start;border:1px solid}
+.alert .mdi{font-size:16px;flex-shrink:0;margin-top:1px}
+.alert.ok{background:#0f2119;border-color:#1e4a37;color:#9ff0d2}
+.alert.warn{background:#241f0c;border-color:#584a17;color:#ffe7a3}
+.alert.bad{background:#2a1113;border-color:#5c2326;color:#ffb3b3}
+.alert.info{background:#0e1d2b;border-color:#1d4160;color:#a9d8ff}
+
+/* texto didático */
+.learn{padding:0 12px 40px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tab{background:var(--bg2);border:1px solid var(--line);border-radius:9px;padding:8px 13px;font-size:12.5px;cursor:pointer;display:flex;align-items:center;gap:7px;color:var(--dim)}
+.tab .mdi{font-size:16px}
+.tab.on{background:#2b1a10;border-color:var(--acc);color:#ffd4c2}
+.tab.on .mdi{color:var(--acc)}
+.doc{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:20px 24px;display:none}
+.doc.on{display:block}
+.doc h3{font-size:17px;margin:22px 0 9px;display:flex;align-items:center;gap:9px;color:#fff}
+.doc h3:first-child{margin-top:0}
+.doc h3 .mdi{color:var(--acc);font-size:20px}
+.doc h4{font-size:14px;margin:16px 0 6px;color:var(--acc2)}
+.doc p{margin:0 0 10px;color:#c7d5e2;max-width:100ch}
+.doc ul,.doc ol{margin:0 0 12px 20px;color:#c7d5e2;max-width:100ch}
+.doc li{margin-bottom:5px}
+.doc b{color:#fff}
+.doc code{font-family:var(--mono);background:#0c1118;border:1px solid var(--line);border-radius:4px;padding:1px 5px;font-size:12.5px;color:#ffd4c2}
+.eq{background:#0c1118;border:1px solid var(--line);border-left:3px solid var(--acc2);border-radius:8px;padding:11px 14px;font-family:var(--mono);font-size:13px;margin:10px 0;color:#d8e6f3;overflow-x:auto}
+.eq .c{color:#6b7f94}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:12.5px}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left}
+th{background:#141b24;color:var(--dim);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px}
+td{color:#c7d5e2}
+tr:nth-child(even) td{background:#101720}
+.note{border-left:3px solid var(--warn);background:#1c1809;border-radius:8px;padding:10px 14px;margin:12px 0;font-size:13px;color:#ffe7a3}
+.note.tip{border-color:var(--ok);background:#0f2119;color:#9ff0d2}
+.note.imp{border-color:var(--bad);background:#241012;color:#ffb3b3}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:12px 0}
+.card{background:#0f151d;border:1px solid var(--line);border-radius:10px;padding:13px 15px}
+.card h5{font-size:13.5px;margin-bottom:6px;display:flex;align-items:center;gap:7px;color:#fff}
+.card h5 .mdi{font-size:17px;color:var(--acc2)}
+.card p{font-size:12.5px;margin-bottom:6px}
+.fault-btn{width:100%;text-align:left;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px 10px;font-size:12.5px;cursor:pointer;display:flex;align-items:center;gap:8px;margin-bottom:6px;font-family:inherit}
+.fault-btn:hover{border-color:#3c4c60}
+.fault-btn.on{background:#2a1113;border-color:var(--bad);color:#ffb3b3}
+.fault-btn .mdi{font-size:16px}
+.fault-btn small{margin-left:auto;color:#6b7f94;font-size:10.5px}
+.cylsel{display:flex;gap:5px;margin-bottom:9px}
+.cylsel button{flex:1;background:var(--bg3);border:1px solid var(--line);color:var(--txt);border-radius:7px;padding:6px;cursor:pointer;font-family:var(--mono);font-size:12px}
+.cylsel button.on{background:#2b1a10;border-color:var(--acc);color:#ffd4c2}
+.cylsel button.hasfault{border-color:var(--bad);color:var(--bad)}
+footer{padding:18px;text-align:center;color:#5c6e82;font-size:11.5px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span class="mdi mdi-engine"></span> Simulador 3D de Motor — Honda Fit 1.4 i-DSi (L13A)</h1>
+  <div class="badges">
+    <span class="badge hot"><span class="mdi mdi-car-shift-pattern"></span> 1ª geração (GD3) 2004</span>
+    <span class="badge"><span class="mdi mdi-spark"></span> 8 velas · 8 bobinas</span>
+    <span class="badge"><span class="mdi mdi-numeric-4-box-multiple"></span> 4 cilindros · SOHC 8V</span>
+    <span class="badge"><span class="mdi mdi-sort-numeric-variant"></span> Ordem 1‑3‑4‑2</span>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ================= COLUNA ESQUERDA: CONTROLES ================= -->
+  <div class="col-left">
+
+    <div class="panel">
+      <h2><span class="mdi mdi-tune-vertical"></span> Operação do motor <span class="mdi mdi-chevron-down chev"></span></h2>
+      <div class="pbody">
+        <div class="ctrl">
+          <label>Rotação do motor <b><span id="v-rpm">850</span> rpm</b></label>
+          <input type="range" id="rpm" min="600" max="7000" step="10" value="850">
+          <div class="hint">Marcha lenta ≈ 750 rpm · Torque máx ≈ 2800 rpm · Potência máx ≈ 5700 rpm · Corte ≈ 6800 rpm</div>
+        </div>
+        <div class="ctrl">
+          <label>Carga / acelerador <b><span id="v-thr">18</span> %</b></label>
+          <input type="range" id="thr" min="3" max="100" step="1" value="18">
+          <div class="hint">Abertura da borboleta = quanto ar entra = quanta mistura pode queimar.</div>
+        </div>
+        <div class="ctrl">
+          <label>Velocidade da animação <b><span id="v-spd">0.05</span>×</b></label>
+          <input type="range" id="spd" min="1" max="300" step="1" value="5">
+          <div class="hint">Tempo real seria &gt;14 ciclos/s a 850 rpm. Use 0,02×–0,10× para enxergar cada tempo.</div>
+        </div>
+        <div class="row" style="margin-top:4px">
+          <button class="btn" id="btn-idle"><span class="mdi mdi-speedometer-slow"></span> Lenta</button>
+          <button class="btn" id="btn-cruise"><span class="mdi mdi-speedometer-medium"></span> 100 km/h</button>
+          <button class="btn" id="btn-full"><span class="mdi mdi-speedometer"></span> Full</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2><span class="mdi mdi-fuel"></span> Combustível (padrão Brasil) <span class="mdi mdi-chevron-down chev"></span></h2>
+      <div class="pbody">
+        <div class="chips" style="margin-bottom:12px">
+          <div class="chip on" data-fuel="e27"><span class="mdi mdi-gas-station"></span>Gasolina C<br><small>E27</small></div>
+          <div class="chip" data-fuel="e100"><span class="mdi mdi-leaf"></span>Etanol<br><small>E100</small></div>
+          <div class="chip" data-fuel="custom"><span class="mdi mdi-beaker-outline"></span>Mistura<br><small>livre</small></div>
+        </div>
+        <div class="ctrl">
+          <label>Teor de etanol no tanque <b><span id="v-eth">27</span> % vol</b></label>
+          <input type="range" id="eth" min="0" max="100" step="1" value="27">
+          <div class="hint">Gasolina comum brasileira = E27 (27% de etanol anidro). Etanol hidratado de bomba ≈ E95–E100.</div>
+        </div>
+        <div class="ctrl">
+          <label>Octanagem da gasolina base, sem etanol <b><span id="v-ron">88</span> RON</b></label>
+          <input type="range" id="ron" min="78" max="100" step="1" value="88">
+          <div class="hint">Gasolina A pura ≈ 88 RON. Com os 27% de etanol ela chega às ~93 RON da bomba (veja "Octanagem" na telemetria). Combustível adulterado cai para 78–84.</div>
+        </div>
+        <div class="ctrl">
+          <label>Mistura ar/combustível — λ (lambda) <b><span id="v-lam">1.00</span></b></label>
+          <input type="range" id="lam" min="0.70" max="1.35" step="0.01" value="1.00">
+          <div class="hint">λ=1 estequiométrico · λ&lt;1 rica (mais potência, mais consumo/CO) · λ&gt;1 pobre (economia, calor, risco de detonação).</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="closedloop" checked> Sonda lambda em malha fechada (ECU corrige λ→1)</label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2><span class="mdi mdi-wrench-outline"></span> Geometria e preparação <span class="mdi mdi-chevron-down chev"></span></h2>
+      <div class="pbody">
+        <div class="ctrl">
+          <label>Diâmetro do cilindro (bore) <b><span id="v-bore">73.0</span> mm</b></label>
+          <input type="range" id="bore" min="60" max="95" step="0.5" value="73">
+        </div>
+        <div class="ctrl">
+          <label>Curso do pistão (stroke) <b><span id="v-stroke">80.0</span> mm</b></label>
+          <input type="range" id="stroke" min="55" max="110" step="0.5" value="80">
+          <div class="hint">Original L13A: 73,0 × 80,0 mm → 1339 cm³ (motor "subquadrado", favorece torque baixo).</div>
+        </div>
+        <div class="ctrl">
+          <label>Comprimento da biela <b><span id="v-rod">134</span> mm</b></label>
+          <input type="range" id="rod" min="100" max="190" step="1" value="134">
+        </div>
+        <div class="ctrl">
+          <label>Taxa de compressão <b><span id="v-cr">10.8</span> : 1</b></label>
+          <input type="range" id="cr" min="7" max="16" step="0.1" value="10.8">
+          <div class="hint">Original i-DSi ≈ 10,8:1 — alta para a época, viabilizada pela queima rápida das duas velas.</div>
+        </div>
+        <div class="ctrl">
+          <label>Nº de cilindros <b><span id="v-ncyl">4</span></b></label>
+          <input type="range" id="ncyl" min="1" max="6" step="1" value="4">
+        </div>
+        <div class="ctrl">
+          <label>Avanço de ignição <b><span id="v-adv">14</span>° APMS</b></label>
+          <input type="range" id="adv" min="-10" max="50" step="1" value="14">
+          <div class="hint">APMS = antes do ponto morto superior. Muito avanço → detonação. Pouco → perda de potência e escape quente.</div>
+        </div>
+        <label class="switch"><input type="checkbox" id="dualspark" checked> Ignição dupla i-DSi ativa (2 velas por cilindro)</label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2><span class="mdi mdi-alert-decagram"></span> Simular defeitos <span class="mdi mdi-chevron-down chev"></span></h2>
+      <div class="pbody">
+        <div class="hint" style="margin-bottom:8px">Escolha o cilindro e aplique a falha. Observe a chama, o gráfico P‑V, o torque e os alertas.</div>
+        <div class="cylsel" id="cylsel"></div>
+        <div id="faultlist"></div>
+        <button class="btn" id="btn-clearfaults" style="margin-top:8px"><span class="mdi mdi-broom"></span> Limpar todas as falhas</button>
+      </div>
+    </div>
+
+    <div class="panel collapsed">
+      <h2><span class="mdi mdi-eye-settings-outline"></span> Visualização 3D <span class="mdi mdi-chevron-down chev"></span></h2>
+      <div class="pbody">
+        <label class="switch"><input type="checkbox" id="opt-cut" checked> Corte transversal (bloco translúcido)</label>
+        <label class="switch"><input type="checkbox" id="opt-valves" checked> Mostrar válvulas e comando</label>
+        <label class="switch"><input type="checkbox" id="opt-plugs" checked> Mostrar velas e faísca</label>
+        <label class="switch"><input type="checkbox" id="opt-gas" checked> Mostrar gases (admissão/escape)</label>
+        <label class="switch"><input type="checkbox" id="opt-flame" checked> Mostrar frente de chama</label>
+        <label class="switch"><input type="checkbox" id="opt-labels" checked> Rótulos dos cilindros</label>
+        <label class="switch"><input type="checkbox" id="opt-shake" checked> Vibração do bloco (falha de combustão)</label>
+        <div class="row" style="margin-top:8px">
+          <button class="btn" id="cam-side"><span class="mdi mdi-arrow-collapse-right"></span> Lateral</button>
+          <button class="btn" id="cam-front"><span class="mdi mdi-arrow-collapse-down"></span> Frontal</button>
+          <button class="btn" id="cam-iso"><span class="mdi mdi-rotate-3d-variant"></span> Iso</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ================= CENTRO: 3D ================= -->
+  <div class="col-center">
+    <div class="stage" id="stage">
+      <canvas id="gl"></canvas>
+      <div class="hud hud-tl">
+        <div><span class="k">CILINDRO EM FOCO</span></div>
+        <div><span class="v" id="hud-focus">#1</span> <span id="hud-stroke" class="stroke-tag">—</span></div>
+        <div style="margin-top:6px"><span class="k">ÂNGULO DE VIRABREQUIM</span></div>
+        <div><span class="v" id="hud-angle">0°</span> <span class="k">/ 720° (ciclo completo)</span></div>
+      </div>
+      <div class="hud hud-tr">
+        <div><span class="k">RPM</span> <span class="v" id="hud-rpm">850</span></div>
+        <div><span class="k">POTÊNCIA</span> <span class="v" id="hud-hp">— cv</span></div>
+        <div><span class="k">TORQUE</span> <span class="v" id="hud-tq">— N·m</span></div>
+        <div><span class="k">λ</span> <span class="v" id="hud-lam">1.00</span></div>
+      </div>
+      <div class="hud hud-bl" id="hud-msg"></div>
+      <div class="playbar">
+        <button id="pb-play" title="Pausar/continuar"><span class="mdi mdi-pause"></span></button>
+        <button id="pb-step" title="Avançar 5° de virabrequim"><span class="mdi mdi-skip-next"></span></button>
+        <button id="pb-reset" title="Voltar ao PMS de combustão"><span class="mdi mdi-restart"></span></button>
+        <button id="pb-sound" title="Som do motor"><span class="mdi mdi-volume-off"></span></button>
+        <div class="cyl-legend" id="cyl-legend"></div>
+        <div class="deg" id="pb-deg">ciclo 0.0%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= DIREITA: TELEMETRIA ================= -->
+  <div class="col-right">
+    <div class="panel">
+      <h2><span class="mdi mdi-gauge"></span> Telemetria <span class="mdi mdi-chevron-down chev"></span></h2>
+      <div class="pbody">
+        <div class="tel">
+          <div class="cell wide"><div class="lbl"><span class="mdi mdi-car-turbocharger"></span> Cilindrada total</div><div class="val"><span id="t-disp">1339</span> <small>cm³ · <span id="t-dispu">334,9</span> cm³/cil</small></div></div>
+          <div class="cell"><div class="lbl"><span class="mdi mdi-horse-variant"></span> Potência</div><div class="val"><span id="t-hp">—</span> <small>cv</small></div><div class="bar"><i id="b-hp" style="width:0%"></i></div></div>
+          <div class="cell"><div class="lbl"><span class="mdi mdi-rotate-right"></span> Torque</div><div class="val"><span id="t-tq">—</span> <small>N·m</small></div><div class="bar"><i id="b-tq" style="width:0%"></i></div></div>
+          <div class="cell"><div class="lbl"><span class="mdi mdi-arrow-expand-vertical"></span> Vel. média pistão</div><div class="val"><span id="t-vp">—</span> <small>m/s</small></div></div>
+          <div class="cell"><div class="lbl"><span class="mdi mdi-weight"></span> Força inercial</div><div class="val"><span id="t-fi">—</span> <small>kN</small></div></div>
+          <div class="cell"><div class="lbl"><span class="mdi mdi-gauge-full"></span> Pressão de pico</div><div class="val"><span id="t-pp">—</span> <small>bar</small></div></div>
+          <div class="cell"><div class="lbl"><span class="mdi mdi-thermometer-high"></span> Temp. de pico</div><div class="val"><span id="t-tt">—</span> <small>°C</small></div></div>
+          <div class="cell"><div class="lbl"><span class="mdi mdi-percent-outline"></span> Rend. térmico</div><div class="val"><span id="t-ef">—</span> <small>%</small></div></div>
+          <div class="cell"><div class="lbl"><span class="mdi mdi-air-filter"></span> Rend. volumétrico</div><div class="val"><span id="t-ev">—</span> <small>%</small></div></div>
+          <div class="cell"><div class="lbl"><span class="mdi mdi-scale-balance"></span> AFR real</div><div class="val"><span id="t-afr">—</span> <small>:1</small></div></div>
+          <div class="cell"><div class="lbl"><span class="mdi mdi-fire"></span> Octanagem</div><div class="val"><span id="t-ron">—</span> <small>RON</small></div></div>
+          <div class="cell wide"><div class="lbl"><span class="mdi mdi-gas-station-outline"></span> Consumo estimado</div><div class="val"><span id="t-km">—</span> <small>km/l (cruzeiro) · <span id="t-gh">—</span> l/h agora</small></div></div>
+          <div class="cell wide"><div class="lbl"><span class="mdi mdi-bell-alert-outline"></span> Margem antidetonação</div><div class="val"><span id="t-knock">—</span> <small>pontos de octanagem sobrando</small></div><div class="bar"><i id="b-knock" style="width:0%;background:var(--ok)"></i></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2><span class="mdi mdi-chart-bell-curve-cumulative"></span> Diagrama P–V (ciclo Otto) <span class="mdi mdi-chevron-down chev"></span></h2>
+      <div class="pbody">
+        <canvas class="chart" id="pv" width="600" height="320"></canvas>
+        <div class="hint" style="margin-top:6px">A <b>área interna</b> do laço é o trabalho líquido do ciclo. Falhas “murcham” a área — é literalmente potência perdida.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2><span class="mdi mdi-chart-line"></span> Curvas de torque e potência <span class="mdi mdi-chevron-down chev"></span></h2>
+      <div class="pbody">
+        <canvas class="chart" id="curve" width="600" height="320"></canvas>
+        <div class="hint" style="margin-top:6px">Laranja = potência (cv) · Azul = torque (N·m) · linha vertical = rotação atual.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2><span class="mdi mdi-stethoscope"></span> Diagnóstico ao vivo <span class="mdi mdi-chevron-down chev"></span></h2>
+      <div class="pbody"><div class="alerts" id="alerts"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= CONTEÚDO DIDÁTICO ================= -->
+<div class="learn">
+  <div class="tabs" id="tabs">
+    <div class="tab on" data-doc="d1"><span class="mdi mdi-engine-outline"></span> Como o motor funciona</div>
+    <div class="tab" data-doc="d2"><span class="mdi mdi-spark"></span> i-DSi: 8 velas, 8 bobinas</div>
+    <div class="tab" data-doc="d3"><span class="mdi mdi-function-variant"></span> A física por trás</div>
+    <div class="tab" data-doc="d4"><span class="mdi mdi-fuel"></span> Gasolina C × Etanol</div>
+    <div class="tab" data-doc="d5"><span class="mdi mdi-alert-decagram-outline"></span> Problemas de combustão</div>
+    <div class="tab" data-doc="d6"><span class="mdi mdi-school-outline"></span> Roteiro de experimentos</div>
+    <div class="tab" data-doc="d7"><span class="mdi mdi-book-alphabet"></span> Glossário</div>
+  </div>
+  <div id="docs"></div>
+</div>
+
+<footer>
+  Simulador didático — modelo físico simplificado (Otto a ar-padrão + correções empíricas). Valores são estimativas para ensino, não dados oficiais de fábrica.
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+/* =========================================================================
+   SIMULADOR DE MOTOR — Honda Fit 1.4 i-DSi (L13A) — modelo didático
+   ========================================================================= */
+'use strict';
+
+/* ---------------------- 1. ESTADO GLOBAL ---------------------- */
+const S = {
+  rpm: 850, thr: 18, spd: 0.05,
+  eth: 27, ron: 88, lam: 1.00, closedLoop: true,
+  bore: 73, stroke: 80, rod: 134, cr: 10.8, ncyl: 4, adv: 14, dual: true,
+  angle: 0,            // ângulo de ciclo 0..720 (0 = PMS de combustão do cil. 1)
+  playing: true, focus: 0, sound: false,
+  opt: { cut:true, valves:true, plugs:true, gas:true, flame:true, labels:true, shake:true },
+  faults: [ {}, {}, {}, {}, {}, {} ]   // por cilindro: {chave:true}
+};
+
+/* Ordem de ignição 1-3-4-2 → deslocamento no ciclo de 720° de cada cilindro */
+function fireOffsets(n){
+  if(n===4) return [0,540,180,360];              // 1-3-4-2
+  if(n===3) return [0,480,240];                  // 1-3-2
+  if(n===6) return [0,480,240,600,120,360];      // 1-5-3-6-2-4
+  if(n===2) return [0,360];
+  if(n===1) return [0];
+  const a=[]; for(let i=0;i<n;i++) a.push(i*720/n); return a;
+}
+
+/* ---------------------- 2. CATÁLOGO DE FALHAS ---------------------- */
+const FAULTS = [
+  { id:'coil',   nome:'Bobina queimada (sem faísca)', icon:'mdi-flash-off', tag:'Misfire total',
+    desc:'A bobina não gera alta tensão. O cilindro admite e comprime, mas não queima: a mistura crua vai direto para o escapamento e o catalisador.' },
+  { id:'plug1',  nome:'Uma das 2 velas falhando (i-DSi)', icon:'mdi-spark-circle', tag:'Queima lenta',
+    desc:'Exclusivo do i-DSi: com apenas uma vela acesa a frente de chama percorre o dobro do caminho, a queima atrasa e o rendimento cai ~6–10%.' },
+  { id:'fouled', nome:'Vela carbonizada / folga errada', icon:'mdi-spark-plug-off-outline', tag:'Falha intermitente',
+    desc:'Depósitos ou folga excessiva fazem a faísca falhar de forma aleatória, principalmente em carga. Gera trepidação e luz de injeção piscando.' },
+  { id:'inj_clog', nome:'Bico injetor entupido', icon:'mdi-water-off-outline', tag:'Mistura pobre',
+    desc:'Vazão reduzida: o cilindro recebe pouco combustível para o ar admitido. Queima pobre e quente — o maior gerador de detonação e válvula queimada.' },
+  { id:'inj_leak', nome:'Bico injetor vazando', icon:'mdi-water-alert-outline', tag:'Mistura rica',
+    desc:'Excesso de combustível lava o filme de óleo do cilindro, molha a vela, joga combustível no escape e superaquece o catalisador.' },
+  { id:'rings',  nome:'Anéis de segmento desgastados', icon:'mdi-blur-linear', tag:'Baixa compressão',
+    desc:'O gás escapa para o cárter (blow-by) e óleo sobe para a câmara. Compressão cai, fumaça azulada, consumo de óleo e vela oleosa.' },
+  { id:'valve',  nome:'Válvula queimada / assento ruim', icon:'mdi-valve-closed', tag:'Baixa compressão',
+    desc:'A válvula não veda. Parte da mistura volta pelo coletor ou vaza para o escape durante a compressão. Perda severa e irregularidade em marcha lenta.' },
+  { id:'gasket', nome:'Junta do cabeçote queimada', icon:'mdi-water-thermometer-outline', tag:'Perda + água',
+    desc:'Vazamento entre cilindro e galeria de água/óleo. Compressão vaza, água entra na câmara (fumaça branca) e gases pressurizam o radiador.' },
+  { id:'carbon', nome:'Carvão acumulado na câmara', icon:'mdi-grain', tag:'Pré-ignição',
+    desc:'Depósitos incandescentes acendem a mistura antes da faísca. A pressão sobe cedo demais e o pistão ainda está subindo — pancada seca e risco de furar pistão.' },
+  { id:'timing', nome:'Correia/comando fora de ponto', icon:'mdi-cog-transfer-outline', tag:'Ponto errado',
+    desc:'Válvulas abrem na hora errada em relação ao pistão: enchimento péssimo, perda de torque e, em casos graves, colisão válvula-pistão.' },
+  { id:'egr_leak', nome:'Entrada de ar falso (vácuo)', icon:'mdi-weather-windy', tag:'Pobre em lenta',
+    desc:'Mangueira rachada após o medidor de ar: entra ar que a ECU não contabiliza. Mistura pobre, rotação instável e apagamento em marcha lenta.' }
+];
+
+/* ---------------------- 3. FÍSICA / TERMODINÂMICA ---------------------- */
+const CAL = 0.73;
+const FUEL = {
+  gas:  { rho:0.745, lhv:43.5, afr:14.70, ron:0,   hvap:350 },  // gasolina pura (RON vem do slider)
+  eth:  { rho:0.809, lhv:25.1, afr: 8.42, ron:109, hvap:900 }   // etanol hidratado ~95,5%
+};
+
+function blend(){
+  const fv = S.eth/100, gv = 1-fv;
+  const mE = fv*FUEL.eth.rho, mG = gv*FUEL.gas.rho, mT = mE+mG;
+  const xE = mT>0 ? mE/mT : 0;                       // fração mássica de etanol
+  return {
+    xE,
+    lhv : xE*FUEL.eth.lhv + (1-xE)*FUEL.gas.lhv,     // MJ/kg
+    afr : xE*FUEL.eth.afr + (1-xE)*FUEL.gas.afr,     // estequiométrico
+    ron : xE*FUEL.eth.ron + (1-xE)*S.ron,
+    hvap: xE*FUEL.eth.hvap + (1-xE)*FUEL.gas.hvap,   // kJ/kg (resfriamento da carga)
+    rho : fv*FUEL.eth.rho + gv*FUEL.gas.rho
+  };
+}
+
+/* Cilindrada */
+function geom(){
+  const B=S.bore/10, St=S.stroke/10;                 // cm
+  const vu = Math.PI/4*B*B*St;                       // cm³ por cilindro
+  return { vu, vt: vu*S.ncyl, vc: vu/(S.cr-1) };     // vc = volume da câmara
+}
+
+/* Fator de eficiência por cilindro conforme falhas */
+function cylFactor(i, t){
+  const f = S.faults[i]||{};
+  let k = 1, lamMul = 1, burnMul = 1, knockAdd = 0, miss = false, notes = [];
+  if(f.coil)    { k=0;    miss=true; notes.push('sem faísca'); }
+  if(f.plug1 || (!S.dual && !f.coil)) { k*=0.92; burnMul*=1.75; notes.push('queima lenta'); }
+  if(f.fouled)  { const r = (Math.sin(t*7.3+i*2.1)+Math.sin(t*3.1+i))>1.1; if(r){k=0;miss=true;} else k*=0.9; notes.push('falha intermitente'); }
+  if(f.inj_clog){ k*=0.72; lamMul*=1.28; knockAdd+=9; notes.push('pobre'); }
+  if(f.inj_leak){ k*=0.86; lamMul*=0.74; notes.push('rica'); }
+  if(f.rings)   { k*=0.70; knockAdd+=3; notes.push('blow-by'); }
+  if(f.valve)   { k*=0.52; notes.push('não veda'); }
+  if(f.gasket)  { k*=0.60; notes.push('junta'); }
+  if(f.carbon)  { k*=0.88; knockAdd+=14; notes.push('pré-ignição'); }
+  if(f.timing)  { k*=0.65; notes.push('fora de ponto'); }
+  if(f.egr_leak){ k*= (S.thr<35?0.78:0.95); lamMul*= (S.thr<35?1.22:1.05); knockAdd+=4; notes.push('ar falso'); }
+  return { k, lamMul, burnMul, knockAdd, miss, notes };
+}
+
+/* Rendimento volumétrico em função da rotação (curva de respiração SOHC 8V) */
+function etaVol(rpm){
+  let ev = 0.60 + 0.34*Math.exp(-Math.pow((rpm-4200)/2800,2));
+  ev -= Math.max(0,(rpm-6200))/6000*0.35;            // válvulas/pórticos saturam em alta
+  return Math.max(0.20, ev);
+}
+
+/* Modelo principal */
+function physics(t){
+  const g = geom(), b = blend();
+  const rpm = Math.max(200,S.rpm), load = S.thr/100;
+
+  // λ efetivo: malha fechada puxa para 1 em carga parcial; plena carga enriquece
+  let lam = S.lam;
+  if(S.closedLoop) lam = S.thr>85 ? Math.min(lam,0.88) : 1 + (lam-1)*0.15;
+
+  // média dos cilindros
+  let kSum=0, lamSum=0, burnSum=0, knockSum=0, missCount=0;
+  for(let i=0;i<S.ncyl;i++){
+    const c = cylFactor(i,t);
+    kSum+=c.k; lamSum+=lam*c.lamMul; burnSum+=c.burnMul; knockSum+=c.knockAdd;
+    if(c.miss) missCount++;
+  }
+  const kAvg = kSum/S.ncyl, lamAvg = lamSum/S.ncyl, burnAvg=burnSum/S.ncyl, knockAvg=knockSum/S.ncyl;
+
+  // massa de ar admitida
+  const ev = etaVol(rpm) * (0.10+0.90*load) * (1 + b.xE*0.03);   // etanol resfria e enche melhor
+  const rhoAir = 1.184;                                          // kg/m³ a 25 °C, nível do mar
+  const mAirCycle = rhoAir * (g.vt*1e-6) * ev;                   // kg por ciclo (720°)
+  const mFuel = mAirCycle / (b.afr*lamAvg);                      // kg de combustível por ciclo
+
+  // rendimento térmico: Otto ideal × penalidades reais
+  const gamma = 1.33 + b.xE*0.012;
+  const etaOtto = 1 - Math.pow(S.cr, 1-gamma);
+  const advOpt = 4 + rpm/300 + Math.min(14,(1-load)*18) - b.xE*3 - (S.cr-10)*1.0;  // MBT aproximado
+  const advPen = 1 - Math.min(0.42, Math.pow(Math.abs(S.adv-advOpt)/34,1.7));
+  const lamPen = lamAvg<1 ? (0.80+0.20*lamAvg*1.0) : Math.max(0.72, 1-(lamAvg-1)*0.55);
+  const burnPen = 1/(1+(burnAvg-1)*0.22);
+  const mech = 0.94 - Math.pow(rpm/9000,2)*0.30;                 // bombeamento/transferência de calor
+  const etaReal = Math.max(0.03, etaOtto*advPen*lamPen*burnPen*mech*CAL);
+
+  // detonação
+  const demand = 52 + (S.cr-9)*8.6 + (S.adv-advOpt)*1.15 + load*22
+               + Math.max(0,(3000-rpm))/3000*7
+               + Math.max(-14, Math.min(20,(lamAvg-1)*32)) + knockAvg;
+  const margin = b.ron - demand;
+  const knocking = margin < 0;
+  const knockSev = knocking ? Math.min(1, -margin/18) : 0;
+
+  const knockPen = 1 - knockSev*0.35;
+  const cycPower = mFuel * b.lhv*1e6 * etaReal * kAvg * knockPen;  // J por ciclo
+  const cyclesPerSec = rpm/120;
+  const fmep = (0.55 + 0.10*(rpm/1000) + 0.018*Math.pow(rpm/1000,2))*1e5;   // atrito mecânico (Pa)
+  const pFric = fmep*(g.vt*1e-6)*(rpm/120);                       // W
+  let P = Math.max(0, cycPower*cyclesPerSec - pFric);             // W
+  if(rpm>6800) P *= Math.max(0,1-(rpm-6800)/300);                 // corte de giro
+  const kW = P/1000, cv = kW/0.7355;
+  const Tq = P/(2*Math.PI*rpm/60);                                // N·m
+
+  // pressões e temperaturas
+  const bmep = P>0 ? (P*2)/((g.vt*1e-6)*(rpm/60))/1e5 : 0;        // bar
+  const pInt = 0.16 + 0.79*load;                                  // pressão no coletor (bar abs)
+  const pComp = pInt*Math.pow(S.cr,gamma);                        // fim da compressão (sem queimar)
+  let pPeak = pComp * (1.15 + 1.55*kAvg*Math.min(1.3,etaReal/0.30));
+  pPeak = Math.max(1.5, pPeak*(1+knockSev*0.85));
+  const lamF = Math.exp(-Math.pow((lamAvg-1.05)/0.35,2));
+  let tPeak = (1250 + 950*lamF)*(0.78+0.22*load) - b.xE*180 + knockSev*260;
+  tPeak = Math.max(300, tPeak*kAvg + (1-kAvg)*260);
+
+  // cinemática
+  const vpm = 2*(S.stroke/1000)*rpm/60;                           // velocidade média do pistão m/s
+  const r = S.stroke/2000, l = S.rod/1000, om = 2*Math.PI*rpm/60;
+  const aMax = om*om*r*(1+r/l);                                   // aceleração no PMS
+  const mPist = 0.00000045*Math.pow(S.bore,3)*0.9 + 0.15;         // kg (estimativa) 
+  const Fi = mPist*aMax/1000;                                     // kN
+
+  // consumo
+  const lph = mFuel*cyclesPerSec*3600/b.rho;                      // litros/hora
+  const vkmh = rpm/30;                                            // 5ª marcha: ~3000 rpm ≈ 100 km/h
+  const kml = lph>0.01 ? Math.min(45, vkmh/lph) : 0;
+
+  return { g,b,lam:lamAvg,ev,mAirCycle,mFuel,etaOtto,etaReal,advOpt,margin,knocking,knockSev,
+           kW,cv,Tq,bmep,pPeak,tPeak,vpm,aMax,Fi,lph,kml,kAvg,missCount,burnAvg,rpm };
+}
+
+/* =========================================================================
+   4. CENA 3D (three.js)
+   ========================================================================= */
+let scene, cam, renderer, controls, root, engineGroup, crankGroup;
+let CYL = [];          // objetos por cilindro
+let labelsGroup;
+const U = { };         // dimensões correntes em cm
+
+function mod(a,m){ return ((a%m)+m)%m; }
+function fireAngles(){ return fireOffsets(S.ncyl); }
+
+function initGL(){
+  const cv = document.getElementById('gl');
+  renderer = new THREE.WebGLRenderer({canvas:cv, antialias:true, alpha:false});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x070a0e);
+  scene.fog = new THREE.Fog(0x070a0e, 60, 190);
+  cam = new THREE.PerspectiveCamera(42, 1, 0.1, 600);
+  cam.position.set(34,20,40);
+  controls = new THREE.OrbitControls(cam, renderer.domElement);
+  controls.enableDamping = true; controls.dampingFactor=.08;
+  controls.target.set(0,7,0);
+
+  scene.add(new THREE.AmbientLight(0x6f8399, 0.75));
+  const d1 = new THREE.DirectionalLight(0xffffff,0.95); d1.position.set(22,34,20); scene.add(d1);
+  const d2 = new THREE.DirectionalLight(0x66a6ff,0.45); d2.position.set(-26,10,-18); scene.add(d2);
+  const d3 = new THREE.DirectionalLight(0xff8a4d,0.35); d3.position.set(0,-14,12); scene.add(d3);
+
+  const grid = new THREE.GridHelper(120, 24, 0x1d2733, 0x141b24);
+  grid.position.y = -14; scene.add(grid);
+
+  root = new THREE.Group(); scene.add(root);
+  buildEngine();
+  resize(); addEventListener('resize', resize);
+}
+
+function resize(){
+  const st = document.getElementById('stage');
+  const w = st.clientWidth, h = st.clientHeight;
+  renderer.setSize(w,h,false); cam.aspect = w/h; cam.updateProjectionMatrix();
+}
+
+function mat(color, opts){ return new THREE.MeshPhongMaterial(Object.assign({color:color, shininess:60}, opts||{})); }
+
+function makeLabel(text, color){
+  const c = document.createElement('canvas'); c.width=256; c.height=72;
+  const x = c.getContext('2d');
+  x.fillStyle='rgba(10,14,20,0.78)'; x.strokeStyle=color; x.lineWidth=4;
+  x.beginPath(); x.roundRect(4,4,248,64,14); x.fill(); x.stroke();
+  x.fillStyle=color; x.font='bold 38px Segoe UI, sans-serif'; x.textAlign='center'; x.textBaseline='middle';
+  x.fillText(text,128,38);
+  const tex = new THREE.CanvasTexture(c);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false}));
+  sp.scale.set(6,1.7,1);
+  return sp;
+}
+
+function buildEngine(){
+  while(root.children.length) root.remove(root.children[0]);
+  CYL = [];
+  const B = S.bore/10, St = S.stroke/10, r = St/2, l = S.rod/10;
+  const g = geom();
+  const hc = g.vc/(Math.PI/4*(S.bore/10)*(S.bore/10));   // altura da câmara (cm)
+  const pc = 0.38*B;                                      // pino → topo do pistão
+  const pistH = 0.72*B;
+  const crownTDC = r + l + pc;
+  const deck = crownTDC + hc;
+  const spacing = B + 1.4;
+  const x0 = -(S.ncyl-1)*spacing/2;
+  Object.assign(U,{B,St,r,l,hc,pc,pistH,crownTDC,deck,spacing,x0});
+
+  engineGroup = new THREE.Group(); root.add(engineGroup);
+  labelsGroup = new THREE.Group(); engineGroup.add(labelsGroup);
+
+  /* --- bloco / camisas --- */
+  const blockMat = new THREE.MeshPhongMaterial({color:0x5d6b7d, transparent:true, opacity:S.opt.cut?0.16:0.85,
+                    side:THREE.DoubleSide, shininess:30, depthWrite:!S.opt.cut});
+  const sleeveMat= new THREE.MeshPhongMaterial({color:0x8fa3b8, transparent:true, opacity:S.opt.cut?0.18:0.9,
+                    side:THREE.DoubleSide, shininess:80, depthWrite:false});
+
+  const blockH = deck - (r*0 - St*0) + 6;
+  const blk = new THREE.Mesh(new THREE.BoxGeometry(S.ncyl*spacing+1.6, deck+10, B+5), blockMat);
+  blk.position.set(0,(deck-10)/2+0,0); engineGroup.add(blk); engineGroup.userData.block = blk;
+
+  /* --- virabrequim --- */
+  crankGroup = new THREE.Group(); engineGroup.add(crankGroup);
+  const journalMat = mat(0xc9d4e0,{shininess:120});
+  const webMat = mat(0x7c8ca0);
+  const mainLen = S.ncyl*spacing+4;
+  const main = new THREE.Mesh(new THREE.CylinderGeometry(B*0.22,B*0.22,mainLen,22), journalMat);
+  main.rotation.z = Math.PI/2; crankGroup.add(main);
+
+  const fa = fireAngles();
+  for(let i=0;i<S.ncyl;i++){
+    const x = x0 + i*spacing;
+    const phi = -fa[i]*Math.PI/180;
+    const pin = new THREE.Mesh(new THREE.CylinderGeometry(B*0.16,B*0.16,B*0.55,18), journalMat);
+    pin.rotation.z = Math.PI/2;
+    pin.position.set(x, r*Math.cos(phi), r*Math.sin(phi));
+    crankGroup.add(pin);
+    for(const s of [-1,1]){
+      const web = new THREE.Mesh(new THREE.BoxGeometry(B*0.16, r*2.3, B*0.5), webMat);
+      web.position.set(x + s*B*0.38, r*Math.cos(phi)*0.5, r*Math.sin(phi)*0.5);
+      web.rotation.x = -phi;
+      crankGroup.add(web);
+      const cw = new THREE.Mesh(new THREE.CylinderGeometry(r*1.15,r*1.15,B*0.15,20,1,false,0,Math.PI), webMat);
+      cw.rotation.set(0,0,Math.PI/2);
+      cw.position.set(x + s*B*0.38, 0,0);
+      cw.rotation.x = -phi + Math.PI;
+      crankGroup.add(cw);
+    }
+  }
+  const fly = new THREE.Mesh(new THREE.CylinderGeometry(r*2.1,r*2.1,1.2,32), mat(0x4b5a6c));
+  fly.rotation.z=Math.PI/2; fly.position.x = x0 - spacing*0.85; crankGroup.add(fly);
+
+  /* --- por cilindro --- */
+  for(let i=0;i<S.ncyl;i++){
+    const x = x0 + i*spacing;
+    const o = { x };
+
+    const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(B/2+0.25,B/2+0.25, St+pistH+2.6, 34, 1, true), sleeveMat);
+    sleeve.position.set(x, deck-(St+pistH+2.6)/2, 0); engineGroup.add(sleeve); o.sleeve=sleeve;
+
+    const pist = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(B/2*0.98,B/2*0.98,pistH,30), mat(0xdfe7ef,{shininess:110}));
+    pist.add(body);
+    for(let k=0;k<3;k++){
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(B/2*0.985,0.055,8,34), mat(0x2b3442));
+      ring.rotation.x=Math.PI/2; ring.position.y = pistH/2-0.35-k*0.32; pist.add(ring);
+    }
+    const pin = new THREE.Mesh(new THREE.CylinderGeometry(B*0.13,B*0.13,B*0.9,16), mat(0x9aa8b8));
+    pin.rotation.z=Math.PI/2; pin.position.y = pistH/2-pc; pist.add(pin);
+    engineGroup.add(pist); o.pist=pist; o.pistH=pistH;
+
+    const rodMesh = new THREE.Group();
+    const shaft = new THREE.Mesh(new THREE.BoxGeometry(B*0.13, l, B*0.30), mat(0xa8b6c6,{shininess:90}));
+    rodMesh.add(shaft);
+    const big = new THREE.Mesh(new THREE.CylinderGeometry(B*0.23,B*0.23,B*0.5,18), mat(0x8b99aa));
+    big.rotation.z=Math.PI/2; big.position.y=-l/2; rodMesh.add(big);
+    const small = new THREE.Mesh(new THREE.CylinderGeometry(B*0.16,B*0.16,B*0.34,16), mat(0x8b99aa));
+    small.rotation.z=Math.PI/2; small.position.y=l/2; rodMesh.add(small);
+    engineGroup.add(rodMesh); o.rod=rodMesh;
+
+    /* válvulas: 1 admissão (z+) e 1 escape (z-)  — SOHC 8V */
+    o.valves=[];
+    [['in',1,0x3ba5f0],['ex',-1,0xff6b35]].forEach(([kind,sz,col])=>{
+      const v = new THREE.Group();
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.16,4.4,12), mat(0xb9c6d4));
+      stem.position.y=2.5; v.add(stem);
+      const head = new THREE.Mesh(new THREE.CylinderGeometry(B*0.26,B*0.20,0.5,22), mat(col,{emissive:col,emissiveIntensity:0.12}));
+      v.add(head);
+      const spr = new THREE.Mesh(new THREE.CylinderGeometry(0.42,0.42,1.6,12,1,true), new THREE.MeshPhongMaterial({color:0x6f8095,wireframe:true}));
+      spr.position.y=3.3; v.add(spr);
+      v.position.set(x + 0, deck+0.15, sz*B*0.24);
+      v.rotation.x = -sz*0.18;
+      v.visible = S.opt.valves;
+      engineGroup.add(v); o.valves.push({g:v, kind, base:deck+0.15});
+    });
+
+    /* dutos de gases */
+    const mkPort=(sz,col)=>{
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(B*0.22,B*0.22,4.4,16,1,true),
+        new THREE.MeshPhongMaterial({color:col,transparent:true,opacity:0.15,side:THREE.DoubleSide,emissive:col,emissiveIntensity:0.3}));
+      m.position.set(x, deck+2.9, sz*(B*0.24+2.2)); m.rotation.x = sz*Math.PI/2.4;
+      engineGroup.add(m); return m;
+    };
+    o.portIn = mkPort(1,0x3ba5f0); o.portEx = mkPort(-1,0xff6b35);
+
+    /* velas (2 por cilindro — i-DSi) */
+    o.plugs=[];
+    [[1,0x9fb0c2],[-1,0x9fb0c2]].forEach(([sx])=>{
+      const p = new THREE.Group();
+      const bodyP = new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.28,2.2,12), mat(0xcfd8e2));
+      bodyP.position.y=1.6; p.add(bodyP);
+      const cer = new THREE.Mesh(new THREE.CylinderGeometry(0.38,0.30,1.5,12), mat(0xf2e9d8));
+      cer.position.y=3.4; p.add(cer);
+      const coil = new THREE.Mesh(new THREE.BoxGeometry(0.85,1.5,0.85), mat(0x2f3a48));
+      coil.position.y=4.8; p.add(coil);
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.30,14,14),
+        new THREE.MeshBasicMaterial({color:0x88ccff, transparent:true, opacity:0}));
+      p.add(tip);
+      p.position.set(x + sx*B*0.30, deck+0.1, 0);
+      p.rotation.z = -sx*0.30;
+      p.visible = S.opt.plugs;
+      engineGroup.add(p);
+      o.plugs.push({g:p, tip, sx});
+    });
+
+    /* chama / kernels */
+    const flameMat = ()=> new THREE.MeshBasicMaterial({color:0xff7a2f, transparent:true, opacity:0, depthWrite:false});
+    o.kernel = o.plugs.map(p=>{
+      const k = new THREE.Mesh(new THREE.SphereGeometry(1,18,14), flameMat());
+      engineGroup.add(k); return k;
+    });
+    o.glow = new THREE.PointLight(0xff7a2f, 0, 22); engineGroup.add(o.glow);
+
+    /* coluna de gás dentro do cilindro (cor = mistura) */
+    const chg = new THREE.Mesh(new THREE.CylinderGeometry(B/2*0.94,B/2*0.94,1,26),
+      new THREE.MeshBasicMaterial({color:0x3ba5f0, transparent:true, opacity:0.12, depthWrite:false}));
+    engineGroup.add(chg); o.charge=chg;
+
+    const lab = makeLabel('CIL '+(i+1), '#ff6b35');
+    lab.position.set(x, deck+8.5, 0); labelsGroup.add(lab);
+    o.label = lab;
+
+    CYL.push(o);
+  }
+  labelsGroup.visible = S.opt.labels;
+  controls.target.set(0, U.deck*0.45, 0);
+}
+
+/* ---------- ciclo: tempos, válvulas, queima ---------- */
+const STROKES = [
+  {a0:0,   a1:180, nome:'EXPANSÃO (motriz)', cor:'#ff6b35', bg:'#3a1a0c'},
+  {a0:180, a1:360, nome:'ESCAPE',            cor:'#ffc93c', bg:'#3a3110'},
+  {a0:360, a1:540, nome:'ADMISSÃO',          cor:'#3ba5f0', bg:'#0e2a40'},
+  {a0:540, a1:720, nome:'COMPRESSÃO',        cor:'#b07cff', bg:'#281a3d'}
+];
+function strokeOf(a){ return STROKES[Math.floor(mod(a,720)/180)]; }
+
+function valveLift(a, kind, shift){
+  a = mod(a - (shift||0), 720);
+  const o = (kind==='ex') ? 140 : 350;
+  const c = (kind==='ex') ? 375 : 580;
+  if(a<o || a>c) return 0;
+  return Math.pow(Math.sin(Math.PI*(a-o)/(c-o)),1.15);
+}
+
+function wiebe(x){ if(x<=0) return 0; if(x>=1) return 1; return 1-Math.exp(-5*Math.pow(x,3)); }
+
+function burnState(i, a){
+  const f = S.faults[i]||{};
+  if(f.coil) return {frac:0, spark:false, dead:true, sparkA:null};
+  let sparkA = mod(720 - S.adv, 720);
+  if(f.carbon) sparkA = mod(sparkA - 26, 720);                 // pré-ignição
+  const singles = (!S.dual || f.plug1);
+  let D = (singles ? 66 : 38) * (f.rings?1.25:1) * (f.inj_clog?1.3:1) * (f.inj_leak?1.15:1);
+  D *= (1 + Math.max(0,(3000-S.rpm))/3000*0.15);
+  let da = mod(a - sparkA, 720);
+  if(da>360) return {frac:0, spark:false, sparkA};
+  return { frac: wiebe(da/D), spark: da<6, sparkA, singles, D, dead:false };
+}
+
+/* ---------- loop ---------- */
+const clock = new THREE.Clock();
+const perf = { t:0, last:0, lastFire:[-1,-1,-1,-1,-1,-1] };
+let P = null;
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, clock.getDelta());
+  perf.t += dt;
+  if(S.playing){ S.angle = mod(S.angle + S.rpm*6*S.spd*dt, 720); }
+  P = physics(perf.t);
+  updateEngine();
+  controls.update();
+  renderer.render(scene,cam);
+  if(perf.t - perf.last > 0.12){ perf.last = perf.t; updateHUD(); }
+}
+
+function updateEngine(){
+  const {B,r,l,pc,pistH,deck} = U;
+  const fa = fireAngles();
+  crankGroup.rotation.x = S.angle*Math.PI/180;
+
+  let misses = 0;
+  for(let i=0;i<S.ncyl;i++){
+    const o = CYL[i], f = S.faults[i]||{};
+    const a = mod(S.angle - fa[i], 720);
+    o.a = a;
+    const th = a*Math.PI/180;
+    const pinY = r*Math.cos(th) + Math.sqrt(Math.max(0.0001,l*l - Math.pow(r*Math.sin(th),2)));
+    const pinZ = 0;
+    const crownY = pinY + pc;
+
+    o.pist.position.set(o.x, crownY - pistH/2, 0);
+
+    /* biela */
+    const cy = r*Math.cos(th), cz = r*Math.sin(th);
+    const mx = o.x, my=(pinY+cy)/2, mz=(pinZ+cz)/2;
+    o.rod.position.set(mx,my,mz);
+    const dir = new THREE.Vector3(0, pinY-cy, pinZ-cz).normalize();
+    o.rod.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir);
+
+    /* válvulas */
+    const shift = f.timing ? 55 : 0;
+    o.valves.forEach(v=>{
+      const lift = valveLift(a, v.kind, shift) * (f.valve && v.kind==='ex' ? 0.55 : 1);
+      v.g.position.y = v.base + 0.15 - lift*0.95;
+      v.g.visible = S.opt.valves;
+      v.lift = lift;
+    });
+    o.portIn.visible = S.opt.gas; o.portEx.visible = S.opt.gas;
+    o.portIn.material.opacity = S.opt.gas ? 0.06 + (o.valves[0].lift||0)*0.32 : 0;
+    o.portEx.material.opacity = S.opt.gas ? 0.06 + (o.valves[1].lift||0)*0.32 : 0;
+
+    /* coluna de mistura dentro do cilindro */
+    const topGas = deck, botGas = crownY;
+    const hGas = Math.max(0.2, topGas-botGas);
+    o.charge.scale.set(1,hGas,1);
+    o.charge.position.set(o.x, (topGas+botGas)/2, 0);
+    const st = strokeOf(a);
+    let cgc = 0x22303f, cgo = 0.08;
+    if(a>=360 && a<540){ cgc = f.inj_clog?0x7fd4ff:(f.inj_leak?0x1c3ea8:0x3ba5f0); cgo=0.16; }        // admissão
+    else if(a>=540){ cgc = 0x7c6bff; cgo=0.12+0.2*(a-540)/180; }                                      // compressão
+    else if(a<180){ cgc = 0xff7a2f; cgo=0.30*(1-a/180)+0.05; }                                        // expansão
+    else { cgc = 0x8a8f97; cgo=0.16; }                                                                // escape
+    o.charge.material.color.setHex(cgc); o.charge.material.opacity = cgo*(S.opt.gas?1:0.35);
+
+    /* faísca + chama */
+    const bs = burnState(i, a);
+    o.burn = bs;
+    const plugDead = [ (f.plug1||!S.dual), false ];
+    o.plugs.forEach((p,pi)=>{
+      p.g.visible = S.opt.plugs;
+      const dead = f.coil || (pi===0 && (f.plug1 || !S.dual)) || (f.fouled && pi===1);
+      const sparking = bs.spark && !dead;
+      p.tip.material.opacity = sparking ? 1 : 0;
+      p.tip.scale.setScalar(sparking ? 1+Math.random()*0.7 : 1);
+      p.tip.material.color.setHex(sparking? 0xbfe6ff : 0x88ccff);
+      p.g.position.set(o.x + p.sx*B*0.30, deck+0.1, 0);
+      p.dead = dead;
+    });
+
+    const showF = S.opt.flame && bs.frac>0 && bs.frac<0.995 && !bs.dead;
+    let flameR = 0;
+    o.kernel.forEach((k,ki)=>{
+      const dead = o.plugs[ki].dead;
+      const fr = (dead||!showF) ? 0 : bs.frac;
+      const R = Math.pow(fr,0.45)*B*0.62;
+      flameR = Math.max(flameR,R);
+      k.visible = R>0.01;
+      k.scale.setScalar(Math.max(0.01,R));
+      k.position.set(o.x + o.plugs[ki].sx*B*0.26, Math.min(deck-0.2,(crownY+deck)/2), 0);
+      let col = 0xff7a2f;
+      if(P && P.lam>1.05) col = 0x6fb8ff; else if(P && P.lam<0.9) col = 0xff4d15;
+      if(f.carbon) col = 0xfff1a8;
+      if(P && P.knocking && a<40) col = (Math.sin(perf.t*80)>0? 0xffffff : 0xff2d2d);
+      k.material.color.setHex(col);
+      k.material.opacity = Math.min(0.75, 0.22+fr*0.6);
+    });
+    const intensity = (showF? bs.frac*(1-bs.frac)*4 : 0);
+    o.glow.position.set(o.x, deck-1, 0);
+    o.glow.intensity = intensity*(P&&P.knocking?2.6:1.6)*(S.opt.flame?1:0);
+    o.glow.color.setHex(P&&P.knocking? 0xff3b1f : 0xff8a3d);
+
+    if(bs.dead || (f.fouled && bs.frac<0.05 && a>0 && a<90)) misses++;
+    o.label.visible = S.opt.labels;
+  }
+
+  /* vibração por falha de combustão */
+  if(S.opt.shake && (misses>0 || (P&&P.knocking))){
+    const amp = 0.10*misses + (P&&P.knocking?0.12*P.knockSev:0);
+    engineGroup.position.set(Math.sin(perf.t*47)*amp, Math.sin(perf.t*61)*amp*0.8, Math.cos(perf.t*53)*amp*0.5);
+  } else engineGroup.position.set(0,0,0);
+
+  /* foco = cilindro em expansão */
+  let best=0,bv=1e9;
+  for(let i=0;i<S.ncyl;i++){ const a=CYL[i].a; if(a<bv){bv=a;best=i;} }
+  S.focus = best;
+
+  if(S.sound) soundTick();
+}
+
+/* =========================================================================
+   5. HUD / TELEMETRIA / ALERTAS
+   ========================================================================= */
+const $ = id=>document.getElementById(id);
+const fmt=(v,d)=> (isFinite(v)? v.toFixed(d===undefined?1:d).replace('.',',') : '—');
+
+function updateHUD(){
+  if(!P) return;
+  const o = CYL[S.focus], st = strokeOf(o.a);
+  $('hud-focus').textContent = '#'+(S.focus+1);
+  const tag = $('hud-stroke');
+  tag.textContent = st.nome; tag.style.background = st.bg; tag.style.color = st.cor;
+  $('hud-angle').textContent = fmt(o.a,0)+'°';
+  $('hud-rpm').textContent = Math.round(S.rpm);
+  $('hud-hp').textContent = fmt(P.cv,1)+' cv';
+  $('hud-tq').textContent = fmt(P.Tq,1)+' N·m';
+  $('hud-lam').textContent = fmt(P.lam,2);
+  $('pb-deg').textContent = 'ciclo '+fmt(S.angle/7.2,1)+'%  ·  '+fmt(S.angle,0)+'°';
+
+  const g=P.g;
+  $('t-disp').textContent = Math.round(g.vt);
+  $('t-dispu').textContent = fmt(g.vu,1);
+  $('t-hp').textContent = fmt(P.cv,1);
+  $('t-tq').textContent = fmt(P.Tq,1);
+  $('b-hp').style.width = Math.min(100,P.cv/110*100)+'%';
+  $('b-tq').style.width = Math.min(100,P.Tq/160*100)+'%';
+  $('t-vp').textContent = fmt(P.vpm,1);
+  $('t-fi').textContent = fmt(P.Fi,2);
+  $('t-pp').textContent = fmt(P.pPeak,0);
+  $('t-tt').textContent = Math.round(P.tPeak);
+  $('t-ef').textContent = fmt(P.etaReal*100,1);
+  $('t-ev').textContent = fmt(P.ev*100,0);
+  $('t-afr').textContent = fmt(P.b.afr*P.lam,2);
+  $('t-ron').textContent = fmt(P.b.ron,0);
+  $('t-km').textContent = fmt(P.kml,1);
+  $('t-gh').textContent = fmt(P.lph,1);
+  $('t-knock').textContent = (P.margin>=0?'+':'')+fmt(P.margin,1);
+  const kb=$('b-knock');
+  kb.style.width = Math.max(3,Math.min(100,(P.margin+20)/40*100))+'%';
+  kb.style.background = P.margin<0?'var(--bad)':(P.margin<5?'var(--warn)':'var(--ok)');
+
+  // legenda de cilindros
+  const leg=$('cyl-legend'); 
+  if(leg.children.length!==S.ncyl){ leg.innerHTML=''; for(let i=0;i<S.ncyl;i++){ const d=document.createElement('div'); d.className='cyl-dot'; d.textContent=i+1; leg.appendChild(d);} }
+  for(let i=0;i<S.ncyl;i++){
+    const d=leg.children[i], a=CYL[i].a;
+    d.className='cyl-dot'+(a<180?' fire':'')+(Object.keys(S.faults[i]||{}).length?' fault':'');
+    d.title = 'Cilindro '+(i+1)+' — '+strokeOf(a).nome;
+  }
+  buildAlerts();
+  drawPV(); drawCurve();
+  const msg=$('hud-msg');
+  msg.innerHTML = P.knocking
+    ? '<span style="color:#ff6b6b">▲ DETONAÇÃO: '+fmt(-P.margin,1)+' octanas faltando</span>'
+    : (P.missCount? '<span style="color:#ffc93c">▲ '+P.missCount+' cilindro(s) sem queimar</span>' : '');
+}
+
+function buildAlerts(){
+  const A=[];
+  const push=(t,i,txt)=>A.push('<div class="alert '+t+'"><span class="mdi '+i+'"></span><div>'+txt+'</div></div>');
+  if(P.knocking) push('bad','mdi-hammer','<b>Detonação (batida de pino).</b> A mistura está auto-inflamando antes da chama chegar. Faltam <b>'+fmt(-P.margin,1)+' octanas</b>. Reduza taxa de compressão/avanço/carga, enriqueça a mistura ou use combustível de maior octanagem (etanol ajuda muito).');
+  else if(P.margin<5) push('warn','mdi-alert-outline','<b>Margem antidetonação baixa</b> ('+fmt(P.margin,1)+'). Em dia quente ou com combustível ruim o motor começaria a bater pino.');
+  if(P.missCount) push('bad','mdi-flash-off','<b>'+P.missCount+' cilindro(s) em falha de combustão.</b> Mistura crua vai para o escape: trepidação, perda de potência e destruição do catalisador por superaquecimento.');
+  if(P.lam>1.12) push('warn','mdi-fire-alert','<b>Mistura pobre</b> (λ='+fmt(P.lam,2)+'). Queima lenta e quente: válvulas de escape e pistão aquecem, aumenta NOx e o risco de detonação.');
+  if(P.lam<0.85) push('warn','mdi-water-alert-outline','<b>Mistura rica</b> (λ='+fmt(P.lam,2)+'). Sobra combustível: consumo alto, CO e HC altos, lavagem do óleo do cilindro e vela carbonizada.');
+  if(Math.abs(S.adv-P.advOpt)>9) push('info','mdi-timer-cog-outline','Avanço <b>'+(S.adv>P.advOpt?'excessivo':'atrasado')+'</b>: o ideal (MBT) aqui seria ≈ <b>'+fmt(P.advOpt,0)+'° APMS</b>. '+(S.adv>P.advOpt?'Pressão sobe antes do PMS e trabalha contra o pistão.':'A queima termina tarde, esquentando o escape e jogando energia fora.'));
+  if(S.rpm>6800) push('bad','mdi-engine-off-outline','<b>Corte de giro.</b> A ECU corta injeção/ignição para proteger o motor. A velocidade do pistão ('+fmt(P.vpm,1)+' m/s) já está acima do limite seguro para um bloco de série.');
+  else if(P.vpm>20) push('warn','mdi-speedometer','Velocidade média do pistão de <b>'+fmt(P.vpm,1)+' m/s</b> — acima de ~20 m/s só com componentes forjados.');
+  if(S.cr>12.5 && P.b.xE<0.5) push('warn','mdi-arrow-collapse-vertical','Taxa de <b>'+fmt(S.cr,1)+':1</b> com gasolina é agressiva. Com etanol (RON ~109) essa mesma taxa fica viável — é por isso que motores flex "preparados" rodam melhor no álcool.');
+  if(P.b.xE>0.55) push('ok','mdi-leaf','Rodando com alto teor de etanol: mais resistência à detonação, carga mais fria (maior calor de vaporização) e ~'+fmt((1-P.b.lhv/43.5)*100,0)+'% menos energia por quilo — daí o consumo maior em litros.');
+  if(!S.dual) push('info','mdi-spark-circle','<b>Ignição simples.</b> Com uma vela só a frente de chama demora ~70% mais para varrer a câmara — é exatamente a vantagem que o i-DSi elimina usando duas velas por cilindro.');
+  if(!A.length) push('ok','mdi-check-decagram','<b>Combustão normal.</b> Chama iniciada pela faísca, propagação suave, pico de pressão ~12–15° depois do PMS. Nenhuma anomalia detectada.');
+  $('alerts').innerHTML = A.join('');
+}
+
+/* =========================================================================
+   6. GRÁFICOS
+   ========================================================================= */
+function drawPV(){
+  const c=$('pv'), x=c.getContext('2d'), W=c.width,H=c.height;
+  x.clearRect(0,0,W,H); x.fillStyle='#0c1118'; x.fillRect(0,0,W,H);
+  const g=P.g, Vc=g.vc, Vt=g.vc+g.vu, gamma=1.33+P.b.xE*0.012;
+  const load=S.thr/100;
+  const p1 = 1.0*(0.18+0.82*load);                         // pressão no fim da admissão (bar)
+  const pad={l:52,r:12,t:14,b:30};
+  const maxP = Math.max(20,P.pPeak*1.15), maxV=Vt*1.05;
+  const X=v=>pad.l+(v/maxV)*(W-pad.l-pad.r);
+  const Y=p=>H-pad.b-(p/maxP)*(H-pad.t-pad.b);
+  // grade
+  x.strokeStyle='#1b2430'; x.lineWidth=1; x.font='10px monospace'; x.fillStyle='#5c6e82';
+  for(let i=0;i<=5;i++){ const p=maxP*i/5; x.beginPath(); x.moveTo(pad.l,Y(p)); x.lineTo(W-pad.r,Y(p)); x.stroke(); x.fillText(Math.round(p)+' bar',4,Y(p)+3); }
+  for(let i=0;i<=4;i++){ const v=maxV*i/4; x.beginPath(); x.moveTo(X(v),pad.t); x.lineTo(X(v),H-pad.b); x.stroke(); x.fillText(Math.round(v),X(v)-8,H-pad.b+13); }
+  x.fillText('Volume do cilindro (cm³)',W/2-60,H-4);
+  // curva
+  const pts=[];
+  const kAvg=P.kAvg, knock=P.knockSev;
+  for(let a=0;a<=720;a+=2){
+    const th=a*Math.PI/180, r=S.stroke/20, l=S.rod/10;
+    const dTDC=(r+l)-(r*Math.cos(th)+Math.sqrt(Math.max(1e-6,l*l-Math.pow(r*Math.sin(th),2))));
+    const V=Vc+dTDC*(Math.PI/4*Math.pow(S.bore/10,2));
+    let p;
+    if(a<180||a>=540){                      // expansão / compressão
+      const bs = burnState(0,a);
+      const pMot = p1*Math.pow(Vt/V,gamma);
+      const heat = bs.frac*kAvg;
+      p = pMot*(1+heat*(P.etaReal*13+1.2));
+      if(knock>0 && a<50 && bs.frac>0.2 && bs.frac<0.9) p *= 1+knock*0.55*Math.abs(Math.sin(a*2.4));
+    } else if(a<360){ p = 1.08+0.25*load; }  // escape
+    else { p = p1*0.98; }                    // admissão
+    pts.push([V,Math.max(0.2,p),a]);
+  }
+  x.beginPath();
+  pts.forEach((q,i)=>{ i?x.lineTo(X(q[0]),Y(q[1])):x.moveTo(X(q[0]),Y(q[1])); });
+  x.strokeStyle='#ff6b35'; x.lineWidth=2; x.stroke();
+  x.lineTo(X(pts[0][0]),Y(pts[0][1]));
+  x.fillStyle='rgba(255,107,53,.10)'; x.fill();
+  // ponto atual
+  const aNow=CYL[S.focus].a, idx=Math.min(pts.length-1,Math.round(aNow/2));
+  x.beginPath(); x.arc(X(pts[idx][0]),Y(pts[idx][1]),4.5,0,7); x.fillStyle='#ffd166'; x.fill();
+  x.fillStyle='#8fa3b8'; x.fillText('PMS',X(Vc)+3,pad.t+10); x.fillText('PMI',X(Vt)-28,pad.t+10);
+}
+
+function drawCurve(){
+  const c=$('curve'), x=c.getContext('2d'), W=c.width,H=c.height;
+  x.clearRect(0,0,W,H); x.fillStyle='#0c1118'; x.fillRect(0,0,W,H);
+  const pad={l:42,r:42,t:14,b:26};
+  const rpms=[]; const saveR=S.rpm, saveT=S.thr; S.thr=100;
+  let maxHp=1,maxTq=1;
+  for(let r=800;r<=7000;r+=100){ S.rpm=r; const q=physics(0); rpms.push([r,q.cv,q.Tq]); maxHp=Math.max(maxHp,q.cv); maxTq=Math.max(maxTq,q.Tq); }
+  S.rpm=saveR; S.thr=saveT;
+  const X=r=>pad.l+((r-800)/6200)*(W-pad.l-pad.r);
+  const Yh=v=>H-pad.b-(v/(maxHp*1.12))*(H-pad.t-pad.b);
+  const Yt=v=>H-pad.b-(v/(maxTq*1.12))*(H-pad.t-pad.b);
+  x.strokeStyle='#1b2430'; x.font='10px monospace'; x.fillStyle='#5c6e82';
+  for(let r=1000;r<=7000;r+=1000){ x.beginPath(); x.moveTo(X(r),pad.t); x.lineTo(X(r),H-pad.b); x.stroke(); x.fillText(r/1000+'k',X(r)-8,H-pad.b+13); }
+  const line=(sel,col,Yf)=>{ x.beginPath(); rpms.forEach((p,i)=>{const y=Yf(p[sel]); i?x.lineTo(X(p[0]),y):x.moveTo(X(p[0]),y);}); x.strokeStyle=col; x.lineWidth=2; x.stroke(); };
+  line(2,'#3ba5f0',Yt); line(1,'#ff6b35',Yh);
+  x.strokeStyle='rgba(255,255,255,.35)'; x.setLineDash([4,4]); x.beginPath(); x.moveTo(X(S.rpm),pad.t); x.lineTo(X(S.rpm),H-pad.b); x.stroke(); x.setLineDash([]);
+  x.fillStyle='#ff6b35'; x.fillText(fmt(maxHp,0)+' cv',W-pad.r+2,Yh(maxHp)+3);
+  x.fillStyle='#3ba5f0'; x.fillText(fmt(maxTq,0)+' N·m',4,Yt(maxTq)+3);
+  x.fillStyle='#5c6e82'; x.fillText('a plena carga (borboleta 100%)',pad.l+4,pad.t+10);
+}
+
+/* =========================================================================
+   7. SOM (simples, opcional)
+   ========================================================================= */
+let AC=null, lastFireAngle=-1;
+function soundTick(){
+  if(!AC) return;
+  const fa=fireAngles();
+  for(let i=0;i<S.ncyl;i++){
+    const o=CYL[i];
+    if(o.prevA!==undefined && o.prevA>o.a){ // passou pelo PMS de combustão
+      if(!(o.burn&&o.burn.dead)) pop(0.05+0.25*S.thr/100, 60+S.rpm*0.06);
+      else pop(0.05,110);
+    }
+    o.prevA=o.a;
+  }
+}
+function pop(vol,freq){
+  if(!AC||AC.state!=='running') return;
+  const t=AC.currentTime;
+  const osc=AC.createOscillator(), g=AC.createGain();
+  osc.type='sawtooth'; osc.frequency.setValueAtTime(freq,t); osc.frequency.exponentialRampToValueAtTime(Math.max(40,freq*0.4),t+0.09);
+  g.gain.setValueAtTime(Math.min(0.22,vol),t); g.gain.exponentialRampToValueAtTime(0.001,t+0.11);
+  osc.connect(g); g.connect(AC.destination); osc.start(t); osc.stop(t+0.12);
+}
+
+/* =========================================================================
+   8. INTERFACE
+   ========================================================================= */
+let selCyl = 0;
+
+function bindRange(id, key, disp, dec, after){
+  const el=$(id);
+  el.addEventListener('input',()=>{
+    S[key] = parseFloat(el.value);
+    if(disp) $(disp).textContent = dec===0? Math.round(S[key]) : S[key].toFixed(dec).replace('.',',');
+    if(after) after();
+  });
+}
+
+function setupUI(){
+  // painéis recolhíveis
+  document.querySelectorAll('.panel>h2').forEach(h=>h.addEventListener('click',()=>h.parentElement.classList.toggle('collapsed')));
+
+  bindRange('rpm','rpm','v-rpm',0);
+  bindRange('thr','thr','v-thr',0);
+  $('spd').addEventListener('input',()=>{ S.spd = parseFloat($('spd').value)/100; $('v-spd').textContent = S.spd.toFixed(2).replace('.',','); });
+  bindRange('eth','eth','v-eth',0,()=>syncFuelChips());
+  bindRange('ron','ron','v-ron',0);
+  bindRange('lam','lam','v-lam',2);
+  bindRange('adv','adv','v-adv',0);
+  bindRange('cr','cr','v-cr',1);
+  bindRange('bore','bore','v-bore',1,buildEngine);
+  bindRange('stroke','stroke','v-stroke',1,buildEngine);
+  bindRange('rod','rod','v-rod',0,buildEngine);
+  bindRange('ncyl','ncyl','v-ncyl',0,()=>{ S.faults=[{},{},{},{},{},{}]; selCyl=0; buildEngine(); renderFaults(); $('cyl-legend').innerHTML=''; });
+
+  $('closedloop').addEventListener('change',e=>S.closedLoop=e.target.checked);
+  $('dualspark').addEventListener('change',e=>S.dual=e.target.checked);
+
+  document.querySelectorAll('[data-fuel]').forEach(ch=>ch.addEventListener('click',()=>{
+    const f=ch.dataset.fuel;
+    if(f==='e27'){ S.eth=27; } else if(f==='e100'){ S.eth=100; }
+    $('eth').value=S.eth; $('v-eth').textContent=S.eth; syncFuelChips();
+  }));
+  function syncFuelChips(){
+    document.querySelectorAll('[data-fuel]').forEach(c=>{
+      const f=c.dataset.fuel;
+      c.classList.toggle('on', (f==='e27'&&S.eth===27)||(f==='e100'&&S.eth>=99)||(f==='custom'&&S.eth!==27&&S.eth<99));
+    });
+  }
+  window.syncFuelChips = syncFuelChips;
+
+  $('btn-idle').onclick =()=>preset(800,8,14,1.0);
+  $('btn-cruise').onclick=()=>preset(3000,30,26,1.0);
+  $('btn-full').onclick  =()=>preset(5700,100,16,0.88);
+  function preset(r,t,a,l){
+    S.rpm=r;S.thr=t;S.adv=a;S.lam=l;
+    $('rpm').value=r;$('v-rpm').textContent=r;
+    $('thr').value=t;$('v-thr').textContent=t;
+    $('adv').value=a;$('v-adv').textContent=a;
+    $('lam').value=l;$('v-lam').textContent=l.toFixed(2).replace('.',',');
+  }
+
+  // opções 3D
+  const map={'opt-cut':'cut','opt-valves':'valves','opt-plugs':'plugs','opt-gas':'gas','opt-flame':'flame','opt-labels':'labels','opt-shake':'shake'};
+  Object.entries(map).forEach(([id,k])=>$(id).addEventListener('change',e=>{
+    S.opt[k]=e.target.checked; if(k==='cut') buildEngine();
+  }));
+  $('cam-side').onclick =()=>moveCam(0,U.deck*0.5,52);
+  $('cam-front').onclick=()=>moveCam(52,U.deck*0.5,0);
+  $('cam-iso').onclick  =()=>moveCam(34,U.deck*0.75,40);
+  function moveCam(x,y,z){ cam.position.set(x,y,z); controls.target.set(0,U.deck*0.45,0); controls.update(); }
+
+  // playbar
+  $('pb-play').onclick=()=>{ S.playing=!S.playing; $('pb-play').innerHTML='<span class="mdi mdi-'+(S.playing?'pause':'play')+'"></span>'; };
+  $('pb-step').onclick=()=>{ S.playing=false; $('pb-play').innerHTML='<span class="mdi mdi-play"></span>'; S.angle=mod(S.angle+5,720); };
+  $('pb-reset').onclick=()=>{ S.angle=0; };
+  $('pb-sound').onclick=()=>{
+    if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+    if(AC&&AC.state==='suspended') AC.resume();
+    S.sound=!S.sound;
+    $('pb-sound').classList.toggle('on',S.sound);
+    $('pb-sound').innerHTML='<span class="mdi mdi-'+(S.sound?'volume-high':'volume-off')+'"></span>';
+  };
+
+  renderFaults();
+  $('btn-clearfaults').onclick=()=>{ S.faults=S.faults.map(()=>({})); renderFaults(); };
+  buildDocs();
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(o=>o.classList.remove('on'));
+    document.querySelectorAll('.doc').forEach(o=>o.classList.remove('on'));
+    t.classList.add('on'); $(t.dataset.doc).classList.add('on');
+  }));
+}
+
+function renderFaults(){
+  const sel=$('cylsel'); sel.innerHTML='';
+  for(let i=0;i<S.ncyl;i++){
+    const b=document.createElement('button');
+    b.textContent='CIL '+(i+1);
+    b.className=(i===selCyl?'on ':'')+(Object.keys(S.faults[i]||{}).length?'hasfault':'');
+    b.onclick=()=>{ selCyl=i; renderFaults(); };
+    sel.appendChild(b);
+  }
+  const list=$('faultlist'); list.innerHTML='';
+  FAULTS.forEach(f=>{
+    const b=document.createElement('button');
+    b.className='fault-btn'+(S.faults[selCyl][f.id]?' on':'');
+    b.innerHTML='<span class="mdi '+f.icon+'"></span><span>'+f.nome+'</span><small>'+f.tag+'</small>';
+    b.title=f.desc;
+    b.onclick=()=>{
+      if(S.faults[selCyl][f.id]) delete S.faults[selCyl][f.id]; else S.faults[selCyl][f.id]=true;
+      renderFaults();
+    };
+    list.appendChild(b);
+  });
+  const d=document.createElement('div');
+  d.className='hint'; d.style.marginTop='6px';
+  const act=FAULTS.filter(f=>S.faults[selCyl][f.id]);
+  d.innerHTML = act.length? act.map(f=>'<b style="color:#ffb3b3">'+f.nome+':</b> '+f.desc).join('<br><br>') : 'Passe o mouse sobre uma falha para ver a explicação.';
+  list.appendChild(d);
+}
+
+/* =========================================================================
+   9. CONTEÚDO DIDÁTICO
+   ========================================================================= */
+function buildDocs(){
+  const D = {};
+
+D.d1 = `
+<h3><span class="mdi mdi-engine-outline"></span> O motor é uma bomba de ar que aproveita explosões controladas</h3>
+<p>Um motor a pistão não "queima combustível para andar". Ele faz algo mais sutil: <b>transforma energia química em calor, calor em pressão, pressão em força no pistão, força em torque no virabrequim</b>. Cada etapa tem perdas — e é por isso que um motor de rua aproveita só ~25–35% da energia do combustível.</p>
+<p>No Honda Fit 1.4 i-DSi (código do motor <code>L13A</code>, carroceria GD, primeira geração) são <b>4 cilindros em linha, SOHC, 8 válvulas</b> (uma de admissão e uma de escape por cilindro) e cerca de <b>1.339 cm³</b>. O virabrequim dá <b>duas voltas (720°)</b> para completar um ciclo em cada cilindro.</p>
+
+<h3><span class="mdi mdi-numeric-4-circle-outline"></span> Os quatro tempos, na ordem em que acontecem</h3>
+<div class="grid2">
+  <div class="card"><h5><span class="mdi mdi-arrow-down-bold-box-outline"></span> 1. Admissão (360°→540°)</h5>
+    <p>A válvula de admissão abre e o pistão desce. O pistão descendo cria depressão (vácuo) e a <b>pressão atmosférica empurra</b> ar para dentro — o motor não "puxa", ele é empurrado pela atmosfera. Os bicos injetam combustível no pórtico e a gasolina/etanol evapora misturando-se ao ar.</p></div>
+  <div class="card"><h5><span class="mdi mdi-arrow-collapse-vertical"></span> 2. Compressão (540°→720°)</h5>
+    <p>Ambas as válvulas fecham e o pistão sobe, espremendo a mistura ~10,8 vezes. Comprimir <b>aquece</b> o gás (compressão adiabática) e aproxima as moléculas, o que faz a chama viajar muito mais rápido depois. É aqui que nasce o rendimento térmico.</p></div>
+  <div class="card"><h5><span class="mdi mdi-fire"></span> 3. Expansão / motriz (0°→180°)</h5>
+    <p>Pouco <b>antes</b> do pistão chegar no topo, a vela solta a faísca. A chama leva tempo para varrer a câmara, então a ignição é antecipada para que o <b>pico de pressão caia ~12–15° depois do PMS</b>, quando a manivela tem bom braço de alavanca. Só este tempo produz trabalho.</p></div>
+  <div class="card"><h5><span class="mdi mdi-arrow-up-bold-box-outline"></span> 4. Escape (180°→360°)</h5>
+    <p>A válvula de escape abre ainda com pressão residual (o "blowdown", aquele barulho) e o pistão subindo expulsa o resto. Um pouco antes do PMS a admissão já abre: é o <b>cruzamento de válvulas</b>, que usa a inércia dos gases para ajudar a encher o cilindro.</p></div>
+</div>
+<div class="note tip"><b>Regra de ouro:</b> dos quatro tempos, só um empurra. Os outros três são pagos pela inércia do volante e pelos outros cilindros. Por isso a <b>ordem de ignição 1‑3‑4‑2</b> existe: distribui um tempo motriz a cada 180° de virabrequim, equilibrando o motor e evitando torcer o eixo sempre do mesmo lado.</p></div>
+
+<h3><span class="mdi mdi-cog-outline"></span> Como o movimento vira rotação</h3>
+<p>O conjunto <b>pistão → pino → biela → moente do virabrequim</b> é um mecanismo biela-manivela. A posição do pistão em função do ângulo <code>θ</code> do virabrequim não é uma senoide pura — é assimétrica:</p>
+<div class="eq">x(θ) = r·cos θ + √( l² − r²·sin²θ )     <span class="c">// r = curso/2 ; l = comprimento da biela</span></div>
+<p>Consequência prática: o pistão passa <b>mais tempo perto do PMI do que do PMS</b> e sofre acelerações brutais no topo. Mexa no slider "comprimento da biela" e observe a força inercial na telemetria — biela curta = mais aceleração, mais atrito lateral na saia do pistão e mais desgaste da camisa.</p>
+
+<h3><span class="mdi mdi-air-filter"></span> Por que "mais potência" é sempre "mais ar"</h3>
+<p>O combustível é barato e abundante dentro do motor; o que limita tudo é <b>quanto ar cabe no cilindro</b>. Cada quilo de ar só consegue queimar ~1/14,7 kg de gasolina. Então potência = ar admitido × qualidade da queima × rendimento. Todas as formas de ganhar potência atacam um desses três:</p>
+<ul>
+<li><b>Mais ar por ciclo:</b> turbo, coletores afinados, comando mais bravo, maior cilindrada (mexa em bore/curso e veja).</li>
+<li><b>Mais ciclos por segundo:</b> subir a rotação — limitado pela respiração do cabeçote e pela velocidade do pistão.</li>
+<li><b>Melhor rendimento:</b> taxa de compressão maior, queima mais rápida (é o que o i‑DSi faz), avanço no ponto certo.</li>
+</ul>`;
+
+D.d2 = `
+<h3><span class="mdi mdi-spark"></span> i‑DSi = <i>intelligent Dual &amp; Sequential ignition</i></h3>
+<p>É a marca registrada deste motor: <b>duas velas por cilindro</b>, ou seja, <b>8 velas e 8 bobinas independentes</b> num motor de apenas 4 cilindros. Não é enfeite — resolve um problema físico específico.</p>
+
+<h4>O problema: a chama é lenta</h4>
+<p>A combustão num motor Otto <b>não é uma explosão</b>. É uma frente de chama que se propaga a ~20–60 m/s a partir do eletrodo da vela. Numa câmara de 73 mm de diâmetro com uma vela só, a chama precisa percorrer quase todo o raio da câmara. Isso leva tempo (dezenas de graus de virabrequim) e, enquanto a chama caminha, a mistura ainda não queimada na periferia fica sendo <b>comprimida e aquecida</b> pela expansão dos gases já queimados. Se ela esquentar demais, auto-inflama sozinha: é a <b>detonação</b>.</p>
+
+<h4>A solução: duas frentes de chama</h4>
+<p>Com duas velas em lados opostos da câmara, cada frente percorre <b>metade do caminho</b>. A queima termina em ~35–40° de virabrequim em vez de ~60–70°. Isso traz quatro ganhos encadeados:</p>
+<ol>
+<li><b>Menos tempo para detonar</b> → permite taxa de compressão mais alta (~10,8:1 com gasolina comum) → mais rendimento térmico.</li>
+<li><b>Menos avanço necessário</b> → menos trabalho negativo empurrando contra o pistão que ainda sobe.</li>
+<li><b>Tolera mistura mais pobre e muito gás residual (EGR)</b> → menos consumo e menos NOx, porque a queima ainda é estável.</li>
+<li><b>Combustão mais completa</b> → menos HC não queimado no escape.</li>
+</ol>
+
+<h4>E o "sequential" do nome?</h4>
+<p>As duas velas <b>nem sempre disparam juntas</b>. A ECU decide, conforme rotação e carga, disparar as duas simultaneamente ou com uma pequena defasagem entre elas (tipicamente acende primeiro a vela do lado do escape e depois a do lado da admissão, ou vice-versa). Defasar permite "moldar" a velocidade de liberação de calor: em baixa rotação com carga leve, uma queima ligeiramente mais lenta e progressiva é mais suave e emite menos NOx; em alta carga, as duas juntas dão a queima mais rápida possível.</p>
+
+<div class="note"><b>Teste no simulador:</b> desligue "Ignição dupla i‑DSi" ou aplique a falha <i>"Uma das 2 velas falhando"</i> num cilindro. Veja no 3D que só um núcleo de chama nasce e demora muito mais para preencher a câmara, e observe o torque cair e a margem antidetonação piorar.</div>
+
+<h4>Por que 8 bobinas e não um distribuidor?</h4>
+<p>Sistema <b>COP</b> (coil-on-plug): cada vela tem sua própria bobina em cima. Vantagens: sem cabos de vela longos (menos perda e interferência), tempo de saturação da bobina maior em alta rotação, e — crucialmente — a ECU pode controlar o instante de cada vela <b>individualmente</b>, que é o que viabiliza o modo sequencial. A desvantagem prática é o custo: numa falha, você tem 8 bobinas e 8 velas para diagnosticar em vez de 4.</p>
+
+<h4>Detalhes de manutenção que fazem diferença</h4>
+<ul>
+<li>Velas devem ser trocadas <b>todas as 8 juntas</b> e do tipo/índice térmico especificado; misturar velas usadas e novas gera queima desigual entre cilindros.</li>
+<li>Uma vela morta num cilindro <b>não apaga o cilindro</b> — ele continua queimando pela outra. O sintoma é sutil: perda leve de potência, consumo um pouco maior, às vezes nenhum código de falha. É a falha mais "invisível" deste motor.</li>
+<li>O i‑DSi trabalha com muito gás residual; <b>coletor de admissão e válvula IAC sujos</b> desestabilizam a marcha lenta mais do que em motores convencionais.</li>
+</ul>`;
+
+D.d3 = `
+<h3><span class="mdi mdi-function-variant"></span> As equações que o simulador está resolvendo</h3>
+
+<h4>1. Cilindrada e taxa de compressão</h4>
+<div class="eq">V<sub>unit</sub> = (π/4)·D²·C          <span class="c">// D = diâmetro, C = curso</span>
+V<sub>total</sub> = V<sub>unit</sub> × nº de cilindros
+Taxa r = (V<sub>unit</sub> + V<sub>câmara</sub>) / V<sub>câmara</sub></div>
+<p>Com D = 73,0 mm e C = 80,0 mm: V<sub>unit</sub> ≈ 334,9 cm³ → <b>≈ 1.339 cm³</b>. Como C &gt; D, o motor é <b>subquadrado</b>: favorece torque em baixa e giro moderado — perfeito para um carro urbano.</p>
+
+<h4>2. Rendimento térmico do ciclo Otto (ar-padrão)</h4>
+<div class="eq">η<sub>Otto</sub> = 1 − r<sup>(1−γ)</sup>      <span class="c">// γ ≈ 1,33 nos gases reais de combustão</span></div>
+<p>Só a taxa de compressão manda. Com r = 10,8 e γ = 1,33 → η ≈ 53%. Na vida real, atrito, bombeamento, perda de calor pelas paredes e queima imperfeita derrubam para ~30%. <b>Dobrar a taxa não dobra o rendimento</b>: a curva satura — é por isso que ninguém constrói motores 20:1 a gasolina (além de que detonariam).</p>
+
+<h4>3. Cinemática do pistão</h4>
+<div class="eq">x(θ) = r·cos θ + √(l² − r² sin²θ)
+v(θ) = dx/dθ · ω
+a<sub>máx</sub> ≈ ω²·r·(1 + r/l)        <span class="c">// no PMS</span>
+v<sub>média</sub> = 2·C·n/60           <span class="c">// m/s, n em rpm</span></div>
+<p>A <b>velocidade média do pistão</b> é o melhor indicador de "quão esticado" está o motor: motores de rua ficam em 12–18 m/s no pico; acima de 20–22 m/s exige-se biela e pistão forjados. A 6.000 rpm com curso de 80 mm dá 16 m/s.</p>
+
+<h4>4. Forças: um pistão de 300 g pesa 2 toneladas</h4>
+<p>A 6.000 rpm, ω = 628 rad/s. Com r = 0,04 m e l/r ≈ 3,35: a<sub>máx</sub> ≈ 628² × 0,04 × 1,3 ≈ <b>20.500 m/s²</b>, ou ~2.100 g. Um conjunto pistão+pino+anéis de 0,3 kg gera <b>~6 kN</b> de força inercial só para inverter o movimento, duas vezes por volta. É por isso que motor fundido geralmente "solta" a biela: a falha não é a explosão, é a <b>tração</b> no PMS de escape.</p>
+
+<h4>5. Do calor ao torque</h4>
+<div class="eq">ṁ<sub>ar</sub> = ρ<sub>ar</sub> · V<sub>total</sub> · η<sub>volumétrico</sub> · (n/120)
+ṁ<sub>comb</sub> = ṁ<sub>ar</sub> / (AFR<sub>esteq</sub> · λ)
+P = ṁ<sub>comb</sub> · PCI · η<sub>térmico</sub> · η<sub>mecânico</sub>
+T = P / ω = P·60 / (2π·n)</div>
+<p>Note a relação incontornável: <b>potência = torque × rotação</b>. Torque é "quanta força por ciclo"; potência é "quantas vezes por segundo você consegue repetir isso". Um motor de 1.3 L nunca terá torque de 2.0 L aspirado, mas pode ter potência parecida se girar mais.</p>
+
+<h4>6. Pressão média efetiva (BMEP) — o "handicap" que compara motores</h4>
+<div class="eq">BMEP = (P · 2) / (V<sub>total</sub> · n/60)</div>
+<p>Divide a potência pela cilindrada e rotação, revelando a qualidade do projeto independentemente do tamanho. Aspirados de rua: 9–12 bar. Aspirados esportivos: 12–14 bar. Turbo moderno: 18–25 bar. Fórmula 1: &gt;30 bar.</p>
+
+<h4>7. O diagrama P–V é dinheiro</h4>
+<p>No gráfico ao lado, a <b>área fechada pela curva é o trabalho líquido por ciclo</b>, em joules. Toda falha que você simula "murcha" essa área de um jeito característico:</p>
+<table>
+<tr><th>Efeito na curva P–V</th><th>Causa típica</th></tr>
+<tr><td>Pico de pressão baixo e deslocado para a direita</td><td>Queima lenta, avanço atrasado, uma vela morta</td></tr>
+<tr><td>Pico alto e antes do PMS (área negativa no topo)</td><td>Avanço excessivo ou pré-ignição</td></tr>
+<tr><td>Serrilhado violento logo após o PMS</td><td>Detonação (ondas de choque na câmara)</td></tr>
+<tr><td>Toda a curva rebaixada</td><td>Anéis/válvulas/junta — compressão perdida</td></tr>
+<tr><td>Curva de compressão sem nenhum salto</td><td>Misfire total: nada queimou</td></tr>
+</table>`;
+
+D.d4 = `
+<h3><span class="mdi mdi-fuel"></span> Os combustíveis brasileiros e o que eles fazem com o motor</h3>
+<p>O Brasil é um caso único no mundo: a "gasolina comum" de bomba <b>já é uma mistura</b> com etanol anidro (E27, ou seja, 27% em volume), e existe etanol hidratado puro (E100, na prática ~95,5% de etanol + água) na mesma bomba. Isso muda toda a calibração do motor.</p>
+
+<table>
+<tr><th>Propriedade</th><th>Gasolina pura</th><th>Gasolina C (E27)</th><th>Etanol hidratado</th><th>Por que importa</th></tr>
+<tr><td>Poder calorífico (MJ/kg)</td><td>~43,5</td><td>~39,5</td><td>~25,1</td><td>Menos energia por kg → precisa injetar mais massa</td></tr>
+<tr><td>AFR estequiométrico</td><td>14,7 : 1</td><td>~13,3 : 1</td><td>~8,4 : 1</td><td>Etanol precisa de ~40% mais combustível para o mesmo ar</td></tr>
+<tr><td>Octanagem (RON)</td><td>~88–91</td><td>~92–94</td><td>~109</td><td>Resistência à detonação</td></tr>
+<tr><td>Calor de vaporização (kJ/kg)</td><td>~350</td><td>~420</td><td>~900</td><td>Etanol resfria o ar admitido → mais massa no cilindro</td></tr>
+</table>
+
+<h4>Por que o etanol dá mais potência se tem menos energia?</h4>
+<p>Parece contradição, mas são três efeitos somados:</p>
+<ol>
+<li><b>Resfriamento da carga:</b> evaporar etanol rouba ~2,5× mais calor. O ar entra mais frio e mais denso → cabe mais oxigênio no cilindro.</li>
+<li><b>Octanagem alta:</b> permite mais avanço e/ou mais compressão sem detonar. Rendimento térmico sobe.</li>
+<li><b>Mais massa queimada por ciclo:</b> como o AFR é ~8,4:1, entra muito mais combustível. A energia total liberada por ciclo acaba sendo ~5% maior, apesar do PCI menor por quilo.</li>
+</ol>
+<p>O preço é o <b>consumo volumétrico</b>: por isso a regra dos 70% (etanol só compensa se custar até ~70% do preço da gasolina).</p>
+
+<div class="note imp"><b>Atenção histórica:</b> o Fit 1.4 i‑DSi da primeira geração no Brasil saiu inicialmente como motor <b>a gasolina</b>; a versão flex chegou depois na linha. Abastecer com etanol um motor calibrado apenas para gasolina causa mistura pobre severa (a injeção não tem vazão nem mapa para compensar os ~40% a mais de combustível) — no simulador, coloque 100% de etanol com a malha fechada desligada e veja a temperatura de pico e o λ dispararem.</div>
+
+<h4>O que a sonda lambda faz</h4>
+<p>A sonda no escape mede oxigênio residual e diz à ECU se a mistura está rica ou pobre. Em <b>malha fechada</b> (carga parcial), a ECU oscila a injeção em torno de λ = 1,00 — condição em que o catalisador de três vias consegue tratar CO, HC e NOx ao mesmo tempo. Em <b>plena carga</b> a ECU ignora a sonda e enriquece para λ ≈ 0,85–0,90: o combustível extra não queima, ele <b>resfria</b> a câmara e protege válvula e catalisador. Desmarque "malha fechada" no simulador e você passa a controlar λ na mão.</p>
+
+<h4>Combustível adulterado</h4>
+<p>Baixe o slider de octanagem base para 78–82 (simulando gasolina com solvente ou excesso de etanol fora de especificação) e observe: com a taxa original de 10,8:1 o motor entra em detonação em carga. Num carro real, o sensor de detonação atrasaria o ponto automaticamente — você sentiria o carro "morto", sem bater pino, mas perdendo potência e consumindo mais. É o sintoma silencioso mais comum de combustível ruim.</p>`;
+
+D.d5 = `
+<h3><span class="mdi mdi-alert-decagram-outline"></span> O que pode dar errado na combustão</h3>
+<p>Combustão normal = a faísca acende a mistura, uma única frente de chama varre a câmara de forma controlada. Qualquer desvio disso entra numa das categorias abaixo. Aplique cada falha no painel esquerdo e observe o efeito no 3D, no P–V e no diagnóstico.</p>
+
+<h3><span class="mdi mdi-hammer"></span> 1. Detonação (batida de pino / knock)</h3>
+<p><b>O que é:</b> a mistura à frente da chama (a "end gas") é comprimida e aquecida a ponto de <b>auto-inflamar espontaneamente em vários pontos</b>. Duas frentes de pressão colidem, criando ondas de choque de 10–20 bar de amplitude ressoando na câmara a ~6 kHz — é o "tec-tec-tec" metálico em subida.</p>
+<p><b>Causas:</b> octanagem baixa demais para a taxa de compressão, avanço excessivo, mistura pobre, motor quente, carvão na câmara (aumenta a taxa efetiva), carga alta em baixa rotação ("forçar o motor em marcha alta").</p>
+<p><b>Danos:</b> as ondas de choque rompem a camada isolante de gás junto ao pistão, elevando a transferência de calor. Resultado: topo do pistão erodido com aspecto de "areia jateada", anel quebrado, biela torta, junta do cabeçote arriada.</p>
+<div class="note tip"><b>Como testar:</b> taxa de compressão 13:1 + octanagem 88 + carga 100% + 2.000 rpm. A chama pisca em branco/vermelho e o P–V fica serrilhado.</div>
+
+<h3><span class="mdi mdi-grain"></span> 2. Pré-ignição</h3>
+<p><b>Diferente da detonação:</b> aqui a mistura acende <b>antes da faísca</b>, por um ponto incandescente — carvão em brasa, eletrodo de vela superaquecido (vela com índice térmico errado), rebarba de usinagem, válvula de escape quente. O pistão ainda está subindo contra uma pressão que já explodiu.</p>
+<p><b>Por que é pior:</b> a detonação é um evento pontual; a pré-ignição é uma <b>realimentação positiva</b> — quanto mais cedo acende, mais quente fica o ponto incandescente, e mais cedo acende no ciclo seguinte. Fura pistão em segundos. É a causa clássica de motor "fundido" em plena carga sustentada.</p>
+
+<h3><span class="mdi mdi-flash-off"></span> 3. Falha de combustão (misfire)</h3>
+<p>O cilindro admite e comprime, mas não queima. Causas: bobina aberta, vela morta/carbonizada, bico entupido, compressão nula, chicote partido.</p>
+<p><b>Sintomas:</b> trepidação em marcha lenta, cheiro forte de combustível, luz de injeção piscando (a luz <b>piscando</b>, e não acesa fixa, significa especificamente misfire ativo — pare o carro). A ECU detecta pela <b>desaceleração instantânea do virabrequim</b> naquele tempo motriz, lida pelo sensor de rotação.</p>
+<p><b>Dano real:</b> a mistura crua chega ao catalisador e queima <b>lá dentro</b>, a 1.000 °C+. O substrato cerâmico derrete e entope o escape. Um misfire ignorado por alguns dias custa o catalisador inteiro.</p>
+
+<h3><span class="mdi mdi-fire-alert"></span> 4. Mistura pobre (λ &gt; 1,05)</h3>
+<p>Ar demais para o combustível. A queima é <b>mais lenta e mais quente</b> (o pico de temperatura de chama ocorre em torno de λ ≈ 1,05). Causas: bico entupido, entrada de ar falso, bomba/filtro fracos, sonda ou medidor de fluxo de ar defeituoso.</p>
+<p><b>Consequências:</b> válvula de escape queimada, eletrodo da vela derretido, aumento brutal de NOx, propensão a detonação, hesitação na aceleração.</p>
+
+<h3><span class="mdi mdi-water-alert-outline"></span> 5. Mistura rica (λ &lt; 0,9)</h3>
+<p>Combustível demais. Nem tudo encontra oxigênio. Causas: bico vazando, regulador de pressão com diafragma furado, sensor de temperatura mentindo que o motor está frio, filtro de ar entupido.</p>
+<p><b>Consequências:</b> fumaça preta, CO e HC altos, consumo disparado, vela preta e seca (carbonizada), <b>lavagem do filme de óleo da camisa</b> — o combustível líquido dissolve o óleo e o desgaste dos anéis acelera. Também dilui o óleo do cárter.</p>
+
+<h3><span class="mdi mdi-blur-linear"></span> 6. Perda de compressão</h3>
+<p>Três suspeitos, e o teste os distingue:</p>
+<table>
+<tr><th>Sintoma no teste</th><th>Diagnóstico</th></tr>
+<tr><td>Compressão sobe ao pingar óleo no cilindro</td><td><b>Anéis desgastados</b> (o óleo veda temporariamente)</td></tr>
+<tr><td>Não muda com óleo; ar vaza pelo escapamento</td><td><b>Válvula de escape</b> queimada/mal assentada</td></tr>
+<tr><td>Não muda com óleo; ar vaza pela admissão</td><td><b>Válvula de admissão</b></td></tr>
+<tr><td>Dois cilindros vizinhos baixos + bolhas no radiador</td><td><b>Junta do cabeçote</b></td></tr>
+</table>
+
+<h3><span class="mdi mdi-timer-cog-outline"></span> 7. Ponto de ignição errado</h3>
+<p><b>Avançado demais:</b> a pressão sobe enquanto o pistão ainda sobe → trabalho negativo, motor "duro", detonação. <b>Atrasado demais:</b> a queima termina com o pistão já descendo e o volume grande → pouca pressão útil, escape muito quente (pode incandescer o coletor), perda de potência e consumo alto. No simulador, o alerta compara seu avanço com o <b>MBT</b> (Maximum Brake Torque) calculado para a condição atual.</p>
+
+<h3><span class="mdi mdi-magnify"></span> 8. Lendo velas — o diagnóstico mais barato que existe</h3>
+<table>
+<tr><th>Aspecto da vela</th><th>Significado</th></tr>
+<tr><td>Marrom claro / bege, seca</td><td>Combustão ideal</td></tr>
+<tr><td>Preta fuliginosa e seca</td><td>Mistura rica ou vela fria demais</td></tr>
+<tr><td>Preta oleosa e úmida</td><td>Óleo na câmara: anéis ou guia de válvula</td></tr>
+<tr><td>Branca / vitrificada, eletrodo erodido</td><td>Mistura pobre ou vela quente demais → alerta de superaquecimento</td></tr>
+<tr><td>Eletrodo derretido / porcelana rachada</td><td>Detonação ou pré-ignição em curso</td></tr>
+<tr><td>Depósitos amarelados/vidrados</td><td>Aditivos ou queima de líquido de arrefecimento</td></tr>
+</table>
+<div class="note">No i‑DSi, <b>compare as duas velas do mesmo cilindro</b>: se uma está bege e a outra escura, aquela bobina está fraca e o cilindro vem queimando com uma frente de chama só.</div>`;
+
+D.d6 = `
+<h3><span class="mdi mdi-school-outline"></span> Roteiro de experimentos — aprenda mexendo</h3>
+<p>Cada experimento abaixo isola <b>uma</b> variável. Faça na ordem e anote potência, rendimento e margem antidetonação antes e depois.</p>
+
+<h4>Experimento 1 — Enxergar o ciclo</h4>
+<p>Ponha a velocidade da animação em <b>0,02×</b> e a rotação em 800 rpm. Acompanhe o cilindro 1 pelos 720°. Use o botão de passo (▶|) para avançar 5° por vez e observe: o instante da faísca (antes do topo!), o crescimento dos dois núcleos de chama, a abertura do escape ainda com pressão, o cruzamento de válvulas.</p>
+
+<h4>Experimento 2 — A taxa de compressão manda no rendimento</h4>
+<p>Fixe 3.000 rpm, carga 60%, gasolina E27. Varie a taxa de <b>8:1 → 13:1</b> anotando o rendimento térmico. Ele sobe... até a margem antidetonação virar negativa. <b>Conclusão:</b> o limite do rendimento de um motor a gasolina é a octanagem do combustível, não a engenharia.</p>
+
+<h4>Experimento 3 — Etanol compra compressão</h4>
+<p>Repita o experimento 2 com <b>100% de etanol</b>. Agora você chega a 13:1 sem detonar e com mais potência. É literalmente por isso que motores flex brasileiros trabalham com taxas mais altas que equivalentes europeus a gasolina.</p>
+
+<h4>Experimento 4 — O avanço ideal existe e é estreito</h4>
+<p>A 4.000 rpm / carga 80%, varra o avanço de <b>−5° a +45°</b>. Encontre o pico de torque (o MBT). Depois suba mais 10° e veja o torque cair <i>e</i> a detonação começar. Repare que o MBT muda quando você muda a rotação: mais rpm = menos tempo real por grau = precisa de mais avanço.</p>
+
+<h4>Experimento 5 — Uma vela a menos</h4>
+<p>Aplique "Uma das 2 velas falhando" no cilindro 2 e compare com o cilindro 1 no 3D. Note a queima mais lenta, a queda de torque e a margem antidetonação piorando. Depois desligue o i‑DSi inteiro e veja o efeito nos quatro cilindros — é o "antes e depois" da tecnologia.</p>
+
+<h4>Experimento 6 — Misfire e o catalisador</h4>
+<p>Aplique "Bobina queimada" no cilindro 3. Observe: torque cai ~25%, a vibração do bloco aparece, e o alerta explica o caminho do dano. Depois adicione "Bico entupido" no cilindro 4 e veja como duas falhas diferentes produzem sintomas diferentes (uma some com a chama, a outra deixa a chama azulada e pobre).</p>
+
+<h4>Experimento 7 — Curso longo × curso curto</h4>
+<p>Mantenha a cilindrada aproximadamente constante trocando diâmetro por curso: <b>73×80</b> (original) versus <b>85×59</b> (supraquadrado). Compare as curvas: o supraquadrado gira mais e faz potência no alto; o subquadrado faz torque embaixo e tem velocidade de pistão menor na mesma rotação.</p>
+
+<h4>Experimento 8 — A biela importa</h4>
+<p>Fixe 6.000 rpm e varie o comprimento da biela de 110 a 180 mm. Observe a força inercial. Biela longa reduz a aceleração no PMS, o atrito lateral e o desgaste — mas exige bloco mais alto. É o compromisso clássico de projeto.</p>
+
+<div class="note tip"><b>Dica de estudo:</b> antes de mexer em cada slider, <b>escreva sua previsão</b> do que vai acontecer e por quê. Depois confira. O aprendizado real está na diferença entre a previsão e o resultado.</div>`;
+
+D.d7 = `
+<h3><span class="mdi mdi-book-alphabet"></span> Glossário</h3>
+<table>
+<tr><th>Termo</th><th>Significado</th></tr>
+<tr><td><b>PMS / PMI</b></td><td>Ponto Morto Superior / Inferior — extremos do curso do pistão (TDC/BDC em inglês).</td></tr>
+<tr><td><b>APMS</b></td><td>Antes do PMS. Unidade do avanço de ignição, em graus de virabrequim.</td></tr>
+<tr><td><b>Curso (stroke)</b></td><td>Distância percorrida pelo pistão entre PMS e PMI = 2× o raio da manivela.</td></tr>
+<tr><td><b>Diâmetro (bore)</b></td><td>Diâmetro interno do cilindro.</td></tr>
+<tr><td><b>Taxa de compressão</b></td><td>Quantas vezes o volume é reduzido do PMI ao PMS.</td></tr>
+<tr><td><b>λ (lambda)</b></td><td>Razão entre o AFR real e o estequiométrico. λ=1 é a mistura "certa"; &lt;1 rica, &gt;1 pobre.</td></tr>
+<tr><td><b>AFR</b></td><td>Air-Fuel Ratio, massa de ar por massa de combustível.</td></tr>
+<tr><td><b>Estequiométrico</b></td><td>Proporção exata para queimar todo o combustível com todo o oxigênio disponível.</td></tr>
+<tr><td><b>Rend. volumétrico</b></td><td>Quanto do volume do cilindro foi realmente preenchido com ar fresco. É "quão bem o motor respira".</td></tr>
+<tr><td><b>BMEP</b></td><td>Pressão média efetiva ao freio: pressão fictícia constante que produziria o mesmo torque. Métrica de qualidade do projeto.</td></tr>
+<tr><td><b>MBT</b></td><td>Maximum Brake Torque — o avanço que produz o maior torque naquela condição.</td></tr>
+<tr><td><b>Blow-by</b></td><td>Gases que escapam da câmara para o cárter passando pelos anéis.</td></tr>
+<tr><td><b>Cruzamento</b></td><td>Período em que admissão e escape estão abertas juntas, perto do PMS de escape.</td></tr>
+<tr><td><b>COP</b></td><td>Coil-on-Plug: uma bobina individual montada diretamente sobre cada vela.</td></tr>
+<tr><td><b>SOHC</b></td><td>Single OverHead Camshaft — um único comando de válvulas no cabeçote.</td></tr>
+<tr><td><b>i-DSi</b></td><td>intelligent Dual &amp; Sequential ignition — duas velas por cilindro com disparo controlado individualmente.</td></tr>
+<tr><td><b>Wiebe</b></td><td>Função matemática que descreve a fração de massa queimada ao longo do ângulo de virabrequim. É a que desenha a chama neste simulador.</td></tr>
+</table>`;
+
+  const host=document.getElementById('docs');
+  Object.entries(D).forEach(([id,html],i)=>{
+    const d=document.createElement('div');
+    d.className='doc'+(i===0?' on':''); d.id=id; d.innerHTML=html;
+    host.appendChild(d);
+  });
+}
+
+/* =========================================================================
+   10. BOOT
+   ========================================================================= */
+(function boot(){
+  if(!window.THREE){ document.body.insertAdjacentHTML('afterbegin','<div style="padding:20px;color:#ffb3b3">Não foi possível carregar a biblioteca 3D (three.js). Verifique sua conexão com a internet.</div>'); return; }
+  if(!CanvasRenderingContext2D.prototype.roundRect){
+    CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){ this.moveTo(x+r,y); this.arcTo(x+w,y,x+w,y+h,r); this.arcTo(x+w,y+h,x,y+h,r); this.arcTo(x,y+h,x,y,r); this.arcTo(x,y,x+w,y,r); return this; };
+  }
+  initGL();
+  setupUI();
+  $('v-spd').textContent='0,05';
+  animate();
+})();
+
+</script>
+</body>
+</html>
